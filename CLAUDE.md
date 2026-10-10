@@ -32,4 +32,4 @@
 ## 現在の状態
 
 - 工程2（文書だけのコミット）まで完了。実装はまだ無い
-- 工程3（`ref/lineage.tsv`・`ref/aliases.tsv`）の途中。最初に LINK_SCHEMA.md §7〜§9 を改定し、次に系譜表を作る
+- 工程3の途中。系譜表 `ref/lineage.tsv` と別名辞書 `ref/aliases.tsv` は完了。次は照合の関数と検査（工程3のゲート）
