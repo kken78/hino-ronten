@@ -198,11 +198,11 @@ hino-ronten/
 
 設計案の「進め方」を、2026-10-10 の確認結果で改めたもの。各工程は CLAUDE.md の手順で1つずつ進める。
 
-0. 前提（hino-council-search 側の作業）：定期取り込みに sid の安定性の検査を入れる（ADR-4 関連）
+0. 前提（hino-council-search 側の作業）：定期取り込みに sid の安定性の検査を入れる（ADR-4 関連）。済み（hino-council-search PR #21、2026-10-10）
 1. 確認：shiga-hino-plans の検収台帳が公開版にあること。済み（2026-10-10）
-2. 文書だけのコミット：README.md・CLAUDE.md・DESIGN.md・LINK_SCHEMA.md
+2. 文書だけのコミット：README.md・CLAUDE.md・DESIGN.md・LINK_SCHEMA.md。済み（ac03ad8、2026-10-10）
    - ゲート：コミットに実装ファイルが0件
-3. 系譜表と別名辞書（`ref/lineage.tsv`・`ref/aliases.tsv`）
+3. 系譜表と別名辞書（`ref/lineage.tsv`・`ref/aliases.tsv`）。文書の改定（LINK_SCHEMA §7〜§9）→ 系譜表 → 別名辞書 → 照合の関数と検査、の順に進める
    - ゲート：「文化財保存活用地域計画」の言及が chiiki-nogyo に1件も入らない
    - ゲート：第4期の計画期間より前の「教育振興基本計画」の言及が kyoiku3 に入る
    - ゲート：期間を確認できない計画は空欄とし、その件数と計画名を報告する

@@ -31,5 +31,5 @@
 
 ## 現在の状態
 
-- 工程2（文書だけのコミット）まで。実装はまだ無い
-- 次は工程3（`ref/lineage.tsv`・`ref/aliases.tsv`）
+- 工程2（文書だけのコミット）まで完了。実装はまだ無い
+- 工程3（`ref/lineage.tsv`・`ref/aliases.tsv`）の途中。最初に LINK_SCHEMA.md §7〜§9 を改定し、次に系譜表を作る
