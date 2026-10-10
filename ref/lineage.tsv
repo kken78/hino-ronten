@@ -26,7 +26,7 @@ kyojin		kyojin	日野町国土強靭化地域計画	2025	2029	kyojin/honpen.pdf 
 kyoryo		kyoryo	橋梁長寿命化修繕計画				計画期間は5年をサイクルとした更新の決まりだけで、年度の記載なし（keikaku.pdf p.37）
 midori		midori	日野町緑の基本計画				目標年次 令和27(2045)年のみ（honpen.pdf p.7）
 nogyo-tamen		nogyo-tamen	農業の有する多面的機能の発揮の促進に関する計画				期間の記載なし
-partner		partner	男女共同参画行動計画「ひのパートナープラン2019」	2024	2028	manifest	後期計画（令和6〜10年度）の期間。ひのパートナープラン2019は平成31年度から10年間の計画（shiryo.pdf p.2）
+partner		partner	男女共同参画行動計画「ひのパートナープラン2019」	2019	2028	partner/shiryo.pdf p.2	平成31年度に計画期間を10年間として策定（shiryo.pdf p.2）。開始の年度は原典に直接の記載がなく、後期計画（令和6〜10年度、honpen-02.pdf p.1）が10年間の後半5年にあたることから2019年度とした。manifest の期間（2024–2028）は後期計画の期間
 security		security	日野町情報セキュリティポリシー				期間の記載なし
 seibutsu		seibutsu	農業における生物多様性保全に関する計画				期間の記載なし
 senryaku	1		第1期「日野町くらし安心ひとづくり総合戦略」	2015	2020	senryaku2/honpen.pdf p.3	策定時の期間は平成27〜令和元年度。令和2年度は1年延長（同ページ）
