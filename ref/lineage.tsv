@@ -1,0 +1,54 @@
+series	edition	plan	name	start_fy	end_fy	source	note
+bosai		bosai	日野町地域防災計画				計画期間の記載が見つからない
+bunbetsu	11	bunbetsu	分別収集計画（第11期）	2026	2030	bunbetsu/honpen.pdf p.3	原典は「令和8年4月を始期とする5年間」。令和10年度で見直す
+bunkazai		bunkazai	日野町文化財保存活用地域計画	2025	2034	bunkazai/honpen-02.pdf p.10	
+chiiki-fukushi	4	chiiki-fukushi4	日野町地域福祉計画（第4期）	2021	2026	manifest	
+chiiki-nogyo		chiiki-nogyo	地域計画（農業の将来設計図・町内7地区）				計画の文書が公開されていない
+inochi	2	inochi2	第2期 いのちと生活を守るネットワーク計画	2024	2026	inochi2/honpen.pdf p.8	令和9年度以降は地域福祉計画に含める（同ページ）
+jisshi		jisshi	第6次総合計画 実施計画	2026	2028	manifest	3年計画・毎年度見直し。過去の版（令和3〜5年度から令和7〜9年度）は期でないため行を足さない
+jyuseikatsu		jyuseikatsu	日野町住生活基本計画	2023	2032	jyuseikatsu/honpen.pdf p.6	前の計画（平成25〜34年度、p.5）は期の番号が無いため行を足さない
+jyutaku-choju		jyutaku-choju	町営住宅長寿命化計画	2023	2032	jyutaku-choju/honpen.pdf p.6	
+kaigo	8		日野町高齢者福祉計画・介護保険事業計画(第8期)	2021	2023	kaigo9/honpen.pdf p.7	
+kaigo	9	kaigo9	第9期 高齢者福祉計画・介護保険事業計画	2024	2026	manifest	
+kanbatsu		kanbatsu	日野町特定間伐等促進計画				計画の文書が公開されていない
+kankyo		kankyo	日野町環境基本計画	2025	2030	manifest	
+katsuyaku-cho		katsuyaku-cho	障がい者活躍推進計画（町長部局）	2026	2028	manifest	本文では第3期の計画（honpen.pdf p.2）。名称に期の番号が無いため edition は空
+katsuyaku-kyo		katsuyaku-kyo	障がい者活躍推進計画（教育委員会部局）	2026	2028	manifest	本文では第3期の計画（honpen.pdf p.2）。名称に期の番号が無いため edition は空
+kenko-shokuiku	4	kenko-shokuiku4	健康づくり・食育計画（第4期）	2021	2026	kenko-shokuiku4/honpen.pdf p.9	
+kodomo	2		第2期日野町子ども・子育て支援事業計画	2020	2024	kodomo/honpen.pdf p.9	名称は同じ文書の p.3
+kodomo	3	kodomo	第3期 日野町子ども・子育て支援事業計画	2025	2029	manifest	
+kokudoriyou		kokudoriyou	日野町国土利用計画				原典は基準年次 令和3年・目標年次 令和13年（honpen.pdf p.2）。基準年次は開始年度とは限らないため空欄
+kokyo-kanri		kokyo-kanri	日野町公共施設等総合管理計画（改定）	2017	2036	plan:kokyo-kanri	
+koutsu		koutsu	日野町地域公共交通計画	2024	2028	manifest	
+kyoiku	3	kyoiku3	第3期 日野町教育振興基本計画	2020	2024	kyoiku3/honpen.pdf p.8	
+kyoiku	4	kyoiku4	第4期 日野町教育振興基本計画	2025	2029	manifest	原典PDFに期間の記載なし
+kyojin		kyojin	日野町国土強靭化地域計画	2025	2029	kyojin/honpen.pdf p.4	旧版（令和2〜6年度、kokudokyoujinnkatiikikeikaku.pdf p.4）は期の番号が無いため行を足さない
+kyoryo		kyoryo	橋梁長寿命化修繕計画				計画期間は5年をサイクルとした更新の決まりだけで、年度の記載なし（keikaku.pdf p.37）
+midori		midori	日野町緑の基本計画				目標年次 令和27(2045)年のみ（honpen.pdf p.7）
+nogyo-tamen		nogyo-tamen	農業の有する多面的機能の発揮の促進に関する計画				期間の記載なし
+partner		partner	男女共同参画行動計画「ひのパートナープラン2019」	2024	2028	manifest	後期計画（令和6〜10年度）の期間。ひのパートナープラン2019は平成31年度から10年間の計画（shiryo.pdf p.2）
+security		security	日野町情報セキュリティポリシー				期間の記載なし
+seibutsu		seibutsu	農業における生物多様性保全に関する計画				期間の記載なし
+senryaku	1		第1期「日野町くらし安心ひとづくり総合戦略」	2015	2020	senryaku2/honpen.pdf p.3	策定時の期間は平成27〜令和元年度。令和2年度は1年延長（同ページ）
+senryaku	2	senryaku2	第2期 くらし安心ひとづくり総合戦略	2021	2025	senryaku2/honpen.pdf p.1	manifest・掲載ページでは1年延長し令和8年度まで。延長を記した文書は原典の台帳に無い
+shasi-jishin		shasi-jishin	社会資本総合整備計画（地震災害に強い住まい・まちづくり）	2021	2025	shasi-jishin/0000598658.pdf p.2	原典の台帳では本編か判断できずとされた文書。ほかに平成22〜27年度・平成28〜32年度の計画書がある
+shasi-jyutaku		shasi-jyutaku	社会資本総合整備計画（地域住宅整備計画）	2022	2026	manifest	
+shasi-koen		shasi-koen	社会資本総合整備計画（安全で安心な都市公園づくり）	2022	2026	shasi-koen/r3syakaishihonseibikeikaku.pdf p.1	前の計画（平成31〜32年度、seibikeikaku.pdf p.1）は期の番号が無いため行を足さない
+shasi-koutsu		shasi-koutsu	社会資本総合整備計画（県東部の公共交通再構築）	2024	2028	manifest	
+shinrin		shinrin	日野町森林整備計画	2023	2032	manifest	
+shogai-fukushi	5		第5期障がい福祉計画	2018	2020	shogai-fukushi7/gaiyo.pdf p.2	
+shogai-fukushi	6		第6期日野町障がい福祉計画	2021	2023	shogai-fukushi7/gaiyo.pdf p.2	名称は shogai-fukushi7/honpen.pdf p.5
+shogai-fukushi	7	shogai-fukushi7	第7期 障がい福祉計画	2024	2026	manifest	shogai-fukushi7 の文書の2計画のうち障がい福祉計画の行。series は依頼者が決めた（2026-10-10）
+shogai-jifukushi	1		第1期障がい児福祉計画	2018	2020	shogai-fukushi7/gaiyo.pdf p.2	
+shogai-jifukushi	2		第2期日野町障がい児福祉計画	2021	2023	shogai-fukushi7/gaiyo.pdf p.2	名称は shogai-fukushi7/honpen.pdf p.5
+shogai-jifukushi	3	shogai-fukushi7	第3期 障がい児福祉計画	2024	2026	manifest	shogai-fukushi7 の文書の2計画のうち障がい児福祉計画の行。series は依頼者が決めた（2026-10-10）
+shogai-keikaku	2		第2期日野町障がい者計画	2018	2023	shogai-keikaku/gaiyo.pdf p.2	名称は shogai-keikaku/honpen.pdf p.3
+shogai-keikaku	3	shogai-keikaku	第3期 日野町障がい者計画	2024	2029	manifest	
+sogo	5		第5次日野町総合計画	2011	2020	suido2/honpen.pdf p.45	
+sogo	6	sogo6	第6次日野町総合計画	2021	2030	manifest	
+suido	2	suido2	第2次日野町水道ビジョン	2019	2028	suido2/honpen.pdf p.6	
+taishin		taishin	既存建築物耐震改修促進計画	2016	2025	taishin/honpen.pdf p.5	平成28年3月改定版。平成37年度は令和7年度
+tokutei-jigyo		tokutei-jigyo	特定事業主行動計画	2026	2029	manifest	
+toshimaster		toshimaster	日野町都市計画マスタープラン	2022	2031	manifest	
+tsugakuro		tsugakuro	通学路交通安全プログラム				期間の記載なし
+youho		youho	幼児教育保育施設再編整備計画	2024	2029	youho/honpen.pdf p.4	本文は「令和6年から令和11年まで」、同ページの図表1-2は年度の欄
