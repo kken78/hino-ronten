@@ -1,0 +1,112 @@
+series	term	kind	note
+bosai	日野町地域防災計画	正式名	
+bosai	地域防災計画	略称	
+bosai	滋賀県地域防災計画	除外	県の計画。例 0000008397_20250310_0075・_0077
+bunbetsu	分別収集計画	正式名	
+bunbetsu	日野町分別収集計画	略称	原典の表紙の表記
+bunkazai	日野町文化財保存活用地域計画	正式名	
+bunkazai	文化財保存活用地域計画	略称	
+chiiki-fukushi	日野町地域福祉計画	正式名	
+chiiki-fukushi	地域福祉計画	略称	
+chiiki-nogyo	地域計画(農業の将来設計図・町内7地区)	正式名	
+chiiki-nogyo	地域計画	略称	「文化財保存活用地域計画」「国土強靭化地域計画」の中の一致は、§7 の最長一致で bunkazai・kyojin に入る
+chiiki-nogyo	日野町地域計画	略称	議会での呼び方（「日野町地域計画検討会」など）
+inochi	いのちと生活を守るネットワーク計画	正式名	
+jisshi	第6次総合計画実施計画	正式名	
+jisshi	第6次日野町総合計画・実施計画	略称	原典の奥付の表記。「第6次」まで含めて登録する
+jisshi	第6次日野町総合計画実施計画	略称	原典の表紙の表記。「第6次」まで含めて登録する（直前の「第6次」を期として読まないため）
+jyuseikatsu	日野町住生活基本計画	正式名	
+jyuseikatsu	住生活基本計画	略称	
+jyutaku-choju	町営住宅長寿命化計画	正式名	
+jyutaku-choju	日野町町営住宅長寿命化計画	略称	
+kaigo	日野町高齢者福祉計画・介護保険事業計画	正式名	
+kaigo	高齢者福祉計画・介護保険事業計画	正式名	
+kaigo	介護保険事業計画	略称	
+kaigo	高齢者福祉計画	略称	
+kanbatsu	日野町特定間伐等促進計画	正式名	
+kanbatsu	特定間伐等促進計画	略称	
+kankyo	日野町環境基本計画	正式名	
+kankyo	環境基本計画	略称	
+kankyo	国の環境基本計画	除外	国の計画。例 0000008489_20250612_0248
+katsuyaku-cho	障がい者活躍推進計画(町長部局)	正式名	
+katsuyaku-cho	日野町障がい者活躍推進計画(町長部局)	略称	「障がい者活躍推進計画」だけの形は katsuyaku-kyo と重なるため登録しない
+katsuyaku-kyo	障がい者活躍推進計画(教育委員会部局)	正式名	
+katsuyaku-kyo	日野町障がい者活躍推進計画(教育委員会部局)	略称	「障がい者活躍推進計画」だけの形は katsuyaku-cho と重なるため登録しない
+kenko-shokuiku	健康づくり・食育計画	正式名	前の期の合冊『地域福祉・健康づくり・食育計画』（第3期、系譜表に行なし）も最長一致でこの語に当たる。工程3-4 の前に扱いを決める
+kenko-shokuiku	食育計画	略称	
+kodomo	日野町子ども・子育て支援事業計画	正式名	
+kodomo	子ども・子育て支援事業計画	略称	
+kodomo	子ども子育て支援事業計画	略称	中黒のない表記
+kodomo	子育て支援事業計画	略称	
+kokudoriyou	日野町国土利用計画	正式名	
+kokudoriyou	国土利用計画	略称	
+kokyo-kanri	日野町公共施設等総合管理計画(改定)	正式名	
+kokyo-kanri	公共施設等総合管理計画	略称	
+kokyo-kanri	公共施設総合管理計画	略称	「等」のない表記
+kokyo-kanri	日野町公共施設等総合管理計画	略称	
+koutsu	日野町地域公共交通計画	正式名	
+koutsu	地域公共交通計画	略称	
+kyoiku	日野町教育振興基本計画	正式名	
+kyoiku	教育振興基本計画	略称	
+kyoiku	国の教育振興基本計画	除外	国の計画。例 bq:29/福永晃仁/1・0000008116_20240913_0153
+kyojin	日野町国土強靭化地域計画	正式名	
+kyojin	国土強靭化地域計画	略称	
+kyojin	国土強靭化日野町地域計画	略称	議会での呼び方の「靭」の字の形
+kyojin	国土強靱化地域計画	略称	「靱」の字の表記
+kyojin	国土強靱化日野町地域計画	略称	議会での呼び方（0000006923_20221214_0106）
+kyojin	日野町国土強靱化地域計画	略称	「靱」の字の表記（NFKC では「靭」と同じにならない）
+kyoryo	橋梁長寿命化修繕計画	正式名	
+kyoryo	日野町橋梁長寿命化修繕計画	略称	
+kyoryo	橋梁長寿命化計画	略称	
+midori	日野町緑の基本計画	正式名	
+midori	緑の基本計画	略称	
+nogyo-tamen	農業の有する多面的機能の発揮の促進に関する計画	正式名	
+partner	男女共同参画行動計画「ひのパートナープラン2019」	正式名	
+partner	ひのパートナープラン	略称	
+partner	ひのパートナープラン2019	略称	
+partner	日野町男女共同参画行動計画	略称	
+partner	男女共同参画行動計画	略称	
+security	日野町情報セキュリティポリシー	正式名	
+security	情報セキュリティポリシー	略称	
+seibutsu	農業における生物多様性保全に関する計画	正式名	
+senryaku	くらし安心ひとづくり総合戦略	正式名	
+senryaku	日野町くらし安心ひとづくり総合戦略	正式名	
+senryaku	くらし安心人づくり総合戦略	略称	会議録での表記（「人」の字）
+senryaku	日野町くらし安心人づくり総合戦略	略称	会議録での表記（「人」の字）
+senryaku	総合戦略	略称	単独の言及は国などの総合戦略が混ざりうる。候補の確定時に確かめる
+senryaku	まち・ひと・しごと創生総合戦略	除外	国の総合戦略。例 0000004568_gijiroku_0076
+senryaku	デジタル田園都市国家構想総合戦略	除外	国の総合戦略。例 0000008211_20241213_0164
+senryaku	国の総合戦略	除外	例 0000004567_20190314_0074
+senryaku	高島市総合戦略	除外	高島市の課の名前の一部。例 0000005277_20200611_0190
+shasi-jishin	社会資本総合整備計画(地震災害に強い住まい・まちづくり)	正式名	
+shasi-jyutaku	社会資本総合整備計画(地域住宅整備計画)	正式名	
+shasi-jyutaku	地域住宅整備計画	略称	
+shasi-jyutaku	日野町地域住宅整備計画	略称	原典 seibikeikaku.pdf p.1 の計画の名称
+shasi-koen	社会資本総合整備計画(安全で安心な都市公園づくり)	正式名	
+shasi-koutsu	社会資本総合整備計画(県東部の公共交通再構築)	正式名	
+shinrin	日野町森林整備計画	正式名	
+shinrin	森林整備計画	略称	
+shogai-fukushi	日野町障がい福祉計画	正式名	
+shogai-fukushi	障がい福祉計画	正式名	
+shogai-fukushi	障害福祉計画	略称	「害」の字の表記
+shogai-jifukushi	日野町障がい児福祉計画	正式名	
+shogai-jifukushi	障がい児福祉計画	正式名	
+shogai-jifukushi	障害児福祉計画	略称	「害」の字の表記
+shogai-keikaku	日野町障がい者計画	正式名	
+shogai-keikaku	障がい者計画	略称	
+shogai-keikaku	障害者計画	略称	「害」の字の表記
+sogo	日野町総合計画	正式名	
+sogo	総合計画	略称	
+suido	日野町水道ビジョン	正式名	
+suido	水道ビジョン	略称	
+taishin	既存建築物耐震改修促進計画	正式名	
+taishin	日野町既存建築物耐震改修促進計画	略称	原典 actionprogram2025.pdf の表記
+taishin	耐震改修促進計画	略称	
+tokutei-jigyo	特定事業主行動計画	正式名	
+tokutei-jigyo	日野町特定事業主行動計画	略称	
+toshimaster	日野町都市計画マスタープラン	正式名	
+toshimaster	都市計画マスタープラン	略称	
+tsugakuro	通学路交通安全プログラム	正式名	
+tsugakuro	日野町通学路交通安全プログラム	略称	
+youho	幼児教育保育施設再編整備計画	正式名	
+youho	日野町幼児教育保育施設再編整備計画	略称	
