@@ -8,7 +8,7 @@
 
 - TSV、UTF-8（BOMなし）、改行は LF、1行目がヘッダ
 - セルの中にタブ・改行を入れない
-- evidence・context は §4 の正規化を通した値を書く。名称（to_label・name など）は原典の表記のまま書く
+- evidence・context は §4 の正規化を通した値を書く。名称（to_label・name など）は正規化せず、元のデータの表記のまま書く（どのデータの表記を使うかは §3 と §8 による）
 - 空欄は空文字とする。推定で埋めない
 - 行は from → to → method の文字コード順に並べる。並び順に意味を持たせない
 
@@ -42,7 +42,7 @@
 | evidence | 一致した語（正規化後） | `子ども・子育て支援事業計画` |
 | where | from のどこで一致したか。bq は title・question_text・answer_title・answers、sp は text | `text` |
 | context | evidence を含む前後各15文字の抜粋（正規化後）。前後が15文字に満たない場合は、ある分だけ | `す。まとめるにあたりましては、子ども・子育て支援事業計画に掲げる3つの基本目標に分類し` |
-| to_label | 確定した時点の to の名称（計画名・事業名）。原典の表記 | `第3期 日野町子ども・子育て支援事業計画` |
+| to_label | 確定した時点の to の名称。plan は manifest の name、lin は `ref/lineage.tsv` の name、node は `data/plans/<id>.json` の事業名（items[].name）。表記は元のデータのまま | `第3期 日野町子ども・子育て支援事業計画` |
 | status | candidate・confirmed・rejected | `candidate` |
 | reviewer | 確定・却下した人。candidate では空 | |
 | date | 確定・却下した日（YYYY-MM-DD）。candidate では空 | |
@@ -124,7 +124,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | series | 計画の系列（下の規則で決める短い名前） | `kodomo` |
 | edition | 期（数字）。期の概念がない計画は空 | `3` |
 | plan | manifest の id。manifest に無い期は空（キーは `lin:<series>/<edition>`） | `kodomo` |
-| name | 正式名（原典の表記） | `第3期 日野町子ども・子育て支援事業計画` |
+| name | manifest の name。manifest に無い期は原典の表記。1文書を分けた行は、manifest の name のうちその計画の部分 | `第3期 日野町子ども・子育て支援事業計画` |
 | start_fy | 計画期間の初年度（西暦の年度） | `2025` |
 | end_fy | 計画期間の最終年度（西暦の年度） | `2029` |
 | source | 期間の出典（`manifest`、または原典の文書id＋ページ） | `manifest` |
@@ -134,7 +134,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 - series：manifest の id から、末尾の期を表す数字を除いたもの（例：kyoiku3・kyoiku4 → kyoiku、sogo6 → sogo、kaigo9 → kaigo。kodomo はそのまま）。同じ系列の計画は同じ series にまとめる。数字を除くと別の系列と同じ名前になる場合は、人が決めて note に書く
 - edition：その計画自体の名称に付いた「第N期」「第N次」の N（算用数字で書く）。名称に無い場合は空。上位の計画の期は edition にしない（例：jisshi「第6次総合計画 実施計画」の6は総合計画の期なので、jisshi の edition は空）
 - 1つの文書に複数の計画が入っている場合は、計画ごとに行を分け、plan 列には同じ manifest の id を書く（例：shogai-fukushi7「第7期 障がい福祉計画・第3期 障がい児福祉計画」は、edition 7 の行と edition 3 の行の2行）。分けた行の series は人が決め、note に理由を書く
-- source の書き方：`manifest`（manifest の start・end）、`plan:<id>`（`data/plans/<id>.json` の meta.period）、または `<id>/<file> p.N`（shiga-hino-plans の `data/sources_index.tsv` の id と file、原典のページ）
+- source の書き方：`manifest`（manifest の start・end）、`plan:<id>`（`data/plans/<id>.json` の meta.period）、または `<id>/<file> p.N`（shiga-hino-plans の `data/sources_index.tsv` の id と file、原典のページ）。p.N は PDF ファイルの中のページ番号（印刷されたページ番号ではない）
 - 年度は4月1日から翌年3月31日まで。令和N年度＝西暦2018＋N年度、平成N年度＝西暦1988＋N年度
 - 発言日：会議録は sid の日付。sid に日付が無い場合は `meetings.json` の会議の日付。議会だよりは対応する会議（`minutes_links.json` の meeting_id）の日付。対応する会議が無い号は人が確定する
 - 期間を確認できない計画は start_fy・end_fy を空にする。その計画への期の明記がない言及は、candidate を作り、note に「期間不明」と書く
