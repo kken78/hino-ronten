@@ -32,4 +32,5 @@
 ## 現在の状態
 
 - 工程2（文書だけの最初のコミット）完了
-- 工程3 完了（系譜表・別名辞書・照合の関数と検査）。次は工程4（inputs.lock.json と mention の候補生成、人による確定）
+- 工程3 完了（系譜表・別名辞書・照合の関数と検査）
+- 工程4：inputs.lock.json（6fc183f）と、mention の候補を作る道具（tools/gen_mentions.py、11e9951）まで済み。次は工程4-3（論点を決め、links/mention.tsv に候補を書く）
