@@ -187,6 +187,17 @@ class TestChair(GenTestCase):
         self.assertEqual(g.no_date, [])
 
 
+# 5-2. 目次の除外（§7：sid の真ん中に mokuji を含む項目は発言ではないため対象から除く）
+class TestTocExcluded(GenTestCase):
+    def test_toc_gives_no_rows(self):
+        index = [speech(f"{M_JUNE}_8.5rmokuji_0000", "目次 教育振興基本計画 第1期子ども・子育て支援事業計画", role=""),
+                 speech(f"{M_NODATE}_kaigiroku-mokuji_0000", "目次 教育振興基本計画", role=""),
+                 speech(f"{M_JUNE}_20250612_0001", "教育振興基本計画")]
+        g = gm.gen_minutes(index, self.mdates, {}, self.refs, self.names)
+        self.assertEqual([r["from"] for r in g.candidates], [f"sp:{M_JUNE}_20250612_0001"])
+        self.assertEqual((g.out_of_period, g.no_edition, g.no_date), ([], [], []))
+
+
 # 6. 場面（索引の並びで from〜to の両端を含む。採決は sid）
 class TestScene(GenTestCase):
     SIDS = [f"{M_JUNE}_20250612_{n:04d}" for n in range(1, 7)]
@@ -441,8 +452,9 @@ class TestDeterministic(GenTestCase):
                                            "out_of_period.tsv", "report.md"])
         self.assertEqual(outs[0], outs[1])
         report = outs[0]["report.md"].decode("utf-8")
+        self.assertNotIn(f"sp:{M_JUNE}_8.5rmokuji_0000", outs[0]["candidates.tsv"].decode("utf-8"))
         for needle in ["a" * 40, "b" * 40, "c" * 40, "0" * 64, "会議の初日", "副議長", "_charttest.json",
-                       f"sp:{M_JUNE}_8.5rmokuji_0000"]:
+                       "- 除いた目次の項目 1 件\n"]:
             with self.subTest(needle=needle):
                 self.assertIn(needle, report)
 

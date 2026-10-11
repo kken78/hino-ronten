@@ -182,6 +182,22 @@ class TestSameTextEdition(MentionTestCase):
 
 
 class TestLongestMatch(MentionTestCase):
+    def test_bunkazai_variants(self):
+        # 2026-10-11 の決定：文化財保存活用地域計画の書き方の違い4つは bunkazai の略称。chiiki-nogyo には入らない
+        for text in ["文化財の保存活用地域計画", "文化財保護活用地域計画", "文化財地域計画", "文化財保存活動地域計画"]:
+            with self.subTest(text=text):
+                r = self.find(text, "2025-06-15")
+                self.assertEqual(self.tos(r), ["plan:bunkazai"])
+                self.assertNotIn("chiiki-nogyo", self.all_series(r))
+        r = self.find("文化財の保存活用地域計画", "2023-06-15")
+        self.assertEqual(r.rows, [])
+        self.assertEqual([x.series for x in r.out_of_period], ["bunkazai"])
+
+    def test_national_sixth_environment_plan_excluded(self):
+        # 2026-10-11 の決定：国の第6次環境基本計画は除外の語。kankyo の候補も一覧も出ない
+        r = self.find("国においては第6次環境基本計画・第7次エネルギー基本計画など", "2024-12-02")
+        self.assertEqual((r.rows, r.no_edition, r.out_of_period), ([], [], []))
+
     def test_kyojin_not_chiiki_nogyo(self):
         r = self.find("国土強靱化日野町地域計画のほうを策定", "2025-06-15")
         self.assertEqual(self.tos(r), ["plan:kyojin"])

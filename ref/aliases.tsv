@@ -6,6 +6,10 @@ bunbetsu	分別収集計画	正式名
 bunbetsu	日野町分別収集計画	略称	原典の表紙の表記
 bunkazai	日野町文化財保存活用地域計画	正式名	
 bunkazai	文化財保存活用地域計画	略称	
+bunkazai	保存活用地域計画	略称	
+bunkazai	文化財保護活用地域計画	略称	言い間違いの表記
+bunkazai	文化財地域計画	略称	
+bunkazai	文化財保存活動地域計画	略称	会議録の表記の誤り
 chiiki-fukushi	日野町地域福祉計画	正式名	
 chiiki-fukushi	地域福祉計画	略称	
 chiiki-nogyo	地域計画(農業の将来設計図・町内7地区)	正式名	
@@ -28,6 +32,7 @@ kanbatsu	特定間伐等促進計画	略称
 kankyo	日野町環境基本計画	正式名	
 kankyo	環境基本計画	略称	
 kankyo	国の環境基本計画	除外	国の計画。例 0000008489_20250612_0248
+kankyo	第6次環境基本計画	除外	国の計画。例 bq:32/福永晃仁/2
 katsuyaku-cho	障がい者活躍推進計画(町長部局)	正式名	
 katsuyaku-cho	日野町障がい者活躍推進計画(町長部局)	略称	「障がい者活躍推進計画」だけの形は katsuyaku-kyo と重なるため登録しない
 katsuyaku-kyo	障がい者活躍推進計画(教育委員会部局)	正式名	

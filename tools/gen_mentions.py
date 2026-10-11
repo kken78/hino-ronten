@@ -15,6 +15,7 @@ find_mentions で照合して、候補と一覧を build/mention/ に書く。�
 - sid に日付が無く、会議にも日付が無い発言は照合せず、no_date.tsv に出す。索引の date 項目は
   参考として出すだけで、照合には使わない（D2。LINK_SCHEMA.md §8）
 - 会議録は role が「議長」と完全に一致する発言だけを除く（D3。§7）
+- 会議録の目次の項目（sid の真ん中に mokuji を含むもの）は、発言ではないため照合の対象から除く（§7。2026-10-11 の決定）
 - 議会だよりは title・question_text・answer_title・answers の順に欄ごとに照合し、同じ to は最初の欄の
   行を採る。後の欄は note に「ほかに一致した欄」として書く。answers の要素から出た行の where は
   「answers」とする（D4。§3）
@@ -422,14 +423,14 @@ def gen_bulletin(questions, minutes_links, mdates, refs, names):
 
 
 def gen_minutes(index, mdates, scenes, refs, names):
-    """会議録：role が「議長」の発言を除き、発言ごとに照合する。発言日が無い発言は照合せず no_date に出す。"""
+    """会議録：role が「議長」の発言と目次の項目を除き、発言ごとに照合する。発言日が無い発言は照合せず no_date に出す。"""
     gen, seen = Gen(), set()
     for e in index:
         sid = e["sid"]
         if sid in seen:
             raise GenError(f"索引で sid が重なっている（{sid}）")
         seen.add(sid)
-        if e.get("role") == CHAIR:
+        if e.get("role") == CHAIR or is_toc(sid):
             continue
         key = f"sp:{sid}"
         scene = scenes.get(sid, OUTSIDE)
@@ -535,12 +536,12 @@ def _example_table(rows, to_col="to"):
 
 
 def _targets(built):
-    """報告の d 用：照合の対象（議会だよりの各欄・議長を除く発言）を（from、where、本文）で返す。"""
+    """報告の d 用：照合の対象（議会だよりの各欄・議長と目次を除く発言）を（from、where、本文）で返す。"""
     for q in built.inputs.questions:
         for where, text in _bq_parts(q):
             yield bq_key(q), where, text
     for e in built.inputs.index:
-        if e.get("role") != CHAIR:
+        if e.get("role") != CHAIR and not is_toc(e["sid"]):
             yield f"sp:{e['sid']}", "text", e.get("text") or ""
 
 
@@ -677,14 +678,15 @@ def report_lines(built):
     L += ["議会だよりの候補の例：", ""] + _example_table(b.candidates) + [""]
 
     # b. 会議録
-    nonchair = [e for e in inp.index if e.get("role") != CHAIR]
+    tocs = [e for e in inp.index if e.get("role") != CHAIR and is_toc(e["sid"])]
+    nonchair = [e for e in inp.index if e.get("role") != CHAIR and not is_toc(e["sid"])]
     sc_all = Counter(built.scenes.get(e["sid"], OUTSIDE) for e in nonchair)
     sc_rows = Counter(r["scene"] for r in m.candidates)
     sc_from = Counter(s for s, _ in {(r["scene"], r["from"]) for r in m.candidates})
     sc_nd = Counter(r["scene"] for r in m.no_date)
     L += ["## b. 会議録", "",
-          f"- 索引 {len(inp.index)} 件のうち、role が「議長」の {len(inp.index) - len(nonchair)} 件を除いた "
-          f"{len(nonchair)} 件が対象。うち日付なし（照合していない） {len(m.no_date)} 件",
+          f"- 索引 {len(inp.index)} 件のうち、role が「議長」の {len(inp.index) - len(nonchair) - len(tocs)} 件と"
+          f"目次の項目 {len(tocs)} 件を除いた {len(nonchair)} 件が対象。うち日付なし（照合していない） {len(m.no_date)} 件",
           f"- 候補の行数 {len(m.candidates)}、候補のある発言 {len({r['from'] for r in m.candidates})} 件",
           f"- 提案説明を除いた候補の行数 {len(m.candidates) - sc_rows[PROPOSAL]}", ""]
     L += _table(["場面", "対象の発言", "うち日付なし", "候補の行数", "候補のある発言"],
@@ -696,13 +698,8 @@ def report_lines(built):
     chair_all = Counter(e["role"] for e in nonchair if (e.get("role") or "").endswith(CHAIR))
     L += ["「議長」で終わる role のうち除いていないもの（D3）：", ""]
     L += _table(["role", "発言数", "候補の行数"], [(r, chair_all[r], chairish[r]) for r in sorted(chair_all)]) + [""]
-    toc = lambda rows: [r for r in rows if is_toc(r["from"][len("sp:"):])]
-    tc, to_, tn, td = toc(m.candidates), toc(m.out_of_period), toc(m.no_edition), toc(m.no_date)
-    L += ["目次（sid に mokuji を含む項目）から出た行（扱いは工程4-3で決める）：", "",
-          f"- 目次の項目 {sum(1 for e in inp.index if is_toc(e['sid']))} 件。候補 {len(tc)} 行、期間外 {len(to_)} 行、"
-          f"期の行なし {len(tn)} 行、日付なし {len(td)} 行", ""]
-    L += _table(["区分", "from"], [(k, r["from"]) for k, rows in
-                                  (("候補", tc), ("期間外", to_), ("期の行なし", tn)) for r in rows]) + [""]
+    L += ["目次（sid の真ん中に mokuji を含む項目。発言ではないため照合の対象から除く。LINK_SCHEMA §7）：", "",
+          f"- 除いた目次の項目 {len(tocs)} 件", ""]
     L += ["会議録の候補の例（提案説明を除く）：", ""] + _example_table([r for r in m.candidates if r["scene"] != PROPOSAL]) + [""]
 
     # c. 一覧の件数
