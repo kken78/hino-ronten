@@ -8,6 +8,8 @@ inochi	2	inochi2	第2期 いのちと生活を守るネットワーク計画	202
 jisshi		jisshi	第6次総合計画 実施計画	2026	2028	manifest	3年計画・毎年度見直し。過去の版（令和3〜5年度から令和7〜9年度）は期でないため行を足さない
 jyuseikatsu		jyuseikatsu	日野町住生活基本計画	2023	2032	jyuseikatsu/honpen.pdf p.6	前の計画（平成25〜34年度、p.5）は期の番号が無いため行を足さない
 jyutaku-choju		jyutaku-choju	町営住宅長寿命化計画	2023	2032	jyutaku-choju/honpen.pdf p.6	
+kaigo	6		第6期	2015	2017	kaigo9/honpen.pdf p.17	図の区切りから読む（期間を述べた文は無い）
+kaigo	7		第7期	2018	2020	kaigo9/honpen.pdf p.17	図の区切りから読む（期間を述べた文は無い）
 kaigo	8		日野町高齢者福祉計画・介護保険事業計画(第8期)	2021	2023	kaigo9/honpen.pdf p.7	
 kaigo	9	kaigo9	第9期 高齢者福祉計画・介護保険事業計画	2024	2026	manifest	
 kanbatsu		kanbatsu	日野町特定間伐等促進計画				計画の文書が公開されていない
@@ -17,7 +19,7 @@ katsuyaku-kyo		katsuyaku-kyo	障がい者活躍推進計画（教育委員会部
 kenko-shokuiku	4	kenko-shokuiku4	健康づくり・食育計画（第4期）	2021	2026	kenko-shokuiku4/honpen.pdf p.9	
 kodomo	2		第2期日野町子ども・子育て支援事業計画	2020	2024	kodomo/honpen.pdf p.9	名称は同じ文書の p.3
 kodomo	3	kodomo	第3期 日野町子ども・子育て支援事業計画	2025	2029	manifest	
-kokudoriyou		kokudoriyou	日野町国土利用計画				原典は基準年次 令和3年・目標年次 令和13年（honpen.pdf p.2）。基準年次は開始年度とは限らないため空欄
+kokudoriyou	6	kokudoriyou	日野町国土利用計画			kokudoriyou/honpen.pdf p.1	原典は基準年次 令和3年・目標年次 令和13年（honpen.pdf p.2）。基準年次は開始年度とは限らないため空欄。期は表紙（p.1）の「日野町国土利用計画（第6次）」による
 kokyo-kanri		kokyo-kanri	日野町公共施設等総合管理計画（改定）	2017	2036	plan:kokyo-kanri	
 koutsu		koutsu	日野町地域公共交通計画	2024	2028	manifest	
 kyoiku	3	kyoiku3	第3期 日野町教育振興基本計画	2020	2024	kyoiku3/honpen.pdf p.8	

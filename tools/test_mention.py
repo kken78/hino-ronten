@@ -138,9 +138,9 @@ class TestEdition(MentionTestCase):
         self.assertNotIn("期の明記", r.rows[0].note)
 
     def test_no_between_without_row(self):
-        r = self.find("第7期の介護保険事業計画", "2018-06-13")
+        r = self.find("第3次の総合計画", "2018-06-13")
         self.assertEqual(r.rows, [])
-        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("kaigo", "7")])
+        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("sogo", "3")])
 
     def test_jisshi_not_read_as_sogo_edition(self):
         r = self.find("第6次日野町総合計画実施計画に記載", "2026-06-15")
@@ -175,10 +175,10 @@ class TestSameTextEdition(MentionTestCase):
         self.assertNotIn(self.MARK, r.rows[0].note)
 
     def test_unknown_period_no_note(self):
-        r = self.find("第6次国土利用計画と国土利用計画", "2019-06-14")
+        r = self.find("第5次国土利用計画と国土利用計画", "2019-06-14")
         self.assertEqual(self.tos(r), ["plan:kokudoriyou"])
         self.assertEqual(r.rows[0].note, "期間不明")
-        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("kokudoriyou", "6")])
+        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("kokudoriyou", "5")])
 
 
 class TestLongestMatch(MentionTestCase):
