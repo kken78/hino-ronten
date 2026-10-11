@@ -33,4 +33,4 @@
 
 - 工程2（文書だけの最初のコミット）完了
 - 工程3 完了（系譜表・別名辞書・照合の関数と検査）
-- 工程4：lock を上げた（e73196a）。台帳の道具（tools/update_links.py・tools/check_links.py）を作り、links/mention.tsv に候補1,329行を書いた（b07e9b5）。次は人による確定（工程4-5）
+- 工程4：lock を上げた（e73196a）。台帳の道具（tools/update_links.py・tools/check_links.py）を作り、links/mention.tsv に候補1,329行を書いた（b07e9b5）。工程4-5：子ども・子育て支援事業計画の候補52件を確定した（b367e77）。残りの候補の確定を続ける
