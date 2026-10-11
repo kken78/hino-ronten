@@ -111,6 +111,7 @@ mention：
 - 期間外：期の明記がなく、発言日がその series のどの期の計画期間にも入らない場合は、台帳に行を作らず、`build/` の「期間外」一覧に出す。人が系譜表に行を足すか、対象外と判断する（前の版への言及を現行の計画に結び付けないため）。ただし、計画期間が空欄の期がある series は、その期の candidate を作り、note に「期間不明」と書く（§8）
 - 同じ plan への一致：系譜表で同じ plan を持つ複数の series（例：shogai-fukushi と shogai-jifukushi は、どちらも plan が shogai-fukushi7）に同じ発言が一致した場合は、to を `plan:<id>` とする1行にまとめる。evidence と context には本文で先に出た一致を使い、ほかに一致した語は note に書く
 - 会議録は、role が議長の発言を対象から除く（設計案の試算と同じ）
+- 会議録の目次の項目（sid の真ん中に mokuji を含むもの）は、発言ではないため対象から除く
 
 program：
 
