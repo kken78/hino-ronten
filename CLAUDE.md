@@ -33,4 +33,4 @@
 
 - 工程2（文書だけの最初のコミット）完了
 - 工程3 完了（系譜表・別名辞書・照合の関数と検査）
-- 工程4：inputs.lock.json と、mention の候補を作る道具（tools/gen_mentions.py）まで済み。工程4-3 の論点1〜8は決定と実装まで済み（5fc1950 まで）。次は lock を上げ、links/mention.tsv に候補を書く
+- 工程4：inputs.lock.json と、mention の候補を作る道具（tools/gen_mentions.py）まで済み。工程4-3 の論点1〜8は決定と実装まで済み（5fc1950 まで）。lock を上げた（e73196a）。次は links/mention.tsv に候補を書く
