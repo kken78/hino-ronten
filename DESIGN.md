@@ -226,6 +226,20 @@ hino-ronten/
      - shasi-jishin の note を manifest の periodNote に合わせる
      - LINK_SCHEMA §8 の source の書き方に、掲載ページを出典とする形を足す
      - hino-council-search の meetings.json に足される会議の日付の項目を、LINK_SCHEMA §8 の「会議の日付」として使う。使う前に、日付のある会議では最も早い PDF の日付と一致することを確かめる
+   - 工程4-3（候補を台帳に書く）と工程4-4（台帳を確かめる）で決めたこと（2026-10-11。LINK_SCHEMA §5・§6・§11）：
+     - 道具の分け方：台帳の読み書き・照合・併合の関数を `tools/ledger.py` に置き、台帳を更新する `tools/update_links.py` と、台帳を確かめる `tools/check_links.py` を分ける。正本（links/）を書く道具とビルドのたびに動く道具を分け、ビルドで台帳が書き換わらないようにするため。照合の関数は1つにして両方で使う。検査は `tools/test_ledger.py` に置く
+     - 入力：update_links.py は build/mention/candidates.tsv を読まず、tools/gen_mentions.py の build を同じ処理の中で呼ぶ。candidates.tsv には作ったときの lock の版が書かれておらず、別の版の候補を読むおそれがあるため。gen_mentions.py は変えない
+     - candidate の行は機械が持つ行とし、再生成のたびに11列を新しい値にする。lock e73196a の版の候補では、note は1,329行すべて機械が書いたもので、そのうち717行は系譜表の名前と期間を含み、系譜表を直すと古くなる（例：senryaku2 の end_fy を2026にしたため、前の版で台帳を作っていれば、plan:senryaku2 の54行に古い期間が残った）。人が note を書くのは status を confirmed・rejected にするときとし、note が変わった candidate の行は一覧に出す
+     - confirmed・rejected の行は、11列すべてを変えない
+     - 移動した confirmed・rejected：移動先に candidate を作らず、移動の一覧にだけ出す。§5 の「移動はビルドを続ける」と、§6 の「出なくなった confirmed は停止」がぶつかるため。rejected の行で移動先が見つからないものは一覧に出すだけで、停止しない（rejected は出力に使わないため）
+     - 台帳を確かめる道具は、lock の版で台帳を作り直していまの台帳と比べ、違えば停止する。これにより、移動が起きるのは confirmed・rejected の行だけになる
+     - sentinel：台帳を確かめるたびに、照合の対象の全行で context の1文字を替え、移動か停止になることを確かめる。台帳に検査用の行を置かない（正本に偽の行を入れないため）。lock e73196a の版の候補1,329行で試すと、1,329行すべてが停止になった
+     - LINK_SCHEMA §11 に、台帳の形・欄の値・状態（candidate は reviewer・date が空、rejected は note が空でない）・mention の to の種類・台帳と lock の版の検査を足す
+   - 工程4-3・4-4 の進め方：
+     - 作業2：文書（LINK_SCHEMA §5・§6・§11 とこの項）
+     - 作業3：検査と道具（tools/ledger.py・tools/update_links.py・tools/check_links.py・tools/test_ledger.py）
+     - 作業4：update_links.py で links/mention.tsv を初めて書き、check_links.py を動かす。見込み（lock e73196a の版）：1,329行（議会だより59・会議録1,270）がすべて candidate。§5 の照合は一致1,329・移動0・停止0。sentinel は1,329行すべてが移動か停止。根拠の消失は0
+     - 人による確定は、作業4のあとに行う
 5. 資料編の事業突合（実施計画の主要事業と当初予算附表）
    - ゲート：附表の各事業が、実施計画のどれかの事業か「記載なし」のどちらかに必ず分類される
 6. 評価セット（ADR-8 の2種類の正解）

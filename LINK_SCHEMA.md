@@ -70,30 +70,39 @@ evidence・context と、照合の相手の本文に、同じ規則をかける�
 
 ## 5. 位置依存キーの照合
 
-ビルドのたびに、台帳の confirmed と candidate の全行について行う。
+ビルドのたびに、台帳の confirmed と candidate の全行について行う。rejected の行は、sp の移動を探すためだけに同じ手順をかける（下の「rejected の行」）。
 
 sp（会議録の発言）：
 
 1. sid の発言が存在し、その正規化本文に context が含まれる → 一致
 2. 含まれない、または sid が存在しない → sid の最後の連番を除いた部分が同じ発言のうち、連番が前後5以内のものを探す
-   - 1件だけ context を含む → 移動。移動先の sid を一覧に出す。その行は、人が from を書き換えるまで出力に使わない。ビルドは続ける
-   - 0件、または2件以上 → 停止。行を一覧に出し、終了コード1で終える
+   - 1件だけ context を含む → 移動。移動先の sid を一覧（moved.tsv）に出す。その行は、人が from を書き換えるまで出力に使わない。ビルドは続ける
+   - 0件、または2件以上 → 停止。行を一覧（stopped.tsv）に出し、終了コード1で終える
 
-bq（議会だよりの質問）：where の欄の正規化テキストに context が含まれなければ停止する。
+bq（議会だよりの質問）：where の欄の正規化テキストに context が含まれなければ停止する。where が answers の行は、answers のいずれかの要素の text に含まれれば一致とする。
 
 node：to_label と、現在の `data/plans/<id>.json` の該当事業の name が一致しなければ停止する。
 
 plan・lin：to_label と、manifest または `ref/lineage.tsv` の name が一致しなければ停止する。
 
+rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1件だけ見つかれば、移動の一覧（moved.tsv）に出す（人が from を書き換える。§6 のとおり、移動先に candidate を作らない）。移動先が0件または2件以上の場合は、一覧（rejected_unmatched.tsv）に出すだけで、終了コード1にはしない（rejected は出力に使わないため）。bq・node・plan・lin の rejected の行は照合しない。
+
 停止したときは、人が原本で確かめ、from・to を直すか、status を rejected にして note に理由を書く。
+
+一覧のファイルと列は §11 にある。
 
 ---
 
 ## 6. 状態の変わり方
 
-- 生成：tools が candidate を作る。同じ (from, to, method) の行が既にあれば、status・reviewer・date・note は変えない
-- 確定・却下：人が status を confirmed または rejected に変え、reviewer・date を書く。confirmed と rejected の間の変更も人だけが行い、note に理由を書く
-- 再生成で出なくなった行：candidate は削除する。confirmed と rejected は削除しない。confirmed のうち再生成で出なくなったものは一覧に出し、ビルドを停止する（別名辞書や系譜表の変更が既存の確定に影響したことを見落とさないため）
+- 生成：tools が candidate を作る。機械は status を confirmed・rejected にしない。台帳の更新（`tools/update_links.py`）は、候補の生成（`tools/gen_mentions.py`）の結果を同じ処理の中で受け取り（`build/` の候補のファイルは読まない）、次のとおり台帳に合わせる
+  - 台帳に無い (from, to, method) の行：candidate として足す
+  - 台帳に同じ組の candidate の行がある：11列すべてを新しい値にする（candidate の行は機械が持つ行とする）。note が変わった行は一覧（note_changed.tsv）に出す
+  - 台帳に同じ組の confirmed・rejected の行がある：11列すべてを変えない（evidence・context は §5 の照合の土台であり、to_label は確定した時点の名称のため）
+  - 台帳の confirmed・rejected の sp の行が §5 で移動となり、移動先の (sid, to, method) が生成の結果にある場合：移動先の組を candidate として足さない（人が from を書き換えたときに、同じ組の行が重ならないようにするため）
+- 確定・却下：人が status を confirmed または rejected に変え、reviewer・date を書く。人が note を書くのはこのときとする（candidate の行の note は再生成で置き換わる）。rejected の行には、note に却下の理由を書く。confirmed と rejected の間の変更も人だけが行い、note に理由を書く
+- 再生成で出なくなった行：candidate は削除し、一覧（removed.tsv）に出す。confirmed と rejected は削除せず、一覧（vanished.tsv）に出す。confirmed のうち再生成で出なくなったものがあれば、ビルドを停止する（別名辞書や系譜表の変更が既存の確定に影響したことを見落とさないため）。ただし、§5 で移動となり、移動先の (sid, to, method) が生成の結果にある confirmed・rejected は、出なくなった行に数えず、移動の一覧（moved.tsv）にだけ出す
+- 台帳と lock の版：台帳は、lock の版の入力でこの節のとおり更新した結果と同じでなければならない。台帳を確かめる道具（`tools/check_links.py`）は、更新と同じ処理で台帳を作り直していまの台帳と比べ、違えば停止して、更新の道具を先に動かすよう示す（§10）
 - 出力に使うのは、confirmed で、かつ §5 の照合が「一致」の行だけとする
 
 ---
@@ -188,10 +197,25 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 
 | 検査 | 内容 |
 | --- | --- |
-| キーの形式 | 全行の from・to が §2 の形式に合う |
+| 台帳の形 | §1 と §3 に合う（列名と列の順、UTF-8・BOMなし・LF、セルにタブ・改行が無い、行が from → to → method の文字コード順）。合わない台帳は、更新でも確かめでも停止し、並べ直さない |
+| キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp、to は plan・lin・node。mention の台帳の to は plan・lin だけ |
 | 行の同一性 | (from, to, method) の重複が0件 |
-| 状態 | status が3つの値のいずれか。confirmed・rejected は reviewer と date がある |
-| 位置依存キーの照合 | §5 の一致・移動・停止の件数を表示する。停止が1件以上なら終了コード1 |
+| 状態 | status が3つの値のいずれか。confirmed・rejected は reviewer と date（YYYY-MM-DD）がある。candidate は reviewer と date が空。rejected は note が空でない |
+| 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる |
+| 位置依存キーの照合 | §5 の一致・移動・停止の件数を表示する。停止が1件以上なら終了コード1。rejected の行で移動先が見つからないものは件数を表示し、終了コードは変えない |
 | 根拠の消失 | §6 の「再生成で出なくなった confirmed」が1件以上なら終了コード1 |
-| sentinel | 検査用の行の context を1文字変えると、移動か停止になる |
-| 方法の制限 | 台帳に crosswalk の行が無い |
+| 台帳と lock の版 | §6 のとおり lock の版で作り直した台帳と、いまの台帳が同じ。違えば終了コード1 |
+| sentinel | 台帳を確かめるたびに、§5 の照合の対象の全行（confirmed と candidate）で、context の真ん中（文字数を2で割り、切り捨てた位置）の1文字を「〓」（context に「〓」が含まれるときは「※」）に替えて §5 の手順をかけ、移動か停止になることを確かめる。一致になる行が1件でもあれば終了コード1。台帳に検査用の行は置かない |
+| 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
+
+一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
+
+| ファイル | 内容 | 列 |
+| --- | --- | --- |
+| moved.tsv | §5 で移動となった行（confirmed・candidate・rejected） | from・to・method・status・moved_to・context |
+| stopped.tsv | §5 で停止となった行（confirmed・candidate） | from・to・method・status・reason・context |
+| rejected_unmatched.tsv | §5 で移動先が見つからなかった rejected の行（0件・2件以上） | from・to・method・status・reason・context |
+| vanished.tsv | 再生成で出なくなった confirmed・rejected（移動として数えたものを除く） | §3 の11列・check（§5 の結果） |
+| removed.tsv | 更新で削除した candidate | §3 の11列 |
+| note_changed.tsv | 更新で note が変わった candidate | from・to・method・old_note・new_note |
+| update.md・check.md | 更新・確かめの件数の報告 | — |
