@@ -138,9 +138,9 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 - series：manifest の id から、末尾の期を表す数字を除いたもの（例：kyoiku3・kyoiku4 → kyoiku、sogo6 → sogo、kaigo9 → kaigo。kodomo はそのまま）。同じ系列の計画は同じ series にまとめる。数字を除くと別の系列と同じ名前になる場合は、人が決めて note に書く
 - edition：その計画自体の名称に付いた「第N期」「第N次」の N（算用数字で書く）。名称に無い場合は空。上位の計画の期は edition にしない（例：jisshi「第6次総合計画 実施計画」の6は総合計画の期なので、jisshi の edition は空）
 - 1つの文書に複数の計画が入っている場合は、計画ごとに行を分け、plan 列には同じ manifest の id を書く（例：shogai-fukushi7「第7期 障がい福祉計画・第3期 障がい児福祉計画」は、edition 7 の行と edition 3 の行の2行）。分けた行の series は人が決め、note に理由を書く
-- source の書き方：`manifest`（manifest の start・end）、`plan:<id>`（`data/plans/<id>.json` の meta.period）、または `<id>/<file> p.N`（shiga-hino-plans の `data/sources_index.tsv` の id と file、原典のページ）。p.N は PDF ファイルの中のページ番号（印刷されたページ番号ではない）
+- source の書き方：`manifest`（manifest の start・end）、`plan:<id>`（`data/plans/<id>.json` の meta.period）、`<id>/<file> p.N`（shiga-hino-plans の `data/sources_index.tsv` の id と file、原典のページ）、または `<id>/page:<掲載ページのID>`（原典の台帳（sources_index.tsv）で file が空欄の、町の掲載ページ（HTML）の行を出典にする場合。`<id>` は台帳の id、ID は掲載ページの URL の番号（例：`senryaku2/page:8594`））。p.N は PDF ファイルの中のページ番号（印刷されたページ番号ではない）
 - 年度は4月1日から翌年3月31日まで。令和N年度＝西暦2018＋N年度、平成N年度＝西暦1988＋N年度
-- 発言日：会議録は sid の日付。sid に日付が無い場合は `meetings.json` の会議の日付。議会だよりは対応する会議（`minutes_links.json` の meeting_id）の日付。対応する会議が無い号は人が確定する
+- 発言日：会議録は sid の日付。sid に日付が無い場合は `meetings.json` の会議の日付（各会議の `date` 項目。hino-council-search #22 で足された。`dateFrom` が `pdf` の会議は、`date` が日付のある PDF のうち最も早い日と一致することを、`dateFrom` が `name` の会議は、日付のある PDF が無いことを確かめてから使う。合わなければ停止する）。議会だよりは対応する会議（`minutes_links.json` の meeting_id）の日付。対応する会議が無い号は人が確定する
 - 期間を確認できない計画は start_fy・end_fy を空にする。その計画への期の明記がない言及は、candidate を作り、note に「期間不明」と書く
 
 ---
