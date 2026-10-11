@@ -4,11 +4,11 @@
     "files": ["docs/data/questions.json", "data/minutes_links.json"]
   },
   "hino-council-search": {
-    "sha": "ac1e5cc92c2473291ea1e1010b3c0a47d06b77d0",
+    "sha": "6a2ef92c9891dcf943fbe33097924b79fa33e260",
     "files": ["public/data/index-manifest.json", "public/data/index/*.json", "public/data/proceedings.json", "public/data/meetings.json"]
   },
   "shiga-hino-plans": {
-    "sha": "b80dcf3baea7d2288b3407a25590394c46b82b54",
+    "sha": "43edc96edaad8dddac158fbc9260f8c6b5ba3afa",
     "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv"]
   }
 }

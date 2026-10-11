@@ -22,22 +22,26 @@ LINEAGE = os.environ.get("HINO_RONTEN_LINEAGE", os.path.join(ROOT, "ref", "linea
 ALIASES = os.environ.get("HINO_RONTEN_ALIASES", os.path.join(ROOT, "ref", "aliases.tsv"))
 
 M_JUNE = "0000000001"    # 日付が複数ある会議（初日 2025-06-02）
-M_NODATE = "0000000002"  # meetings.json に日付が無い会議
+M_NODATE = "0000000002"  # meetings.json の date が null の会議
 M_SPAN = "0000000003"    # 日付が2つの年度にまたがる会議
 M_2018 = "0000000004"    # 2018年度の会議
+M_NAME = "0000000005"    # 日付のある PDF が無く、date を会議名から求めた会議（dateFrom が name）
 
 MEETINGS = [
-    {"id": M_JUNE, "name": "令和7年6月定例会議", "pdfs": [
+    {"id": M_JUNE, "name": "令和7年6月定例会議", "date": "2025-06-02", "dateFrom": "pdf", "pdfs": [
         {"label": "目次", "date": None, "url": "u0"},
         {"label": "第2日", "date": "2025-06-12", "url": "u2"},
         {"label": "第1日", "date": "2025-06-02", "url": "u1"}]},
-    {"id": M_NODATE, "name": "令和3年第1回（2月10日）臨時会会議録", "pdfs": [
+    {"id": M_NODATE, "name": "見本（会議名に日付なし）臨時会", "date": None, "dateFrom": None, "pdfs": [
         {"label": "本文", "date": None, "url": "u3"}]},
-    {"id": M_SPAN, "name": "見本", "pdfs": [
+    {"id": M_SPAN, "name": "見本", "date": "2025-03-30", "dateFrom": "pdf", "pdfs": [
         {"label": "a", "date": "2025-03-30", "url": "u4"},
         {"label": "b", "date": "2025-04-02", "url": "u5"}]},
-    {"id": M_2018, "name": "平成30年第3回（6月）定例会会議録", "pdfs": [
+    {"id": M_2018, "name": "平成30年第3回（6月）定例会会議録", "date": "2018-06-13", "dateFrom": "pdf", "pdfs": [
         {"label": "第2日", "date": "2018-06-13", "url": "u6"}]},
+    {"id": M_NAME, "name": "令和3年第1回（2月10日）臨時会会議録", "date": "2021-02-10", "dateFrom": "name", "pdfs": [
+        {"label": "目次", "date": None, "url": "u7"},
+        {"label": "本文", "date": None, "url": "u8"}]},
 ]
 
 PLAN_NAMES = {
@@ -88,10 +92,42 @@ class TestBqKey(GenTestCase):
             gm.gen_bulletin(qs, ml, self.mdates, self.refs, self.names)
 
 
-# 2. 会議の日付（D1）
+# 2. 会議の日付（meetings.json の date 項目。§8・D1）
 class TestMeetingDates(GenTestCase):
     def test_earliest_date_and_toc_ignored(self):
         self.assertEqual(self.mdates[M_JUNE], (date(2025, 6, 2), ""))
+
+    def test_date_from_name(self):
+        self.assertEqual(self.mdates[M_NAME], (date(2021, 2, 10), ""))
+
+    def _with(self, mid, **kw):
+        return [dict(m, **kw) if m["id"] == mid else m for m in MEETINGS]
+
+    def test_pdf_mismatch_stops(self):
+        # dateFrom が pdf で、date が日付のある PDF のうち最も早い日（2025-06-02）と違う
+        with self.assertRaises(gm.GenError) as cm:
+            gm.meeting_dates(self._with(M_JUNE, date="2025-06-12"))
+        self.assertIn(M_JUNE, str(cm.exception))
+
+    def test_name_with_dated_pdf_stops(self):
+        # dateFrom が name なのに、日付のある PDF がある
+        with self.assertRaises(gm.GenError) as cm:
+            gm.meeting_dates(self._with(M_2018, dateFrom="name"))
+        self.assertIn(M_2018, str(cm.exception))
+
+    def test_missing_field_stops(self):
+        for field in ["date", "dateFrom"]:
+            with self.subTest(field=field):
+                old = [{k: v for k, v in m.items() if k != field} if m["id"] == M_JUNE else m for m in MEETINGS]
+                with self.assertRaises(gm.GenError) as cm:
+                    gm.meeting_dates(old)
+                self.assertIn(M_JUNE, str(cm.exception))
+
+    def test_inconsistent_null_or_unknown_from_stops(self):
+        for kw in [{"date": None, "dateFrom": "pdf"}, {"date": None, "dateFrom": None}, {"dateFrom": "index"}]:
+            with self.subTest(**kw):
+                with self.assertRaises(gm.GenError):
+                    gm.meeting_dates(self._with(M_JUNE, **kw))
 
     def test_no_date(self):
         d, reason = self.mdates[M_NODATE]
@@ -120,6 +156,7 @@ class TestSpeechDate(GenTestCase):
     def test_order(self):
         self.assertEqual(gm.speech_date(speech(f"{M_JUNE}_20250612_0003", ""), self.mdates), (date(2025, 6, 12), ""))
         self.assertEqual(gm.speech_date(speech(f"{M_JUNE}_8.5rmokuji_0000", ""), self.mdates), (date(2025, 6, 2), ""))
+        self.assertEqual(gm.speech_date(speech(f"{M_NAME}_2gijiroku_0003", ""), self.mdates), (date(2021, 2, 10), ""))
         d, reason = gm.speech_date(speech(f"{M_NODATE}_kaigiroku-honbun_0003", ""), self.mdates)
         self.assertIsNone(d)
         self.assertIn(M_NODATE, reason)
@@ -398,8 +435,23 @@ class TestLock(unittest.TestCase):
                         gm.load_lock(p)
 
 
-# 13. D2：日付の無い会議の発言は、索引の date 項目に値があっても no_date に出る
+# 13. D2：date が null の会議の発言は、索引の date 項目に値があっても no_date に出る。
+#     date を会議名から求めた会議（dateFrom が name）の発言は、その日付で照合する
 class TestNoDateIgnoresIndexDate(GenTestCase):
+    def test_null_date_meeting_goes_to_no_date(self):
+        sid = f"{M_NODATE}_kaigiroku-honbun_0004"
+        g = gm.gen_minutes([speech(sid, "教育振興基本計画")], self.mdates, {}, self.refs, self.names)
+        self.assertEqual((g.candidates, g.out_of_period, g.no_edition), ([], [], []))
+        self.assertEqual([(r["from"], r["meeting_id"]) for r in g.no_date], [(f"sp:{sid}", M_NODATE)])
+        self.assertIn("date が null", g.no_date[0]["reason"])
+
+    def test_name_date_meeting_matched(self):
+        sid = f"{M_NAME}_2gijiroku_0003"
+        g = gm.gen_minutes([speech(sid, "教育振興基本計画")], self.mdates, {}, self.refs, self.names)
+        self.assertEqual(g.no_date, [])
+        self.assertEqual([(r["from"], r["to"], r["speech_date"]) for r in g.candidates],
+                         [(f"sp:{sid}", "plan:kyoiku3", "2021-02-10")])
+
     def test_index_date_not_used(self):
         sid = f"{M_NODATE}_kaigiroku-honbun_0003"
         index = [speech(sid, "教育振興基本計画と滋賀県地域防災計画と日野町総合計画", day="2021-02-10")]

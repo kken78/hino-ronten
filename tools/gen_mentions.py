@@ -10,10 +10,13 @@ find_mentions で照合して、候補と一覧を build/mention/ に書く。�
 終了コード：0 は build/mention/ への書き出しまで終えた。1 は入力・参照表の誤りで止めた（件数と該当を表示する）。
 
 工程4-2 で決めた扱い：
-- 会議の日付は、meetings.json の日付のある PDF のうち最も早い日（会議の初日）。日付が2つの年度に
-  またがる会議は日付なしとする（D1）
-- sid に日付が無く、会議にも日付が無い発言は照合せず、no_date.tsv に出す。索引の date 項目は
-  参考として出すだけで、照合には使わない（D2。LINK_SCHEMA.md §8）
+- 会議の日付は、meetings.json の各会議の date 項目（hino-council-search #22。LINK_SCHEMA.md §8）。
+  dateFrom が pdf の会議は date が日付のある PDF のうち最も早い日（会議の初日）と一致すること、
+  dateFrom が name の会議は日付のある PDF が無いことを確かめ、合わなければ止める。date 項目の無い
+  会議があれば止める（古い版の meetings.json は使わない）。日付のある PDF が2つの年度にまたがる
+  会議は日付なしとする（D1）
+- sid に日付が無く、会議の日付も無い（date が null か、D1 で日付なしとした）発言は照合せず、
+  no_date.tsv に出す。索引の date 項目は参考として出すだけで、照合には使わない（D2。LINK_SCHEMA.md §8）
 - 会議録は role が「議長」と完全に一致する発言だけを除く（D3。§7）
 - 会議録の目次の項目（sid の真ん中に mokuji を含むもの）は、発言ではないため照合の対象から除く（§7。2026-10-11 の決定）
 - 議会だよりは title・question_text・answer_title・answers の順に欄ごとに照合し、同じ to は最初の欄の
@@ -195,21 +198,47 @@ def _iso_date(value, where):
 
 
 def meeting_dates(meetings):
-    """会議ID →（会議の日付、日付が無い理由）。会議の日付は、日付のある PDF のうち最も早い日（D1）。"""
+    """会議ID →（会議の日付、日付が無い理由）。会議の日付は meetings.json の date 項目（§8）。
+    dateFrom が pdf なら日付のある PDF のうち最も早い日と、name なら日付のある PDF が無いことと照らし、
+    合わなければ止める。日付のある PDF が2つ以上の年度にまたがる会議は日付なしとする（D1）。"""
     out = {}
+    missing, mismatch = [], []
     for m in meetings:
         mid = m["id"]
         if mid in out:
             raise GenError(f"meetings.json: 会議IDが重なっている（{mid}）")
+        out[mid] = (None, "")
+        if "date" not in m or "dateFrom" not in m:
+            missing.append(mid)
+            continue
         days = sorted({_iso_date(p["date"], f"meetings.json {mid}") for p in m["pdfs"] if p.get("date") is not None})
-        if not days:
-            out[mid] = (None, f"meetings.json の会議 {mid} に日付が無い")
+        src = m["dateFrom"]
+        if m["date"] is None:
+            if src is not None or days:
+                mismatch.append(f"{mid}：date が null なのに、dateFrom が {src!r}、日付のある PDF が {len(days)} 件")
+                continue
+            out[mid] = (None, f"meetings.json の会議 {mid} に日付が無い（date が null）")
+            continue
+        md = _iso_date(m["date"], f"meetings.json {mid} の date")
+        if src == "pdf":
+            if not days or md != days[0]:
+                first = days[0].isoformat() if days else "なし"
+                mismatch.append(f"{mid}：dateFrom が pdf で date {md.isoformat()}、日付のある PDF の最も早い日 {first}")
+                continue
+        elif src == "name":
+            if days:
+                mismatch.append(f"{mid}：dateFrom が name なのに、日付のある PDF が {len(days)} 件")
+                continue
+        else:
+            mismatch.append(f"{mid}：dateFrom が pdf・name でない（{src!r}）")
             continue
         years = sorted({mention.fiscal_year(d) for d in days})
         if len(years) > 1:
             out[mid] = (None, f"会議 {mid} の日付が2つ以上の年度にまたがる（{'・'.join(map(str, years))}年度）")
             continue
-        out[mid] = (days[0], "")
+        out[mid] = (md, "")
+    _fail("meetings.json: date・dateFrom 項目の無い会議（古い版の meetings.json は使わない）", missing)
+    _fail("meetings.json: date・dateFrom が PDF の日付と合わない会議", mismatch)
     return out
 
 
@@ -622,12 +651,13 @@ def report_lines(built):
     L += _table(["ファイル", "sha256"], sorted(inp.ref_hashes.items())) + [""]
     unread = sorted(p for p in inp.plan_listing if p not in manifest_plan_paths(inp.manifest, inp.plan_listing))
     L += ["## 前提", "",
-          "- 議会だよりの行の speech_date は、minutes_links.json の会議の初日（meetings.json の日付のある PDF の"
-          "うち最も早い日）で、質問の当日ではない（D1）",
+          "- 議会だよりの行の speech_date は、minutes_links.json の会議の初日（meetings.json の date 項目。"
+          "日付のある PDF のうち最も早い日、日付のある PDF が無い会議は会議名の日付）で、質問の当日ではない。"
+          "日付のある PDF が2つ以上の年度にまたがる会議は日付なしとした（D1）",
           "- 会議録で除いたのは、role が「議長」と完全に一致する発言だけ（LINK_SCHEMA §7）。hino-council-search の"
           "MCP は「議長」で終わる role を除いており、範囲が違う（D3）。除いていない role は b の表のとおり",
-          "- 日付なしの行は照合していない。索引の date 項目は参考として no_date.tsv に出すだけで、照合には使って"
-          "いない（D2）",
+          "- 日付なしの行（sid に日付が無く、会議の日付も無いもの。会議の date が null か、D1 で日付なしとした会議）は照合していない。索引の date 項目は参考"
+          "として no_date.tsv に出すだけで、照合には使っていない（D2）",
           "- 計画は manifest の name だけを使い、data/plans/*.json は読んでいない。manifest に無いため読まない"
           f"ファイル：{'、'.join(unread) if unread else 'なし'}（D5）", ""]
 
