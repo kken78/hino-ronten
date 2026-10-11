@@ -118,10 +118,67 @@ class TestEdition(MentionTestCase):
         self.assertEqual(r.rows, [])
         self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("kodomo", "1")])
 
+    def test_no_or_kagikakko_between(self):
+        # 2026-10-11 の決定（§7）：「の」か「「」のどちらか1つと「日野町」を挟む形も期の明記として読む
+        cases = [
+            ("第6次の総合計画を策定する", "2019-06-14", "plan:sogo6", "期の明記（第6次）"),
+            ("第3期「子ども・子育て支援事業計画」", "2024-06-14", "plan:kodomo", "期の明記（第3期）"),
+            ("第4期の日野町教育振興基本計画", "2025-03-11", "plan:kyoiku4", "期の明記（第4期）"),
+            ("第6期の総合計画", "2020-03-12", "plan:sogo6", "期の明記（第6期）"),
+        ]
+        for text, day, to, note in cases:
+            with self.subTest(text=text):
+                r = self.find(text, day)
+                self.assertEqual(self.tos(r), [to])
+                self.assertTrue(r.rows[0].note.startswith(note))
+
+    def test_two_chars_between_not_edition(self):
+        r = self.find("第6次となる総合計画", "2019-06-14")
+        self.assertEqual(self.tos(r), ["lin:sogo/5"])
+        self.assertNotIn("期の明記", r.rows[0].note)
+
+    def test_no_between_without_row(self):
+        r = self.find("第7期の介護保険事業計画", "2018-06-13")
+        self.assertEqual(r.rows, [])
+        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("kaigo", "7")])
+
     def test_jisshi_not_read_as_sogo_edition(self):
         r = self.find("第6次日野町総合計画実施計画に記載", "2026-06-15")
         self.assertEqual(self.tos(r), ["plan:jisshi"])
         self.assertNotIn("sogo", self.all_series(r))
+
+
+class TestSameTextEdition(MentionTestCase):
+    """2026-10-11 の決定（§7）：同じ本文の明記の無い言及は発言日で判別し、note に本文の期の明記を書く。"""
+    MARK = "同じ本文に期の明記がある"
+
+    def test_dated_row_gets_note(self):
+        r = self.find("第6次日野町総合計画ではダブルケアの位置づけ。現在の総合計画では育児と介護", "2019-03-14")
+        self.assertEqual(self.tos(r), ["plan:sogo6", "lin:sogo/5"])
+        self.assertTrue(r.rows[1].note.endswith("。同じ本文に期の明記がある（第6次）"))
+        self.assertNotIn(self.MARK, r.rows[0].note)
+
+    def test_forms_in_order_including_no_edition(self):
+        r = self.find("第2次日野町総合計画と第6次日野町総合計画、そして総合計画", "2019-03-14")
+        self.assertEqual(self.tos(r), ["plan:sogo6", "lin:sogo/5"])
+        self.assertTrue(r.rows[1].note.endswith("（第2次・第6次）"))
+        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("sogo", "2")])
+
+    def test_edition_after_dated_mention(self):
+        r = self.find("総合計画の策定。第6次総合計画", "2019-06-14")
+        self.assertEqual(self.tos(r), ["lin:sogo/5", "plan:sogo6"])
+        self.assertIn("同じ本文に期の明記がある（第6次）", r.rows[0].note)
+
+    def test_same_to_no_note(self):
+        r = self.find("第5次総合計画と総合計画", "2019-06-14")
+        self.assertEqual(self.tos(r), ["lin:sogo/5"])
+        self.assertNotIn(self.MARK, r.rows[0].note)
+
+    def test_unknown_period_no_note(self):
+        r = self.find("第6次国土利用計画と国土利用計画", "2019-06-14")
+        self.assertEqual(self.tos(r), ["plan:kokudoriyou"])
+        self.assertEqual(r.rows[0].note, "期間不明")
+        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("kokudoriyou", "6")])
 
 
 class TestLongestMatch(MentionTestCase):

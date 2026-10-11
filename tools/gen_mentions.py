@@ -545,7 +545,8 @@ def _targets(built):
 
 
 def _edition_forms(built):
-    """計画名の直前が「第N期「」「第N次「」「第N期の」「第N次の」の形の箇所（いまは期の明記として読まない形）。"""
+    """計画名の直前が「第N期「」「第N次「」「第N期の」「第N次の」の形の箇所
+    （LINK_SCHEMA §7 の 2026-10-11 の決定で、期の明記として読む形）。"""
     found = []
     for from_key, where, text in _targets(built):
         norm = mention.normalize(text)
@@ -728,7 +729,7 @@ def report_lines(built):
     # d. 論点の材料
     forms = _edition_forms(built)
     L += ["## d. 論点の材料", "",
-          f"### 計画名の直前が「第N期「」「第N次「」「第N期の」「第N次の」の形：{len(forms)} 箇所", ""]
+          f"### 計画名の直前が「第N期「」「第N次「」「第N期の」「第N次の」の形（2026-10-11 から期の明記として読む）：{len(forms)} 箇所", ""]
     L += _table(["形", "議会だより", "会議録"],
                 [(f, sum(1 for x in forms if x["form"] == f and x["from"].startswith("bq:")),
                   sum(1 for x in forms if x["form"] == f and x["from"].startswith("sp:")))

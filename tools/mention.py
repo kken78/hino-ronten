@@ -21,7 +21,8 @@ CONTEXT_CHARS = 15  # §3：evidence の前後各15文字
 
 KANJI_DIGITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 NUMBER = r"([0-9]+|[一二三四五六七八九十]+)"
-EDITION_BEFORE = re.compile(r"第" + NUMBER + r"([期次])(?:日野町)?$")
+# 直前の期の明記：「第N期」「第N次」と語の間に、「の」か「「」のどちらか1つと「日野町」を挟んでもよい（§7）
+EDITION_BEFORE = re.compile(r"第" + NUMBER + r"([期次])[の「]?(?:日野町)?$")
 EDITION_AFTER = re.compile(r"\(第" + NUMBER + r"([期次])\)")
 
 
@@ -258,7 +259,8 @@ def _longest_matches(text, terms):
 
 
 def _explicit_edition(text, s, e):
-    """期の明記：直前の「第N期／第N次」（間に「日野町」を挟んでもよい）と、直後の「(第N期)／(第N次)」。
+    """期の明記：直前の「第N期／第N次」（間に「の」か「「」のどちらか1つと「日野町」を挟んでもよい）と、
+    直後の「(第N期)／(第N次)」。
     返り値は (N, 期か次, 前後で違う場合の note)。明記が無ければ (None, None, "")。"""
     before = EDITION_BEFORE.search(text[:s])
     after = EDITION_AFTER.match(text, e)
@@ -283,13 +285,18 @@ def find_mentions(text, date, refs):
     返り値の Result は、台帳に行を作るもの（rows）と、build/ の一覧に出すもの
     （no_edition：期の行なし、out_of_period：期間外）に分かれる。
     rows は同じ to を1件にまとめる。evidence・context は本文で先に出た一致を使い、
-    ほかに一致した語は note に書く（§7 同じ plan への一致）。"""
+    ほかに一致した語は note に書く（§7 同じ plan への一致）。
+    同じ本文に同じ series の期の明記があっても、明記の無い言及は発言日で判別し、明記の期にはそろえない。
+    発言日で決めた行のうち、to が明記で決まったどの行とも違うものは、note に「同じ本文に期の明記がある
+    （第2次・第6次）」の形で、その本文の期の明記を書く（§7。期の行なしになった明記も含める）。"""
     day = _parse_date(date)
     fy = fiscal_year(day)
     norm = normalize(text)
     result = Result()
-    hits = []  # (to, series, edition, evidence, context, note, pos)
+    hits = []  # (to, series, edition, evidence, context, note, pos, 発言日で決めたか)
     listed_seen = set()
+    explicit_forms = {}  # series → 期の明記の書き方（「第6次」の形。本文で出た順に、同じものは1回だけ）
+    explicit_tos = {}    # series → 期の明記で決まった to の集合
 
     for s, e, t in _longest_matches(norm, refs.terms):
         if t.kind == EXCLUDE:
@@ -297,6 +304,9 @@ def find_mentions(text, date, refs):
         context = norm[max(0, s - CONTEXT_CHARS):e + CONTEXT_CHARS]
         n, mark, conflict = _explicit_edition(norm, s, e)
         if n is not None:
+            forms = explicit_forms.setdefault(t.series, [])
+            if f"第{n}{mark}" not in forms:
+                forms.append(f"第{n}{mark}")
             row = refs.edition_row(t.series, n)
             notes = [f"期の明記（第{n}{mark}）"] + ([conflict] if conflict else [])
             if row is None:
@@ -306,16 +316,17 @@ def find_mentions(text, date, refs):
                     result.no_edition.append(Listed(t.series, str(n), t.term, context, fy,
                                                     "。".join(notes + ["系譜表にこの期の行が無い"]), s))
                 continue
-            hits.append((row.key, t.series, row.edition, t.term, context, "。".join(notes), s))
+            explicit_tos.setdefault(t.series, set()).add(row.key)
+            hits.append((row.key, t.series, row.edition, t.term, context, "。".join(notes), s, False))
             continue
         rows = refs.rows_of(t.series)
         inside = [r for r in rows if r.start_fy is not None and r.start_fy <= fy <= r.end_fy]
         unknown = [r for r in rows if r.start_fy is None]
         for r in inside:
             note = f"{day.isoformat()} は{wareki_fiscal_year(fy)}。{r.name}（{r.start_fy}〜{r.end_fy}年度）"
-            hits.append((r.key, t.series, r.edition, t.term, context, note, s))
+            hits.append((r.key, t.series, r.edition, t.term, context, note, s, True))
         for r in unknown:
-            hits.append((r.key, t.series, r.edition, t.term, context, "期間不明", s))
+            hits.append((r.key, t.series, r.edition, t.term, context, "期間不明", s, False))
         if not inside and not unknown:
             k = ("out_of_period", t.series)
             if k not in listed_seen:
@@ -324,8 +335,11 @@ def find_mentions(text, date, refs):
                                                    f"{day.isoformat()} は{wareki_fiscal_year(fy)}。{t.series} のどの期の期間にも入らない", s))
 
     by_to = {}
-    for to, series, edition, evidence, context, note, pos in hits:
+    for to, series, edition, evidence, context, note, pos, dated in hits:
         if to not in by_to:
+            # 発言日で決めた行（期間不明は含めない）が、同じ series の明記で決まったどの to とも違うとき
+            if dated and explicit_forms.get(series) and to not in explicit_tos.get(series, set()):
+                note = f"{note}。同じ本文に期の明記がある（{'・'.join(explicit_forms[series])}）"
             by_to[to] = [Mention(to, series, edition, evidence, context, note, pos), []]
         elif evidence != by_to[to][0].evidence and evidence not in by_to[to][1]:
             by_to[to][1].append(evidence)
