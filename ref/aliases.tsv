@@ -10,11 +10,22 @@ bunkazai	保存活用地域計画	略称
 bunkazai	文化財保護活用地域計画	略称	言い間違いの表記
 bunkazai	文化財地域計画	略称	
 bunkazai	文化財保存活動地域計画	略称	会議録の表記の誤り
+bunkazai	文化財	文脈語	
+bunkazai	文化庁	文脈語	
 chiiki-fukushi	日野町地域福祉計画	正式名	
 chiiki-fukushi	地域福祉計画	略称	
 chiiki-nogyo	地域計画(農業の将来設計図・町内7地区)	正式名	
 chiiki-nogyo	地域計画	略称	「文化財保存活用地域計画」「国土強靭化地域計画」の中の一致は、§7 の最長一致で bunkazai・kyojin に入る
 chiiki-nogyo	日野町地域計画	略称	議会での呼び方（「日野町地域計画検討会」など）
+chiiki-nogyo	農業	文脈語	
+chiiki-nogyo	農地	文脈語	
+chiiki-nogyo	農家	文脈語	
+chiiki-nogyo	耕作	文脈語	
+chiiki-nogyo	担い手	文脈語	
+chiiki-nogyo	営農	文脈語	
+chiiki-nogyo	人・農地	文脈語	
+chiiki-nogyo	将来設計図	文脈語	
+chiiki-nogyo	目標地図	文脈語	
 inochi	いのちと生活を守るネットワーク計画	正式名	
 jisshi	第6次総合計画実施計画	正式名	
 jisshi	第6次日野町総合計画・実施計画	略称	原典の奥付の表記。「第6次」まで含めて登録する
@@ -60,6 +71,8 @@ kyojin	国土強靭化日野町地域計画	略称	議会での呼び方の「�
 kyojin	国土強靱化地域計画	略称	「靱」の字の表記
 kyojin	国土強靱化日野町地域計画	略称	議会での呼び方（0000006923_20221214_0106）
 kyojin	日野町国土強靱化地域計画	略称	「靱」の字の表記（NFKC では「靭」と同じにならない）
+kyojin	強靭化	文脈語	
+kyojin	強靱化	文脈語	
 kyoryo	橋梁長寿命化修繕計画	正式名	
 kyoryo	日野町橋梁長寿命化修繕計画	略称	
 kyoryo	橋梁長寿命化計画	略称	

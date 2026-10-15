@@ -222,6 +222,107 @@ class TestLongestMatch(MentionTestCase):
         self.assertEqual(self.tos(r), ["plan:senryaku2"])
 
 
+class TestContextAbbrev(MentionTestCase):
+    """2026-10-15 の決定（§7 文脈で決める略称・§9 文脈語）。"""
+    GROUP = "文脈で決まらない（組：chiiki-nogyo・bunkazai・kyojin）"
+
+    def find(self, text, day, before=()):
+        return mention.find_mentions(text, day, self.refs, before)
+
+    def test_ambiguous_terms(self):
+        self.assertEqual({k: a.group for k, a in self.refs.ambiguous.items()}, {
+            "地域計画": ("chiiki-nogyo", "bunkazai", "kyojin"),
+            "日野町地域計画": ("chiiki-nogyo", "kyojin")})
+        for a in self.refs.ambiguous.values():
+            self.assertFalse({"地域計画", "日野町地域計画"} & {c.term for c in a.clues})
+
+    def test_bunkazai_from_before(self):
+        r = self.find("地域計画の進捗はどうか", "2025-06-15", ["文化財保存活用地域計画の策定について伺う"])
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+        self.assertEqual(r.rows[0].evidence, "地域計画")
+        self.assertTrue(r.rows[0].note.startswith("文脈で決めた（手がかり：文化財保存活用地域計画）。2025-06-15 は令和7年度"))
+
+    def test_chiiki_nogyo_from_before(self):
+        r = self.find("地域計画の策定", "2025-06-15", ["農地の集積について"])
+        self.assertEqual(self.tos(r), ["plan:chiiki-nogyo"])
+        self.assertEqual(r.rows[0].note, "文脈で決めた（手がかり：農地）。期間不明")
+
+    def test_nearest_of_two(self):
+        r = self.find("文化財の保護と農業の振興について、地域計画は", "2025-06-15")
+        self.assertEqual(self.tos(r), ["plan:chiiki-nogyo"])
+        r = self.find("農業の振興と文化財の保護について、地域計画は", "2025-06-15")
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+        # 同じ本文の言及より前は、before より近い
+        r = self.find("文化財について。地域計画", "2025-06-15", ["農地の話"])
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+        # before は後ろの本文ほど近い
+        r = self.find("地域計画", "2025-06-15", ["農地の話", "文化財の話"])
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+
+    def test_same_end_longer_wins(self):
+        # 「保存活用地域計画」と「文化財保存活用地域計画」は終わりの位置が同じ。長い方を手がかりにする
+        r = self.find("地域計画", "2025-06-15", ["文化財保存活用地域計画"])
+        self.assertIn("手がかり：文化財保存活用地域計画）", r.rows[0].note)
+
+    def test_after_in_same_text(self):
+        r = self.find("地域計画は農地の集約を進める", "2025-06-15")
+        self.assertEqual(self.tos(r), ["plan:chiiki-nogyo"])
+        self.assertTrue(r.rows[0].note.startswith("文脈で決めた（手がかり：農地）"))
+        # 後ろでは、始まりの位置がいちばん前のもの
+        r = self.find("地域計画は文化財と農地", "2025-06-15")
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+
+    def test_undetermined(self):
+        r = self.find("地域計画について伺う", "2025-06-15")
+        self.assertEqual((r.rows, r.out_of_period, r.no_edition), ([], [], []))
+        self.assertEqual([(x.series, x.evidence, x.note, x.fiscal_year) for x in r.undetermined],
+                         [("chiiki-nogyo", "地域計画", self.GROUP, 2025)])
+
+    def test_ambiguous_term_itself_not_clue(self):
+        for before in [["地域計画の話"], ["日野町地域計画の話"]]:
+            with self.subTest(before=before):
+                r = self.find("地域計画", "2025-06-15", before)
+                self.assertEqual(r.rows, [])
+                self.assertEqual(len(r.undetermined), 1)
+        r = self.find("地域計画の話。地域計画", "2025-06-15")
+        self.assertEqual(r.rows, [])
+        self.assertEqual(len(r.undetermined), 1)
+
+    def test_hino_chiiki_keikaku_group(self):
+        r = self.find("強靭化の取り組みと日野町地域計画", "2025-06-15")
+        self.assertEqual(self.tos(r), ["plan:kyojin"])
+        # 文化財は「日野町地域計画」の組（chiiki-nogyo・kyojin）の手がかりではない
+        r = self.find("文化財と日野町地域計画", "2025-06-15")
+        self.assertEqual(r.rows, [])
+        self.assertEqual([x.note for x in r.undetermined], ["文脈で決まらない（組：chiiki-nogyo・kyojin）"])
+
+    def test_out_of_period_after_context(self):
+        # 決まった bunkazai の発言日が計画期間（2025〜2034年度）より前なら、期間外の一覧に出る
+        r = self.find("地域計画の策定", "2023-06-15", ["文化財の保護について"])
+        self.assertEqual((r.rows, r.undetermined), ([], []))
+        self.assertEqual([x.series for x in r.out_of_period], ["bunkazai"])
+        self.assertEqual(r.out_of_period[0].note,
+                         "文脈で決めた（手がかり：文化財）。2023-06-15 は令和5年度。bunkazai のどの期の期間にも入らない")
+
+    def test_explicit_edition_after_context(self):
+        r = self.find("農地の集積。第2期地域計画", "2025-06-15")
+        self.assertEqual(r.rows, [])
+        self.assertEqual([(x.series, x.edition) for x in r.no_edition], [("chiiki-nogyo", "2")])
+        self.assertTrue(r.no_edition[0].note.startswith("文脈で決めた（手がかり：農地）。期の明記（第2期）"))
+
+    def test_merged_with_direct_mention(self):
+        # 同じ本文で同じ to になる一致は1行にまとめる（evidence は先に出た一致）
+        r = self.find("文化財保存活用地域計画と、その地域計画", "2025-06-15")
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+        self.assertEqual(r.rows[0].evidence, "文化財保存活用地域計画")
+        self.assertFalse(r.rows[0].note.startswith("文脈で決めた"))
+        self.assertTrue(r.rows[0].note.endswith("。ほかに一致した語：地域計画"))
+
+    def test_context_words_are_not_mentions(self):
+        r = self.find("農地と農業と文化財と強靭化と強靱化", "2025-06-15", ["地域計画"])
+        self.assertEqual((r.rows, r.no_edition, r.out_of_period, r.undetermined), ([], [], [], []))
+
+
 class TestGrouping(MentionTestCase):
     def test_same_plan_merged(self):
         r = self.find("第7期障がい福祉計画・第3期障がい児福祉計画", "2024-06-15")
@@ -313,6 +414,41 @@ class TestLoadRefs(unittest.TestCase):
     def test_unnormalized_term(self):
         with self.assertRaises(mention.RefError):
             self.load(self.LIN_OK, self.ALI_OK.replace("日野町教育", "日野町 教育"))
+
+    LIN_CTX = (LIN_OK + "chiiki-nogyo\t\tchiiki-nogyo\t地域計画\t\t\t\t\n"
+               + "bunkazai\t\tbunkazai\t日野町文化財保存活用地域計画\t2025\t2034\tmanifest\t\n")
+    ALI_CTX = (ALI_OK + "chiiki-nogyo\t地域計画\t略称\t\n"
+               + "chiiki-nogyo\t地域計画(農業)\t正式名\t\n"
+               + "bunkazai\t文化財保存活用地域計画\t正式名\t\n")
+
+    def test_context_word_loaded(self):
+        refs = self.load(self.LIN_CTX, self.ALI_CTX + "chiiki-nogyo\t農地\t文脈語\t\nbunkazai\t文化財\t文脈語\t\n")
+        self.assertEqual([(t.series, t.term) for t in refs.terms if t.kind == mention.CONTEXT],
+                         [("chiiki-nogyo", "農地"), ("bunkazai", "文化財")])
+        self.assertNotIn("農地", [t.term for t in refs.match_terms])
+        self.assertEqual(refs.ambiguous["地域計画"].group, ("chiiki-nogyo", "bunkazai"))
+        r = mention.find_mentions("農地と文化財", "2025-06-15", refs)
+        self.assertEqual((r.rows, r.out_of_period, r.undetermined), ([], [], []))
+        r = mention.find_mentions("地域計画", "2025-06-15", refs, ["農地"])
+        self.assertEqual([m.to for m in r.rows], ["plan:chiiki-nogyo"])
+
+    def test_context_word_outside_group(self):
+        # kyoiku は文脈で決める略称の組に入らない
+        with self.assertRaises(mention.RefError) as cm:
+            self.load(self.LIN_CTX, self.ALI_CTX + "kyoiku\t学校\t文脈語\t\n")
+        self.assertIn("組に入らない", str(cm.exception))
+
+    def test_context_word_same_as_plan_term(self):
+        for row in ["bunkazai\t地域計画\t文脈語\t\n", "chiiki-nogyo\t文化財保存活用地域計画\t文脈語\t\n"]:
+            with self.subTest(row=row):
+                with self.assertRaises(mention.RefError) as cm:
+                    self.load(self.LIN_CTX, self.ALI_CTX + row)
+                self.assertIn("文脈語が日野町の計画の語と同じ", str(cm.exception))
+
+    def test_context_word_in_two_series(self):
+        with self.assertRaises(mention.RefError) as cm:
+            self.load(self.LIN_CTX, self.ALI_CTX + "chiiki-nogyo\t保存\t文脈語\t\nbunkazai\t保存\t文脈語\t\n")
+        self.assertIn("同じ文脈語が2つの series", str(cm.exception))
 
     def test_real_refs(self):
         refs = mention.load_refs(LINEAGE, ALIASES)

@@ -367,6 +367,102 @@ class TestListedOnce(GenTestCase):
         self.assertEqual([(r["series"], r["edition"], r["where"]) for r in g.no_edition], [("kodomo", "1", "answers")])
 
 
+# 10-2. 文脈で決める略称（§7。2026-10-15 の決定）：同じやりとりの中の手がかり
+class TestContextExchange(GenTestCase):
+    SIDS = [f"{M_JUNE}_20250612_{n:04d}" for n in range(1, 6)]
+    GROUP = "文脈で決まらない（組：chiiki-nogyo・bunkazai・kyojin）"
+
+    def minutes(self, texts, segments, roles=None):
+        index = [speech(s, t, role=(roles or {}).get(i, "1番")) for i, (s, t) in enumerate(zip(self.SIDS, texts))]
+        proc = {M_JUNE: {"segments": segments}}
+        scenes = gm.scene_of(index, proc)
+        return gm.gen_minutes(index, self.mdates, scenes, self.refs, self.names, gm.exchanges_of(index, proc))
+
+    def rows_of(self, g, sid):
+        return [r for r in g.candidates if r["from"] == f"sp:{sid}"]
+
+    def test_bunkazai_from_earlier_speech(self):
+        s = self.SIDS
+        g = self.minutes(["文化財保存活用地域計画の策定について伺う", "地域計画の策定は進めている"],
+                         [{"kind": "ippan", "from": s[0], "to": s[1]}])
+        rows = self.rows_of(g, s[1])
+        self.assertEqual([(r["to"], r["evidence"]) for r in rows], [("plan:bunkazai", "地域計画")])
+        self.assertTrue(rows[0]["note"].startswith("文脈で決めた（手がかり：文化財保存活用地域計画）。"))
+
+    def test_chiiki_nogyo_from_chair_in_exchange(self):
+        # 議長の発言も、まとまりの中にあれば手がかりに含める（照合の対象にはしない）
+        s = self.SIDS
+        g = self.minutes(["農地の集積について", "地域計画を作る"], [{"kind": "shitsugi", "from": s[0], "to": s[1]}],
+                         roles={0: "議長"})
+        self.assertEqual([(r["from"], r["to"]) for r in g.candidates], [(f"sp:{s[1]}", "plan:chiiki-nogyo")])
+        self.assertEqual(g.candidates[0]["note"], "文脈で決めた（手がかり：農地）。期間不明")
+
+    def test_nearest_earlier_speech(self):
+        s = self.SIDS
+        g = self.minutes(["文化財について", "農業について", "地域計画"], [{"kind": "ippan", "from": s[0], "to": s[2]}])
+        self.assertEqual([r["to"] for r in self.rows_of(g, s[2])], ["plan:chiiki-nogyo"])
+        g = self.minutes(["農業について", "文化財について", "地域計画"], [{"kind": "ippan", "from": s[0], "to": s[2]}])
+        self.assertEqual([r["to"] for r in self.rows_of(g, s[2])], ["plan:bunkazai"])
+
+    def test_later_speech_not_used(self):
+        # 後ろの別の発言にだけ手がかりがあるときは使わず、文脈で決まらない一覧に出る
+        s = self.SIDS
+        g = self.minutes(["地域計画について伺う", "農地の集積を進める"], [{"kind": "ippan", "from": s[0], "to": s[1]}])
+        self.assertEqual(g.candidates, [])
+        self.assertEqual([(r["from"], r["series"], r["evidence"], r["note"]) for r in g.undetermined],
+                         [(f"sp:{s[0]}", "chiiki-nogyo", "地域計画", self.GROUP)])
+        self.assertEqual(sorted(g.undetermined[0]), sorted(gm.OUT_OF_PERIOD_COLUMNS))
+
+    def test_outside_exchange_no_before(self):
+        # まとまりに入らない発言と、一般質問・議案質疑でない場面の発言には、前の発言を渡さない
+        s = self.SIDS
+        for segs in ([], [{"kind": "proposal", "from": s[0], "to": s[1]}]):
+            with self.subTest(segs=segs):
+                g = self.minutes(["農地の集積について", "地域計画を作る"], segs)
+                self.assertEqual(g.candidates, [])
+                self.assertEqual([r["from"] for r in g.undetermined], [f"sp:{s[1]}"])
+
+    def test_other_exchange_not_used(self):
+        s = self.SIDS
+        g = self.minutes(["農地の集積について", "地域計画を作る"],
+                         [{"kind": "ippan", "from": s[0], "to": s[0]}, {"kind": "ippan", "from": s[1], "to": s[1]}])
+        self.assertEqual([r["from"] for r in g.undetermined], [f"sp:{s[1]}"])
+
+    def test_out_of_period_after_context(self):
+        # 決まった bunkazai の発言日が計画期間（2025〜2034年度）より前なら、期間外の一覧に出る
+        s = [f"{M_2018}_20180613_{n:04d}" for n in (1, 2)]
+        index = [speech(s[0], "文化財の保護について"), speech(s[1], "地域計画の策定を")]
+        proc = {M_2018: {"segments": [{"kind": "ippan", "from": s[0], "to": s[1]}]}}
+        g = gm.gen_minutes(index, self.mdates, gm.scene_of(index, proc), self.refs, self.names,
+                           gm.exchanges_of(index, proc))
+        self.assertEqual((g.candidates, g.undetermined), ([], []))
+        self.assertEqual([(r["from"], r["series"]) for r in g.out_of_period], [(f"sp:{s[1]}", "bunkazai")])
+        self.assertTrue(g.out_of_period[0]["note"].startswith("文脈で決めた（手がかり：文化財）。2018-06-13 は平成30年度"))
+
+    def test_bulletin_earlier_fields(self):
+        ml = {"35": {"中西 佳子": {"meeting_id": M_JUNE}}}
+        q = question(35, "中西 佳子", 1, "農地の保全について", question_text="質問",
+                     answers=[{"label": "町長", "text": "地域計画で進める"}])
+        g = gm.gen_bulletin([q], ml, self.mdates, self.refs, self.names)
+        self.assertEqual([(r["to"], r["where"]) for r in g.candidates], [("plan:chiiki-nogyo", "answers")])
+        self.assertTrue(g.candidates[0]["note"].startswith("文脈で決めた（手がかり：農地）"))
+        # 後の欄にだけ手がかりがあるときは使わない
+        q = question(35, "中西 佳子", 2, "地域計画について", question_text="農地の保全")
+        g = gm.gen_bulletin([q], ml, self.mdates, self.refs, self.names)
+        self.assertEqual(g.candidates, [])
+        self.assertEqual([(r["from"], r["where"]) for r in g.undetermined], [("bq:35/中西佳子/2", "title")])
+
+    def test_exchanges_in_sid_order(self):
+        s = self.SIDS
+        index = [speech(x, x[-1]) for x in s]
+        proc = {M_JUNE: {"segments": [{"kind": "ippan", "from": s[0], "to": s[1]},
+                                      {"kind": "report", "from": s[2], "to": s[2]},
+                                      {"kind": "shitsugi", "from": s[3], "to": s[4]}]}}
+        ex = gm.exchanges_of(index, proc)
+        self.assertEqual(sorted(ex), [s[0], s[1], s[3], s[4]])
+        self.assertEqual(ex[s[4]], [(s[3], "4"), (s[4], "5")])
+
+
 # 11. TSV の形（§1）と candidate の列（§3）
 class TestTsv(GenTestCase):
     def test_format_and_sort(self):
@@ -480,6 +576,7 @@ class TestDeterministic(GenTestCase):
             index=[speech(s[0], "第3期「子ども・子育て支援事業計画」と教育振興基本計画", role="町長"),
                    speech(s[1], "議長の発言 教育振興基本計画", role="議長"),
                    speech(s[2], "日野町総合計画と第1期子ども・子育て支援事業計画", role="副議長"),
+                   speech(s[3], "地域計画について"),
                    speech(f"{M_JUNE}_8.5rmokuji_0000", "目次 日野町地域防災計画", role=""),
                    speech(f"{M_2018}_20180613_0001", "教育振興基本計画"),
                    speech(f"{M_NODATE}_kaigiroku_0001", "教育振興基本計画", day="2021-02-10")],
@@ -501,10 +598,11 @@ class TestDeterministic(GenTestCase):
                         files[n] = f.read()
                 outs.append(files)
         self.assertEqual(sorted(outs[0]), ["candidates.tsv", "no_date.tsv", "no_edition.tsv",
-                                           "out_of_period.tsv", "report.md"])
+                                           "out_of_period.tsv", "report.md", "undetermined.tsv"])
         self.assertEqual(outs[0], outs[1])
         report = outs[0]["report.md"].decode("utf-8")
         self.assertNotIn(f"sp:{M_JUNE}_8.5rmokuji_0000", outs[0]["candidates.tsv"].decode("utf-8"))
+        self.assertIn(f"sp:{M_JUNE}_20250612_0004\tchiiki-nogyo\t地域計画", outs[0]["undetermined.tsv"].decode("utf-8"))
         for needle in ["a" * 40, "b" * 40, "c" * 40, "0" * 64, "会議の初日", "副議長", "_charttest.json",
                        "- 除いた目次の項目 1 件\n"]:
             with self.subTest(needle=needle):

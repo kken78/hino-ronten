@@ -8,14 +8,17 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date as Date
+from functools import cached_property
 
 # §4 の空白：hino-council-search scripts/check-sid-stability.mjs の \s（JavaScript の空白の集合）と同じ
 JS_WHITESPACE = "[\t\n\v\f\r    -     　﻿]"
 
 LINEAGE_COLUMNS = ["series", "edition", "plan", "name", "start_fy", "end_fy", "source", "note"]
 ALIASES_COLUMNS = ["series", "term", "kind", "note"]
-FORMAL, ABBREV, EXCLUDE = "正式名", "略称", "除外"
-KINDS = (FORMAL, ABBREV, EXCLUDE)
+FORMAL, ABBREV, EXCLUDE, CONTEXT = "正式名", "略称", "除外", "文脈語"
+KINDS = (FORMAL, ABBREV, EXCLUDE, CONTEXT)
+PLAN_KINDS = (FORMAL, ABBREV)  # 日野町の計画の語（§9）
+CONTEXT_NOTE = re.compile(r"^文脈で決めた（手がかり：[^）]*）。")  # §7：文脈で決めた行の note の先頭
 
 CONTEXT_CHARS = 15  # §3：evidence の前後各15文字
 
@@ -62,9 +65,45 @@ class Term:
 
 
 @dataclass(frozen=True)
+class Ambiguous:
+    """§7 の文脈で決める略称。group は語の series を先頭に、ほかは名前順。clues は手がかりの語（Term）。"""
+    term: str
+    series: str
+    group: tuple
+    clues: tuple
+
+
+def _ambiguous(terms):
+    """§7：正式名・略称の語 T について、別の series の正式名・略称に T で終わり T より長い語があれば、
+    T は文脈で決める略称。組は T の series と、T で終わる語を持つ series。手がかりは組の series の
+    正式名・略称と文脈語で、文脈で決める略称そのものは含めない。"""
+    plan = [t for t in terms if t.kind in PLAN_KINDS]
+    found = []
+    for t in plan:
+        longer = sorted({u.series for u in plan
+                         if u.series != t.series and len(u.term) > len(t.term) and u.term.endswith(t.term)})
+        if longer:
+            found.append((t, (t.series, *longer)))
+    names = {t.term for t, _ in found}
+    return tuple(Ambiguous(t.term, t.series, group,
+                           tuple(u for u in terms if u.series in group and u.kind != EXCLUDE and u.term not in names))
+                 for t, group in found)
+
+
+@dataclass(frozen=True)
 class Refs:
     lineage: tuple
     terms: tuple
+
+    @cached_property
+    def match_terms(self):
+        """§7 の最長一致で使う語（除外の語を含み、文脈語を含まない。文脈語だけでは言及にしない）。"""
+        return tuple(t for t in self.terms if t.kind != CONTEXT)
+
+    @cached_property
+    def ambiguous(self):
+        """文脈で決める略称の語 → Ambiguous。"""
+        return {a.term: a for a in _ambiguous(self.terms)}
 
     def rows_of(self, series):
         return [r for r in self.lineage if r.series == series]
@@ -90,7 +129,8 @@ class Mention:
 
 @dataclass
 class Listed:
-    """build/ の一覧に出すもの（期の行なし・期間外）。edition は明記された N（期間外では空）。"""
+    """build/ の一覧に出すもの（期の行なし・期間外・文脈で決まらない）。edition は明記された N（期間外と
+    文脈で決まらないでは空）。文脈で決まらないの series は、一致した語の series。"""
     series: str
     edition: str
     evidence: str
@@ -105,6 +145,7 @@ class Result:
     rows: list = field(default_factory=list)
     no_edition: list = field(default_factory=list)
     out_of_period: list = field(default_factory=list)
+    undetermined: list = field(default_factory=list)
 
 
 def _read_tsv(path, columns):
@@ -183,7 +224,7 @@ def load_refs(lineage_path, aliases_path):
         if (c["series"], c["term"]) in seen_pair:
             raise RefError(f"{aliases_path}:{n}: (series, term) が重なっている（{c['series']}, {c['term']}）")
         seen_pair.add((c["series"], c["term"]))
-        if c["kind"] != EXCLUDE:
+        if c["kind"] in PLAN_KINDS:
             if owner.setdefault(c["term"], c["series"]) != c["series"]:
                 raise RefError(f"{aliases_path}:{n}: 同じ語が2つの series にある（{c['term']}：{owner[c['term']]}・{c['series']}）")
         terms.append(Term(c["series"], c["term"], c["kind"]))
@@ -197,9 +238,20 @@ def load_refs(lineage_path, aliases_path):
             continue
         if t.term in owner:
             raise RefError(f"{aliases_path}: 除外の語が日野町の計画の語と同じ（{t.term}）")
-        own = [u.term for u in terms if u.series == t.series and u.kind != EXCLUDE and u.term in t.term]
+        own = [u.term for u in terms if u.series == t.series and u.kind in PLAN_KINDS and u.term in t.term]
         if not own:
             raise RefError(f"{aliases_path}: 除外の語が同じ series の語を含まない（{t.series}, {t.term}）")
+    grouped = {s for a in _ambiguous(terms) for s in a.group}
+    context_owner = {}
+    for t in terms:
+        if t.kind != CONTEXT:
+            continue
+        if t.term in owner:
+            raise RefError(f"{aliases_path}: 文脈語が日野町の計画の語と同じ（{t.series}, {t.term}）")
+        if t.series not in grouped:
+            raise RefError(f"{aliases_path}: 文脈で決める略称の組に入らない series に文脈語がある（{t.series}, {t.term}）")
+        if context_owner.setdefault(t.term, t.series) != t.series:
+            raise RefError(f"{aliases_path}: 同じ文脈語が2つの series にある（{t.term}：{context_owner[t.term]}・{t.series}）")
     return Refs(tuple(lineage), tuple(terms))
 
 
@@ -279,11 +331,39 @@ def _explicit_edition(text, s, e):
     return None, None, ""
 
 
-def find_mentions(text, date, refs):
+def _nearest_clue(norm, s, e, before, amb):
+    """§7 文脈で決める略称の手がかり（Term）。無ければ None。
+    言及より前（同じ本文の言及より前、次に before を後ろから）で、いちばん近いもの（終わりの位置がいちばん
+    後ろ。同じなら長い方）。前に無ければ、同じ本文の言及より後ろで、いちばん近いもの（始まりの位置がいちばん
+    前。同じなら長い方）。before は正規化した本文の並び。"""
+    def occurrences(text, lo, hi):
+        found = []
+        for c in amb.clues:
+            i = text.find(c.term, lo)
+            while i >= 0 and i + len(c.term) <= hi:
+                found.append((i, i + len(c.term), c))
+                i = text.find(c.term, i + 1)
+        return found
+
+    for text, hi in [(norm, s)] + [(b, len(b)) for b in reversed(before)]:
+        found = occurrences(text, 0, hi)
+        if found:
+            return max(found, key=lambda m: (m[1], m[1] - m[0]))[2]
+    found = occurrences(norm, e, len(norm))
+    if found:
+        return min(found, key=lambda m: (m[0], -(m[1] - m[0])))[2]
+    return None
+
+
+def find_mentions(text, date, refs, before=()):
     """正規化した本文から計画名の言及を探し、期を判別する（§7）。
 
+    before は、同じやりとりの中でこの本文より前にある本文（生の文字列）の並び。文脈で決める略称だけが
+    一致した言及は、手がかり（_nearest_clue）の series とし、note の先頭に「文脈で決めた（手がかり：農地）」を置く。
+    手がかりが無ければ行を作らず、undetermined（文脈で決まらない）に出す。
+
     返り値の Result は、台帳に行を作るもの（rows）と、build/ の一覧に出すもの
-    （no_edition：期の行なし、out_of_period：期間外）に分かれる。
+    （no_edition：期の行なし、out_of_period：期間外、undetermined：文脈で決まらない）に分かれる。
     rows は同じ to を1件にまとめる。evidence・context は本文で先に出た一致を使い、
     ほかに一致した語は note に書く（§7 同じ plan への一致）。
     同じ本文に同じ series の期の明記があっても、明記の無い言及は発言日で判別し、明記の期にはそろえない。
@@ -298,41 +378,56 @@ def find_mentions(text, date, refs):
     explicit_forms = {}  # series → 期の明記の書き方（「第6次」の形。本文で出た順に、同じものは1回だけ）
     explicit_tos = {}    # series → 期の明記で決まった to の集合
 
-    for s, e, t in _longest_matches(norm, refs.terms):
+    before_norm = None
+    for s, e, t in _longest_matches(norm, refs.match_terms):
         if t.kind == EXCLUDE:
             continue  # 除外の語の範囲に含まれる一致は数えない
         context = norm[max(0, s - CONTEXT_CHARS):e + CONTEXT_CHARS]
-        n, mark, conflict = _explicit_edition(norm, s, e)
-        if n is not None:
-            forms = explicit_forms.setdefault(t.series, [])
-            if f"第{n}{mark}" not in forms:
-                forms.append(f"第{n}{mark}")
-            row = refs.edition_row(t.series, n)
-            notes = [f"期の明記（第{n}{mark}）"] + ([conflict] if conflict else [])
-            if row is None:
-                k = ("no_edition", t.series, str(n))
+        series, prefix = t.series, ""
+        amb = refs.ambiguous.get(t.term)
+        if amb is not None:
+            if before_norm is None:
+                before_norm = [normalize(b) for b in before]
+            clue = _nearest_clue(norm, s, e, before_norm, amb)
+            if clue is None:
+                k = ("undetermined", t.series)
                 if k not in listed_seen:
                     listed_seen.add(k)
-                    result.no_edition.append(Listed(t.series, str(n), t.term, context, fy,
-                                                    "。".join(notes + ["系譜表にこの期の行が無い"]), s))
+                    result.undetermined.append(Listed(t.series, "", t.term, context, fy,
+                                                      f"文脈で決まらない（組：{'・'.join(amb.group)}）", s))
                 continue
-            explicit_tos.setdefault(t.series, set()).add(row.key)
-            hits.append((row.key, t.series, row.edition, t.term, context, "。".join(notes), s, False))
+            series, prefix = clue.series, f"文脈で決めた（手がかり：{clue.term}）。"
+        n, mark, conflict = _explicit_edition(norm, s, e)
+        if n is not None:
+            forms = explicit_forms.setdefault(series, [])
+            if f"第{n}{mark}" not in forms:
+                forms.append(f"第{n}{mark}")
+            row = refs.edition_row(series, n)
+            notes = [f"期の明記（第{n}{mark}）"] + ([conflict] if conflict else [])
+            if row is None:
+                k = ("no_edition", series, str(n))
+                if k not in listed_seen:
+                    listed_seen.add(k)
+                    result.no_edition.append(Listed(series, str(n), t.term, context, fy,
+                                                    prefix + "。".join(notes + ["系譜表にこの期の行が無い"]), s))
+                continue
+            explicit_tos.setdefault(series, set()).add(row.key)
+            hits.append((row.key, series, row.edition, t.term, context, prefix + "。".join(notes), s, False))
             continue
-        rows = refs.rows_of(t.series)
+        rows = refs.rows_of(series)
         inside = [r for r in rows if r.start_fy is not None and r.start_fy <= fy <= r.end_fy]
         unknown = [r for r in rows if r.start_fy is None]
         for r in inside:
-            note = f"{day.isoformat()} は{wareki_fiscal_year(fy)}。{r.name}（{r.start_fy}〜{r.end_fy}年度）"
-            hits.append((r.key, t.series, r.edition, t.term, context, note, s, True))
+            note = f"{prefix}{day.isoformat()} は{wareki_fiscal_year(fy)}。{r.name}（{r.start_fy}〜{r.end_fy}年度）"
+            hits.append((r.key, series, r.edition, t.term, context, note, s, True))
         for r in unknown:
-            hits.append((r.key, t.series, r.edition, t.term, context, "期間不明", s, False))
+            hits.append((r.key, series, r.edition, t.term, context, f"{prefix}期間不明", s, False))
         if not inside and not unknown:
-            k = ("out_of_period", t.series)
+            k = ("out_of_period", series)
             if k not in listed_seen:
                 listed_seen.add(k)
-                result.out_of_period.append(Listed(t.series, "", t.term, context, fy,
-                                                   f"{day.isoformat()} は{wareki_fiscal_year(fy)}。{t.series} のどの期の期間にも入らない", s))
+                result.out_of_period.append(Listed(series, "", t.term, context, fy,
+                                                   f"{prefix}{day.isoformat()} は{wareki_fiscal_year(fy)}。{series} のどの期の期間にも入らない", s))
 
     by_to = {}
     for to, series, edition, evidence, context, note, pos, dated in hits:

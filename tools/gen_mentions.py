@@ -23,6 +23,10 @@ find_mentions で照合して、候補と一覧を build/mention/ に書く。�
   行を採る。後の欄は note に「ほかに一致した欄」として書く。answers の要素から出た行の where は
   「answers」とする（D4。§3）
 - 計画は manifest の name だけを使い、data/plans/*.json は読まない（D5）
+- 文脈で決める略称（§7。2026-10-15 の決定）の「同じやりとり」：会議録は、その発言を含む一般質問・議案質疑の
+  場面（proceedings.json の segments のうち kind が ippan・shitsugi のもの）で、その発言より前の発言の本文を
+  sid の順に渡す（議長の発言や目次の項目も、場面の中にあれば含める）。場面に入らない発言は何も渡さない。
+  議会だよりは、同じ問いの中でその欄より前の欄の本文を渡す
 """
 import hashlib
 import json
@@ -62,6 +66,7 @@ BQ_FIELDS = ["title", "question_text", "answer_title", "answers"]  # §3 の whe
 CHAIR = "議長"
 SCENES = {"ippan": "一般質問", "shitsugi": "議案質疑", "report": "委員長報告", "debate": "討論",
           "proposal": "提案説明", "vote": "採決"}
+EXCHANGE_KINDS = ("ippan", "shitsugi")  # §7 文脈で決める略称の「同じやりとり」になる場面
 OUTSIDE = "範囲外"
 SCENE_ORDER = list(SCENES.values()) + [OUTSIDE]
 PROPOSAL = SCENES["proposal"]
@@ -311,6 +316,22 @@ def scene_of(index, proceedings):
     return scenes
 
 
+def exchanges_of(index, proceedings):
+    """§7 文脈で決める略称の「同じやりとり」：sid → その発言を含む一般質問・議案質疑の場面の
+    （sid、本文）を sid の順に並べたもの。場面の誤りは scene_of で確かめるため、先に scene_of を呼ぶ。"""
+    pos = {e["sid"]: i for i, e in enumerate(index)}
+    out = {}
+    for mid in sorted(proceedings):
+        for sg in proceedings[mid].get("segments") or []:
+            if sg.get("kind") not in EXCHANGE_KINDS:
+                continue
+            group = sorted((index[k]["sid"], index[k].get("text") or "")
+                           for k in range(pos[sg["from"]], pos[sg["to"]] + 1))
+            for sid, _ in group:
+                out[sid] = group
+    return out
+
+
 def plan_names(manifest, refs):
     """manifest の id → name。系譜表の plan と manifest の id が食い違えば止める（§8：43本を全件載せる）。"""
     names = {}
@@ -346,12 +367,14 @@ def to_label(to, names, refs):
 
 
 def _terms_in(text, refs):
-    """§7 の最長一致で、除外の語を除いた一致（開始、終了、Term）。"""
-    return [m for m in mention._longest_matches(mention.normalize(text), refs.terms) if m[2].kind != mention.EXCLUDE]
+    """§7 の最長一致で、除外の語を除いた一致（開始、終了、Term）。文脈語は照合の語に使わない。"""
+    return [m for m in mention._longest_matches(mention.normalize(text), refs.match_terms)
+            if m[2].kind != mention.EXCLUDE]
 
 
 def matched_series(texts, refs):
-    """別名辞書の語（除外を除く）に一致した series。並びは series の名前順（コードポイント順）で、「、」でつなぐ。"""
+    """別名辞書の語（除外・文脈語を除く）に一致した series。並びは series の名前順（コードポイント順）で、
+    「、」でつなぐ。文脈で決める略称は、その語の series とする（照合はしないため、文脈では決めない）。"""
     return "、".join(sorted({t.series for text in texts for _, _, t in _terms_in(text, refs)}))
 
 
@@ -363,6 +386,7 @@ class Gen:
     out_of_period: list = field(default_factory=list)
     no_edition: list = field(default_factory=list)
     no_date: list = field(default_factory=list)
+    undetermined: list = field(default_factory=list)
     trace: list = field(default_factory=list)  # 報告の d 用：(from, to, series, 期の明記か, 期間不明か, evidence, context)
 
 
@@ -370,13 +394,22 @@ def _row_key(columns):
     return lambda row: tuple(row[c] for c in columns)
 
 
-def _match(gen, from_key, parts, day, scene, refs, names):
-    """parts（where、本文）の順に find_mentions を当て、gen に行を足す。同じ to は最初の欄の行を採る。"""
+def base_note(note):
+    """note の先頭の「文脈で決めた（手がかり：…）。」を除いたもの（期の明記・期間不明の判定用）。"""
+    return mention.CONTEXT_NOTE.sub("", note)
+
+
+def _match(gen, from_key, parts, day, scene, refs, names, before=()):
+    """parts（where、本文）の順に find_mentions を当て、gen に行を足す。同じ to は最初の欄の行を採る。
+    before は同じやりとりの中で parts より前の本文。後の欄には、前の欄の本文も before として渡す（§7）。"""
     cands, listed = {}, {}
+    prior = list(before)
     for where, text in parts:
-        r = mention.find_mentions(text, day, refs)
+        r = mention.find_mentions(text, day, refs, prior)
+        prior.append(text)
         for m in r.rows:
-            gen.trace.append((from_key, m.to, m.series, m.note.startswith("期の明記"), m.note.startswith("期間不明"),
+            note = base_note(m.note)
+            gen.trace.append((from_key, m.to, m.series, note.startswith("期の明記"), note.startswith("期間不明"),
                               m.evidence, m.context))
             if m.to in cands:
                 row, others = cands[m.to]
@@ -387,7 +420,8 @@ def _match(gen, from_key, parts, day, scene, refs, names):
                             "where": where, "context": m.context, "to_label": to_label(m.to, names, refs),
                             "status": "candidate", "reviewer": "", "date": "", "note": m.note,
                             "speech_date": day.isoformat(), "scene": scene}, [])
-        for kind, items in (("out_of_period", r.out_of_period), ("no_edition", r.no_edition)):
+        for kind, items in (("out_of_period", r.out_of_period), ("no_edition", r.no_edition),
+                            ("undetermined", r.undetermined)):
             for x in items:
                 k = (kind, x.series, x.edition)
                 if k in listed:
@@ -410,6 +444,7 @@ def _sort(gen):
     gen.out_of_period.sort(key=_row_key(OUT_OF_PERIOD_COLUMNS))
     gen.no_edition.sort(key=_row_key(NO_EDITION_COLUMNS))
     gen.no_date.sort(key=_row_key(NO_DATE_COLUMNS))
+    gen.undetermined.sort(key=_row_key(OUT_OF_PERIOD_COLUMNS))
     return gen
 
 
@@ -451,9 +486,11 @@ def gen_bulletin(questions, minutes_links, mdates, refs, names):
     return _sort(gen)
 
 
-def gen_minutes(index, mdates, scenes, refs, names):
-    """会議録：role が「議長」の発言と目次の項目を除き、発言ごとに照合する。発言日が無い発言は照合せず no_date に出す。"""
+def gen_minutes(index, mdates, scenes, refs, names, exchanges=None):
+    """会議録：role が「議長」の発言と目次の項目を除き、発言ごとに照合する。発言日が無い発言は照合せず no_date に出す。
+    exchanges（exchanges_of の結果）で、同じやりとりの中でその発言より前の発言の本文を before として渡す（§7）。"""
     gen, seen = Gen(), set()
+    exchanges = exchanges or {}
     for e in index:
         sid = e["sid"]
         if sid in seen:
@@ -469,7 +506,8 @@ def gen_minutes(index, mdates, scenes, refs, names):
                                 "matched_series": matched_series([e.get("text") or ""], refs),
                                 "index_date": e.get("date") or ""})
             continue
-        _match(gen, key, [("text", e.get("text") or "")], day, scene, refs, names)
+        before = [t for x, t in exchanges.get(sid, []) if x < sid]
+        _match(gen, key, [("text", e.get("text") or "")], day, scene, refs, names, before)
     return _sort(gen)
 
 
@@ -518,19 +556,21 @@ def build(inp, refs):
     names = plan_names(inp.manifest, refs)
     mdates = meeting_dates(inp.meetings)
     scenes = scene_of(inp.index, inp.proceedings)
+    exchanges = exchanges_of(inp.index, inp.proceedings)
     bulletin = gen_bulletin(inp.questions, inp.minutes_links, mdates, refs, names)
-    minutes = gen_minutes(inp.index, mdates, scenes, refs, names)
+    minutes = gen_minutes(inp.index, mdates, scenes, refs, names, exchanges)
     return Built(inp, refs, bulletin, minutes, scenes)
 
 
 def write_outputs(outdir, built):
-    """build/mention/ の5つのファイルを書く。返り値は書いたファイルの名前。"""
+    """build/mention/ の6つのファイルを書く。返り値は書いたファイルの名前。"""
     os.makedirs(outdir, exist_ok=True)
     b, m = built.bulletin, built.minutes
     files = [("candidates.tsv", CANDIDATE_COLUMNS, b.candidates + m.candidates),
              ("out_of_period.tsv", OUT_OF_PERIOD_COLUMNS, b.out_of_period + m.out_of_period),
              ("no_edition.tsv", NO_EDITION_COLUMNS, b.no_edition + m.no_edition),
-             ("no_date.tsv", NO_DATE_COLUMNS, b.no_date + m.no_date)]
+             ("no_date.tsv", NO_DATE_COLUMNS, b.no_date + m.no_date),
+             ("undetermined.tsv", OUT_OF_PERIOD_COLUMNS, b.undetermined + m.undetermined)]
     for name, columns, rows in files:
         write_tsv(os.path.join(outdir, name), columns, rows)
     with open(os.path.join(outdir, "report.md"), "wb") as f:
@@ -733,13 +773,18 @@ def report_lines(built):
     L += ["会議録の候補の例（提案説明を除く）：", ""] + _example_table([r for r in m.candidates if r["scene"] != PROPOSAL]) + [""]
 
     # c. 一覧の件数
-    L += ["## c. 期間外・期の行なし・日付なし・期間不明", ""]
+    L += ["## c. 期間外・期の行なし・日付なし・期間不明・文脈で決めた行・文脈で決まらない", ""]
     for title, rows_b, rows_m, keyf in (
             ("期間外（series ごと）", b.out_of_period, m.out_of_period, lambda r: r["series"]),
             ("期の行なし（series／明記された期ごと）", b.no_edition, m.no_edition, lambda r: f"{r['series']}／{r['edition']}"),
             ("期間不明（to ごと。candidates.tsv の note が「期間不明」の行）",
-             [r for r in b.candidates if r["note"].startswith("期間不明")],
-             [r for r in m.candidates if r["note"].startswith("期間不明")], lambda r: r["to"])):
+             [r for r in b.candidates if base_note(r["note"]).startswith("期間不明")],
+             [r for r in m.candidates if base_note(r["note"]).startswith("期間不明")], lambda r: r["to"]),
+            ("文脈で決めた候補（to ごと。candidates.tsv の note が「文脈で決めた」で始まる行。LINK_SCHEMA §7）",
+             [r for r in b.candidates if r["note"] != base_note(r["note"])],
+             [r for r in m.candidates if r["note"] != base_note(r["note"])], lambda r: r["to"]),
+            ("文脈で決まらない（一致した語の series ごと。undetermined.tsv）", b.undetermined, m.undetermined,
+             lambda r: r["series"])):
         cb, cm = Counter(map(keyf, rows_b)), Counter(map(keyf, rows_m))
         L += [f"{title}：議会だより {len(rows_b)} 行、会議録 {len(rows_m)} 行", ""]
         L += _table(["計画", "議会だより", "会議録"], [(k, cb[k], cm[k]) for k in sorted(set(cb) | set(cm))]) + [""]
@@ -819,9 +864,9 @@ def main():
         return 1
     b, m = built.bulletin, built.minutes
     print(f"議会だより：候補 {len(b.candidates)}・期間外 {len(b.out_of_period)}・期の行なし {len(b.no_edition)}・"
-          f"日付なし {len(b.no_date)}")
+          f"日付なし {len(b.no_date)}・文脈で決まらない {len(b.undetermined)}")
     print(f"会議録：候補 {len(m.candidates)}・期間外 {len(m.out_of_period)}・期の行なし {len(m.no_edition)}・"
-          f"日付なし {len(m.no_date)}")
+          f"日付なし {len(m.no_date)}・文脈で決まらない {len(m.undetermined)}")
     print(f"書き出し：{OUT_DIR}/ の {'・'.join(names)}")
     return 0
 
