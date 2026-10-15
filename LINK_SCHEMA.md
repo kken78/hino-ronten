@@ -101,6 +101,7 @@ rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1
   - 台帳に同じ組の confirmed・rejected の行がある：11列すべてを変えない（evidence・context は §5 の照合の土台であり、to_label は確定した時点の名称のため）
   - 台帳の confirmed・rejected の sp の行が §5 で移動となり、移動先の (sid, to, method) が生成の結果にある場合：移動先の組を candidate として足さない（人が from を書き換えたときに、同じ組の行が重ならないようにするため）
 - 確定・却下：人が status を confirmed または rejected に変え、reviewer・date を書く。人が note を書くのはこのときとする（candidate の行の note は再生成で置き換わる）。rejected の行には、note に却下の理由を書く。confirmed と rejected の間の変更も人だけが行い、note に理由を書く
+- まとめて確定：人は、同じ性質の candidate の組（例：期の明記がある、同じ to の行）から抜き取った行を1件ずつ判定し、その結果を見て、組の残りをまとめて confirmed にしてよい。抜き取りの数・選び方・まとめて確定する条件は、判定の前に DESIGN.md に書く。まとめて確定した行は、note に「抜き取りでまとめて確定（<組>、抜き取り<N>件・誤り0）」の形で書き、1件ずつ判定した行と区別する
 - 再生成で出なくなった行：candidate は削除し、一覧（removed.tsv）に出す。confirmed と rejected は削除せず、一覧（vanished.tsv）に出す。confirmed のうち再生成で出なくなったものがあれば、ビルドを停止する（別名辞書や系譜表の変更が既存の確定に影響したことを見落とさないため）。ただし、§5 で移動となり、移動先の (sid, to, method) が生成の結果にある confirmed・rejected は、出なくなった行に数えず、移動の一覧（moved.tsv）にだけ出す
 - 台帳と lock の版：台帳は、lock の版の入力でこの節のとおり更新した結果と同じでなければならない。台帳を確かめる道具（`tools/check_links.py`）は、更新と同じ処理で台帳を作り直していまの台帳と比べ、違えば停止して、更新の道具を先に動かすよう示す（§10）
 - 出力に使うのは、confirmed で、かつ §5 の照合が「一致」の行だけとする
