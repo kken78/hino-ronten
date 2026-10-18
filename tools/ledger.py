@@ -323,14 +323,16 @@ class Merged:
     note_changed: list = field(default_factory=list)
     vanished: list = field(default_factory=list)      # 出なくなった confirmed・rejected（移動を除く）。check 列つき
     suppressed: list = field(default_factory=list)    # 移動先なので candidate にしなかった組
+    relinked: list = field(default_factory=list)      # 付け替え済みなので candidate にしなかった組
 
     @property
     def vanished_confirmed(self):
         return [r for r in self.vanished if r["status"] == CONFIRMED]
 
 
-def merge(ledger_rows, gen_rows, corpus):
-    """§6：台帳に生成の結果を合わせた新しい台帳を作る。機械は status を confirmed・rejected にしない。"""
+def merge(ledger_rows, gen_rows, corpus, relink_rows=()):
+    """§6：台帳に生成の結果を合わせた新しい台帳を作る。機械は status を confirmed・rejected にしない。
+    relink の confirmed の行と同じ (from, to) の組は candidate にしない（台帳にある candidate の行も残さない）。"""
     gen = {}
     for r in gen_rows:
         if r["status"] != CANDIDATE or r["reviewer"] or r["date"]:
@@ -344,11 +346,12 @@ def merge(ledger_rows, gen_rows, corpus):
              if r["status"] != CANDIDATE and _key(r) not in gen and _kind(r["from"]) == "sp"}
     dests = {k: (m.moved_to, k[1], k[2]) for k, m in found.items() if m.result == MOVED}
     suppressed = {d for d in dests.values() if d in gen}
+    relinked = {(r["from"], r["to"]) for r in relink_rows if r["status"] == CONFIRMED}
     out = Merged(rows=[])
     for r in ledger_rows:
         k = _key(r)
         if r["status"] == CANDIDATE:
-            if k in suppressed:
+            if k in suppressed or (k in gen and k[:2] in relinked):
                 continue
             if k not in gen:
                 out.removed.append(r)
@@ -378,6 +381,9 @@ def merge(ledger_rows, gen_rows, corpus):
         if k in suppressed:
             out.suppressed.append(g)
             continue
+        if k[:2] in relinked:
+            out.relinked.append(g)
+            continue
         out.rows.append(dict(g))
         out.added.append(g)
     out.rows.sort(key=_key)
@@ -403,7 +409,7 @@ class Report:
 
 def check_ledger(ledger_rows, gen_rows, corpus, relink_rows=()):
     """台帳を確かめる（§5・§6・§11）。台帳は parse_ledger を通したものを渡す。relink の台帳もあわせて確かめる。"""
-    merged = merge(ledger_rows, gen_rows, corpus)
+    merged = merge(ledger_rows, gen_rows, corpus, relink_rows)
     now = {_key(r): r for r in ledger_rows}
     redo = {_key(r): r for r in merged.rows}
     stale = sorted(k for k in now.keys() | redo.keys() if now.get(k) != redo.get(k))

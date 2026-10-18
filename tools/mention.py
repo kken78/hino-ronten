@@ -21,6 +21,7 @@ PLAN_KINDS = (FORMAL, ABBREV)  # 日野町の計画の語（§9）
 CONTEXT_NOTE = re.compile(r"^文脈で決めた（手がかり：[^）]*）。")  # §7：文脈で決めた行の note の先頭
 
 CONTEXT_CHARS = 15  # §3：evidence の前後各15文字
+BEFORE_PERIOD_YEARS = 3  # §7 計画期間の前：最初の期の初年度より前の3年以内
 
 KANJI_DIGITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 NUMBER = r"([0-9]+|[一二三四五六七八九十]+)"
@@ -367,6 +368,8 @@ def find_mentions(text, date, refs, before=()):
     rows は同じ to を1件にまとめる。evidence・context は本文で先に出た一致を使い、
     ほかに一致した語は note に書く（§7 同じ plan への一致）。
     同じ本文に同じ series の期の明記があっても、明記の無い言及は発言日で判別し、明記の期にはそろえない。
+    発言の年度がどの期の期間にも入らず、最初の期（start_fy が最も小さい期）の初年度より前の3年以内なら、
+    期間外にせず、最初の期の行を作る（note は「計画期間の前（2年前）。…」。§7 計画期間の前）。この行も発言日で決めた行とする。
     発言日で決めた行のうち、to が明記で決まったどの行とも違うものは、note に「同じ本文に期の明記がある
     （第2次・第6次）」の形で、その本文の期の明記を書く（§7。期の行なしになった明記も含める）。"""
     day = _parse_date(date)
@@ -423,6 +426,12 @@ def find_mentions(text, date, refs, before=()):
         for r in unknown:
             hits.append((r.key, series, r.edition, t.term, context, f"{prefix}期間不明", s, False))
         if not inside and not unknown:
+            first = min((r for r in rows if r.start_fy is not None), key=lambda r: r.start_fy, default=None)
+            if first is not None and first.start_fy - BEFORE_PERIOD_YEARS <= fy < first.start_fy:
+                note = (f"{prefix}計画期間の前（{first.start_fy - fy}年前）。{day.isoformat()} は{wareki_fiscal_year(fy)}。"
+                        f"{first.name}（{first.start_fy}〜{first.end_fy}年度）")
+                hits.append((first.key, series, first.edition, t.term, context, note, s, True))
+                continue
             k = ("out_of_period", series)
             if k not in listed_seen:
                 listed_seen.add(k)

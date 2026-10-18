@@ -739,5 +739,68 @@ class TestRelinkTools(RelinkTestCase):
                 check_links.run(self.built(), path, os.path.join(d, "build"))
 
 
+
+# 11. 付け替え済みの組は candidate にしない（§6）：merge・check_ledger・update_links
+class TestRelinkedNotCandidate(RelinkTestCase):
+    def relink_on(self, rows, frm, to, status="confirmed"):
+        """(frm, to) の mention の行と同じ発言・同じ to の relink の行（merge は付け替えの元を見ない）。"""
+        return [dict(self.row(rows, frm, to), method="relink", status=status, reviewer="見本", date="2026-10-18",
+                     note="付け替え：lin:kodomo/2 の却下から。見本の理由")]
+
+    def test_merge_from_empty(self):
+        gen, corpus = self.gen_and_corpus()
+        rel = self.relink_on(self.base(), S4, "lin:kodomo/2")
+        m = ledger.merge([], gen, corpus, rel)
+        self.assertNotIn((S4, "lin:kodomo/2"), {(r["from"], r["to"]) for r in m.rows})
+        self.assertEqual([(r["from"], r["to"]) for r in m.relinked], [(S4, "lin:kodomo/2")])
+        self.assertEqual((len(m.added), m.suppressed), (4, []))  # 移動先の一覧とは別
+
+    def test_existing_candidate_dropped(self):
+        gen, corpus = self.gen_and_corpus()
+        rel = self.relink_on(self.base(), S4, "lin:kodomo/2")
+        m = ledger.merge(self.base(), gen, corpus, rel)
+        self.assertNotIn((S4, "lin:kodomo/2"), {(r["from"], r["to"]) for r in m.rows})
+        self.assertEqual([(r["from"], r["to"]) for r in m.relinked], [(S4, "lin:kodomo/2")])
+        self.assertEqual((m.removed, m.added, m.vanished), ([], [], []))
+
+    def test_cancelled_relink_does_not_suppress(self):
+        gen, corpus = self.gen_and_corpus()
+        rel = self.relink_on(self.base(), S4, "lin:kodomo/2", status="rejected")
+        m = ledger.merge(self.base(), gen, corpus, rel)
+        self.assertEqual((m.rows, m.relinked), (self.base(), []))
+
+    def test_decided_row_kept(self):
+        # mention の confirmed・rejected の行は、relink と同じ組でも残す（重なりは §11 の検査が止める）
+        gen, corpus = self.gen_and_corpus()
+        for status in ("confirmed", "rejected"):
+            with self.subTest(status=status):
+                rows = self.decide(self.base(), S4, "lin:kodomo/2", status)
+                m = ledger.merge(rows, gen, corpus, self.relink_on(rows, S4, "lin:kodomo/2"))
+                self.assertEqual((m.rows, m.relinked, m.vanished), (rows, [], []))
+
+    def test_check_ledger_same_as_merge(self):
+        gen, corpus = self.gen_and_corpus()
+        rel = self.relink_on(self.base(), S4, "lin:kodomo/2")
+        merged = ledger.merge(self.base(), gen, corpus, rel)
+        rep = ledger.check_ledger(merged.rows, gen, corpus, rel)
+        self.assertEqual((rep.merged.rows, rep.stale), (merged.rows, []))
+        # relink を渡さなければ、candidate が足りない台帳として食い違う
+        self.assertEqual(ledger.check_ledger(merged.rows, gen, corpus).stale, [(S4, "lin:kodomo/2", "mention")])
+        # 付け替え済みの candidate が残った台帳は、relink を渡すと食い違う
+        self.assertEqual(ledger.check_ledger(self.base(), gen, corpus, rel).stale, [(S4, "lin:kodomo/2", "mention")])
+
+    def test_update_links_reads_relink(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "links", "mention.tsv"), os.path.join(d, "build", "mention")
+            ledger.write_ledger(path, self.base())
+            ledger.write_ledger(os.path.join(d, "links", "relink.tsv"), self.relink_on(self.base(), S4, "lin:kodomo/2"))
+            code, merged, _ = update_links.run(self.built(), path, out)
+            self.assertEqual((code, len(merged.relinked)), (0, 1))
+            self.assertNotIn((S4, "lin:kodomo/2"), {(r["from"], r["to"]) for r in ledger.read_ledger(path, "mention")})
+            with open(os.path.join(out, "update.md"), encoding="utf-8") as f:
+                text = f.read()
+            self.assertIn("- 移動先なので candidate にしなかった組 0\n- 付け替え済みなので candidate にしなかった組 1\n", text)
+
+
 if __name__ == "__main__":
     unittest.main()

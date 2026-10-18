@@ -1,7 +1,8 @@
 """台帳 links/mention.tsv を更新する（LINK_SCHEMA.md §6・§11、DESIGN.md §5 工程4-3）。
 
 inputs.lock.json の版から tools/gen_mentions.py の build で候補を作り（build/mention/ のファイルは読まない）、
-tools/ledger.py の merge で台帳に合わせて書く。一覧と報告は build/links/mention/ に書く。
+tools/ledger.py の merge で台帳に合わせて書く。台帳と同じ場所の links/relink.tsv（無ければ0行）を読み、
+付け替え済みの組は candidate にしない（§6）。一覧と報告は build/links/mention/ に書く。
 機械が作るのは candidate だけ（DESIGN.md ADR-2）。
 
 実行: python3 -B tools/update_links.py
@@ -14,6 +15,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import check_links  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
@@ -31,6 +33,7 @@ def report_lines(merged, checked, wrote):
          f"- 足した candidate {len(merged.added)}・値が変わった candidate {len(merged.updated)}"
          f"（うち note {len(merged.note_changed)}）・削除した candidate {len(merged.removed)}",
          f"- 移動先なので candidate にしなかった組 {len(merged.suppressed)}",
+         f"- 付け替え済みなので candidate にしなかった組 {len(merged.relinked)}",
          f"- 再生成で出なくなった confirmed {len(merged.vanished_confirmed)}・rejected "
          f"{len(merged.vanished) - len(merged.vanished_confirmed)}",
          f"- §5 の照合（confirmed・candidate）：一致 {c[ledger.MATCH]}・移動 {c[ledger.MOVED]}・停止 {c[ledger.STOPPED]}",
@@ -39,11 +42,14 @@ def report_lines(merged, checked, wrote):
     return L
 
 
-def run(built, ledger_path, outdir):
-    """台帳を更新する。返り値は（終了コード、Merged、Checked）。止めるときは台帳を書かない。"""
+def run(built, ledger_path, outdir, relink_path=None):
+    """台帳を更新する。返り値は（終了コード、Merged、Checked）。止めるときは台帳を書かない。
+    relink の台帳の場所は、省くと mention の台帳と同じ場所（links/relink.tsv）。"""
     current = ledger.read_ledger(ledger_path, METHOD, missing_ok=True)
+    relink_rows = ledger.read_ledger(relink_path or check_links.relink_path_of(ledger_path), check_links.RELINK,
+                                     missing_ok=True)
     corpus = ledger.make_corpus(built.inputs, built.refs)
-    merged = ledger.merge(current, ledger.generated_rows(built), corpus)
+    merged = ledger.merge(current, ledger.generated_rows(built), corpus, relink_rows)
     checked = ledger.check_rows(merged.rows, corpus)
     ledger.parse_ledger(ledger.format_ledger(merged.rows), METHOD)  # 書く前に §11 の形を確かめる
     code = 1 if (checked.stopped or merged.vanished_confirmed) else 0
@@ -62,7 +68,7 @@ def main():
         gi = gm.GitInputs(gm.INPUTS_ROOT, lock)
         gi.verify()
         built = gm.build(gm.read_inputs(gi, lock), refs)
-        code, merged, checked = run(built, LEDGER_PATH, OUT_DIR)
+        code, merged, checked = run(built, LEDGER_PATH, OUT_DIR, check_links.RELINK_PATH)
     except (gm.GenError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1

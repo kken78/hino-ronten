@@ -629,12 +629,14 @@ def _edition_forms(built):
 
 
 def _drafting(built, rows):
-    """期間外のうち、発言の年度がその series の最初の期の開始年度より前の3年以内のもの。"""
+    """候補のうち、計画期間の前の行（note に「計画期間の前（」を含む。§7）。series は to の系譜表の行から求める。"""
+    series_of = {x.key: x.series for x in built.refs.lineage}
     out = []
     for r in rows:
-        starts = [x.start_fy for x in built.refs.rows_of(r["series"]) if x.start_fy is not None]
-        if starts and min(starts) - 3 <= int(r["fiscal_year"]) < min(starts):
-            out.append(dict(r, first_start=str(min(starts))))
+        if "計画期間の前（" in r["note"]:
+            s = series_of[r["to"]]
+            starts = [x.start_fy for x in built.refs.rows_of(s) if x.start_fy is not None]
+            out.append(dict(r, series=s, first_start=str(min(starts))))
     return out
 
 
@@ -807,10 +809,10 @@ def report_lines(built):
                   sum(1 for x in forms if x["form"] == f and x["from"].startswith("sp:")))
                  for f in sorted({x["form"] for x in forms})]) + [""]
     L += ["例：", ""] + _example_table(forms, "series") + [""]
-    drafting = _drafting(built, b.out_of_period + m.out_of_period)
+    drafting = _drafting(built, b.candidates + m.candidates)
     db = Counter(r["series"] for r in drafting if r["from"].startswith("bq:"))
     dm = Counter(r["series"] for r in drafting if r["from"].startswith("sp:"))
-    L += [f"### 期間外のうち、発言の年度が最初の期の開始年度より前の3年以内：{len(drafting)} 行", ""]
+    L += [f"### 候補のうち、計画期間の前の行（note に「計画期間の前（」を含む。LINK_SCHEMA §7）：{len(drafting)} 行", ""]
     first = {r["series"]: r["first_start"] for r in drafting}
     L += _table(["series", "最初の期の開始年度", "議会だより", "会議録"],
                 [(s, first[s], db[s], dm[s]) for s in sorted(first)]) + [""]

@@ -49,22 +49,27 @@ class TestGates(MentionTestCase):
                 self.assertEqual(self.tos(r), ["plan:bunkazai"])
                 self.assertNotIn("chiiki-nogyo", self.all_series(r))
 
-    def test_gate1_before_period_goes_out_of_period_not_chiiki_nogyo(self):
-        # 策定前（2023年度）の言及は bunkazai の期間外の一覧に出る。chiiki-nogyo には入らない
+    def test_gate1_before_period_is_candidate_not_chiiki_nogyo(self):
+        # 策定前（2023年度）の言及は bunkazai の計画期間の前の candidate になる（§7）。chiiki-nogyo には入らない
         r = self.find("策定中の文化財保存活用地域計画について", "2023-06-15")
-        self.assertEqual(r.rows, [])
-        self.assertEqual([x.series for x in r.out_of_period], ["bunkazai"])
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+        self.assertTrue(r.rows[0].note.startswith("計画期間の前（2年前）。"))
+        self.assertEqual(r.out_of_period, [])
         self.assertNotIn("chiiki-nogyo", self.all_series(r))
 
     def test_gate2_kyoiku_by_fiscal_year(self):
-        # ゲート2：期の明記がない「教育振興基本計画」は、発言日の年度で kyoiku3・kyoiku4・期間外に分かれる
+        # ゲート2：期の明記がない「教育振興基本計画」は、発言日の年度で kyoiku3・kyoiku4・計画期間の前・期間外に分かれる
         r = self.find("教育振興基本計画について伺う", "2022-06-15")
         self.assertEqual(self.tos(r), ["plan:kyoiku3"])
         r = self.find("教育振興基本計画について伺う", "2025-06-15")
         self.assertEqual(self.tos(r), ["plan:kyoiku4"])
         r = self.find("教育振興基本計画について伺う", "2018-06-15")
+        self.assertEqual(self.tos(r), ["plan:kyoiku3"])
+        self.assertTrue(r.rows[0].note.startswith("計画期間の前（2年前）。"))
+        self.assertEqual(r.out_of_period, [])
+        r = self.find("教育振興基本計画について伺う", "2016-06-15")
         self.assertEqual(r.rows, [])
-        self.assertEqual([(x.series, x.fiscal_year) for x in r.out_of_period], [("kyoiku", 2018)])
+        self.assertEqual([(x.series, x.fiscal_year) for x in r.out_of_period], [("kyoiku", 2016)])
 
 
 class TestFiscalYear(MentionTestCase):
@@ -189,9 +194,10 @@ class TestLongestMatch(MentionTestCase):
                 r = self.find(text, "2025-06-15")
                 self.assertEqual(self.tos(r), ["plan:bunkazai"])
                 self.assertNotIn("chiiki-nogyo", self.all_series(r))
-        r = self.find("文化財の保存活用地域計画", "2023-06-15")
-        self.assertEqual(r.rows, [])
-        self.assertEqual([x.series for x in r.out_of_period], ["bunkazai"])
+        r = self.find("文化財の保存活用地域計画", "2023-06-15")  # 計画期間の前（§7）
+        self.assertEqual(self.tos(r), ["plan:bunkazai"])
+        self.assertEqual(r.out_of_period, [])
+        self.assertNotIn("chiiki-nogyo", self.all_series(r))
 
     def test_national_sixth_environment_plan_excluded(self):
         # 2026-10-11 の決定：国の第6次環境基本計画は除外の語。kankyo の候補も一覧も出ない
@@ -297,12 +303,12 @@ class TestContextAbbrev(MentionTestCase):
         self.assertEqual([x.note for x in r.undetermined], ["文脈で決まらない（組：chiiki-nogyo・kyojin）"])
 
     def test_out_of_period_after_context(self):
-        # 決まった bunkazai の発言日が計画期間（2025〜2034年度）より前なら、期間外の一覧に出る
-        r = self.find("地域計画の策定", "2023-06-15", ["文化財の保護について"])
+        # 決まった bunkazai の発言日が計画期間（2025〜2034年度）の4年以上前なら、期間外の一覧に出る
+        r = self.find("地域計画の策定", "2021-06-15", ["文化財の保護について"])
         self.assertEqual((r.rows, r.undetermined), ([], []))
         self.assertEqual([x.series for x in r.out_of_period], ["bunkazai"])
         self.assertEqual(r.out_of_period[0].note,
-                         "文脈で決めた（手がかり：文化財）。2023-06-15 は令和5年度。bunkazai のどの期の期間にも入らない")
+                         "文脈で決めた（手がかり：文化財）。2021-06-15 は令和3年度。bunkazai のどの期の期間にも入らない")
 
     def test_explicit_edition_after_context(self):
         r = self.find("農地の集積。第2期地域計画", "2025-06-15")
@@ -347,7 +353,7 @@ class TestGrouping(MentionTestCase):
         r = self.find("ひのパートナープラン2019の後期計画", "2019-06-15")
         self.assertEqual(self.tos(r), ["plan:partner"])
         self.assertIn("令和元年度", r.rows[0].note)
-        r = self.find("ひのパートナープラン2019の後期計画", "2018-06-15")
+        r = self.find("ひのパートナープラン2019の後期計画", "2015-06-15")  # 計画期間（2019〜）の4年前
         self.assertEqual(r.rows, [])
         self.assertEqual([x.series for x in r.out_of_period], ["partner"])
 
@@ -453,6 +459,60 @@ class TestLoadRefs(unittest.TestCase):
     def test_real_refs(self):
         refs = mention.load_refs(LINEAGE, ALIASES)
         self.assertTrue(refs)
+
+
+
+# 計画期間の前（§7）：最初の期の初年度より前の3年以内は、最初の期の candidate にする
+class TestBeforePeriod(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.refs = mention.load_refs(LINEAGE, ALIASES)
+
+    def find(self, text, day, before=()):
+        return mention.find_mentions(text, day, self.refs, before)
+
+    def test_one_and_three_years_before(self):
+        for day, wareki, n in (("2024-06-15", "令和6年度", 1), ("2025-03-31", "令和6年度", 1), ("2022-04-01", "令和4年度", 3)):
+            with self.subTest(day=day):
+                r = self.find("文化財保存活用地域計画について", day)
+                self.assertEqual([m.to for m in r.rows], ["plan:bunkazai"])
+                self.assertEqual(r.rows[0].note,
+                                 f"計画期間の前（{n}年前）。{day} は{wareki}。日野町文化財保存活用地域計画（2025〜2034年度）")
+                self.assertEqual(r.out_of_period, [])
+
+    def test_first_edition_of_series(self):
+        # 期のある series は、start_fy が最も小さい期（kyoiku3、2020〜2024年度）の行を作る
+        r = self.find("教育振興基本計画について", "2017-06-15")
+        self.assertEqual([m.to for m in r.rows], ["plan:kyoiku3"])
+        self.assertEqual(r.rows[0].note,
+                         "計画期間の前（3年前）。2017-06-15 は平成29年度。第3期 日野町教育振興基本計画（2020〜2024年度）")
+
+    def test_four_years_before_is_out_of_period(self):
+        for day in ("2021-06-15", "2022-03-31"):
+            with self.subTest(day=day):
+                r = self.find("文化財保存活用地域計画について", day)
+                self.assertEqual(r.rows, [])
+                self.assertEqual([(x.series, x.fiscal_year) for x in r.out_of_period], [("bunkazai", 2021)])
+
+    def test_blank_period_series_stays_unknown(self):
+        # 計画期間が空欄の期がある series は、これまでどおり「期間不明」
+        r = self.find("日野町緑の基本計画について", "2010-06-15")
+        self.assertEqual([(m.to, m.note) for m in r.rows], [("plan:midori", "期間不明")])
+        self.assertEqual(r.out_of_period, [])
+
+    def test_context_prefix(self):
+        r = self.find("地域計画の策定", "2023-06-15", ["文化財の保護について"])
+        self.assertEqual([m.to for m in r.rows], ["plan:bunkazai"])
+        self.assertEqual(r.rows[0].note, "文脈で決めた（手がかり：文化財）。計画期間の前（2年前）。2023-06-15 は令和5年度。"
+                                         "日野町文化財保存活用地域計画（2025〜2034年度）")
+
+    def test_dated_row_gets_explicit_note(self):
+        # 計画期間の前の行も発言日で決めた行として、同じ本文の期の明記を note に書く
+        r = self.find("第4期教育振興基本計画と、教育振興基本計画", "2018-06-15")
+        self.assertEqual([(m.to, m.note) for m in r.rows], [
+            ("plan:kyoiku4", "期の明記（第4期）"),
+            ("plan:kyoiku3", "計画期間の前（2年前）。2018-06-15 は平成30年度。第3期 日野町教育振興基本計画（2020〜2024年度）。"
+                             "同じ本文に期の明記がある（第4期）")])
 
 
 if __name__ == "__main__":

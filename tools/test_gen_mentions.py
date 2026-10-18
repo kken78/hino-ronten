@@ -26,6 +26,7 @@ M_NODATE = "0000000002"  # meetings.json の date が null の会議
 M_SPAN = "0000000003"    # 日付が2つの年度にまたがる会議
 M_2018 = "0000000004"    # 2018年度の会議
 M_NAME = "0000000005"    # 日付のある PDF が無く、date を会議名から求めた会議（dateFrom が name）
+M_2016 = "0000000006"    # 2016年度の会議（kyoiku の最初の期 2020年度の4年前）
 
 MEETINGS = [
     {"id": M_JUNE, "name": "令和7年6月定例会議", "date": "2025-06-02", "dateFrom": "pdf", "pdfs": [
@@ -42,6 +43,8 @@ MEETINGS = [
     {"id": M_NAME, "name": "令和3年第1回（2月10日）臨時会会議録", "date": "2021-02-10", "dateFrom": "name", "pdfs": [
         {"label": "目次", "date": None, "url": "u7"},
         {"label": "本文", "date": None, "url": "u8"}]},
+    {"id": M_2016, "name": "平成28年第3回（6月）定例会会議録", "date": "2016-06-14", "dateFrom": "pdf", "pdfs": [
+        {"label": "第2日", "date": "2016-06-14", "url": "u9"}]},
 ]
 
 PLAN_NAMES = {
@@ -358,12 +361,12 @@ class TestToLabel(GenTestCase):
 # 10. 一覧の1件化（同じ質問の複数の欄に同じ言及があっても1件）
 class TestListedOnce(GenTestCase):
     def test_out_of_period_once(self):
-        ml = {"30": {"日野 一郎": {"meeting_id": M_2018}}}
+        ml = {"30": {"日野 一郎": {"meeting_id": M_2016}}}
         q = question(30, "日野 一郎", 1, "教育振興基本計画", question_text="教育振興基本計画の評価",
                      answers=[{"label": "教育長", "text": "第1期子ども・子育て支援事業計画と教育振興基本計画"}])
         g = gm.gen_bulletin([q], ml, self.mdates, self.refs, self.names)
         self.assertEqual(g.candidates, [])
-        self.assertEqual([(r["series"], r["where"], r["fiscal_year"]) for r in g.out_of_period], [("kyoiku", "title", "2018")])
+        self.assertEqual([(r["series"], r["where"], r["fiscal_year"]) for r in g.out_of_period], [("kyoiku", "title", "2016")])
         self.assertEqual([(r["series"], r["edition"], r["where"]) for r in g.no_edition], [("kodomo", "1", "answers")])
 
 
@@ -604,7 +607,9 @@ class TestDeterministic(GenTestCase):
         self.assertNotIn(f"sp:{M_JUNE}_8.5rmokuji_0000", outs[0]["candidates.tsv"].decode("utf-8"))
         self.assertIn(f"sp:{M_JUNE}_20250612_0004\tchiiki-nogyo\t地域計画", outs[0]["undetermined.tsv"].decode("utf-8"))
         for needle in ["a" * 40, "b" * 40, "c" * 40, "0" * 64, "会議の初日", "副議長", "_charttest.json",
-                       "- 除いた目次の項目 1 件\n"]:
+                       "- 除いた目次の項目 1 件\n",
+                       "### 候補のうち、計画期間の前の行（note に「計画期間の前（」を含む。LINK_SCHEMA §7）：1 行\n",
+                       "| kyoiku | 2020 | 0 | 1 |"]:
             with self.subTest(needle=needle):
                 self.assertIn(needle, report)
 
