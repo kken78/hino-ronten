@@ -32,13 +32,13 @@
 
 ## 3. リンク台帳 `links/<method>.tsv`
 
-ファイル：`links/mention.tsv`、`links/program.tsv`。semantic を使う場合は `links/semantic.tsv` を加え、列の使い方をこの節に追記してから使う。crosswalk は台帳に行を持たず、`ref/crosswalk.tsv` から表示のときに求める（DESIGN.md ADR-3）。
+ファイル：`links/mention.tsv`、`links/program.tsv`。人が付け替えた行は `links/relink.tsv` に置く（§6 付け替え）。semantic を使う場合は `links/semantic.tsv` を加え、列の使い方をこの節に追記してから使う。crosswalk は台帳に行を持たず、`ref/crosswalk.tsv` から表示のときに求める（DESIGN.md ADR-3）。
 
 | 列 | 内容 | 例 |
 | --- | --- | --- |
 | from | 議会側のキー（bq・sp） | `sp:0000008942_20260305_0161` |
 | to | 計画側のキー（plan・lin・node） | `plan:kodomo` |
-| method | mention・program・semantic | `mention` |
+| method | mention・program・semantic・relink | `mention` |
 | evidence | 一致した語（正規化後） | `子ども・子育て支援事業計画` |
 | where | from のどこで一致したか。bq は title・question_text・answer_title・answers、sp は text | `text` |
 | context | evidence を含む前後各15文字の抜粋（正規化後）。前後が15文字に満たない場合は、ある分だけ | `す。まとめるにあたりましては、子ども・子育て支援事業計画に掲げる3つの基本目標に分類し` |
@@ -102,6 +102,7 @@ rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1
   - 台帳の confirmed・rejected の sp の行が §5 で移動となり、移動先の (sid, to, method) が生成の結果にある場合：移動先の組を candidate として足さない（人が from を書き換えたときに、同じ組の行が重ならないようにするため）
 - 確定・却下：人が status を confirmed または rejected に変え、reviewer・date を書く。人が note を書くのはこのときとする（candidate の行の note は再生成で置き換わる）。rejected の行には、note に却下の理由を書く。confirmed と rejected の間の変更も人だけが行い、note に理由を書く
 - まとめて確定：人は、同じ性質の candidate の組（例：期の明記がある、同じ to の行）から抜き取った行を1件ずつ判定し、その結果を見て、組の残りをまとめて confirmed にしてよい。抜き取りの数・選び方・まとめて確定する条件は、判定の前に DESIGN.md に書く。まとめて確定した行は、note に「抜き取りでまとめて確定（<組>、抜き取り<N>件・誤り0）」の形で書き、1件ずつ判定した行と区別する
+- 付け替え：人は、却下した mention の行の発言が、別の計画（manifest にある plan か、`ref/lineage.tsv` にある lin）を指していると分かるときは、`links/relink.tsv` に method が relink の行を足して、その計画に結び付けてよい。from・evidence・where・context は却下した行と同じにし、to に正しい計画、to_label にその名称（§3）、status に confirmed、reviewer・date に付け替えた人と日を書く。note は「付け替え：<却下した行の to> の却下から。<理由>」の形にする。relink の行は機械が作らず、台帳の更新（tools/update_links.py）でも変えない。付け替えを取り消すときは、行を消さずに status を rejected にして note に理由を書く。期の番号が無い前の版の計画は、系譜表に載せる方法が決まるまで付け替えの対象にしない
 - 再生成で出なくなった行：candidate は削除し、一覧（removed.tsv）に出す。confirmed と rejected は削除せず、一覧（vanished.tsv）に出す。confirmed のうち再生成で出なくなったものがあれば、ビルドを停止する（別名辞書や系譜表の変更が既存の確定に影響したことを見落とさないため）。ただし、§5 で移動となり、移動先の (sid, to, method) が生成の結果にある confirmed・rejected は、出なくなった行に数えず、移動の一覧（moved.tsv）にだけ出す
 - 台帳と lock の版：台帳は、lock の版の入力でこの節のとおり更新した結果と同じでなければならない。台帳を確かめる道具（`tools/check_links.py`）は、更新と同じ処理で台帳を作り直していまの台帳と比べ、違えば停止して、更新の道具を先に動かすよう示す（§10）
 - 出力に使うのは、confirmed で、かつ §5 の照合が「一致」の行だけとする
@@ -207,7 +208,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 検査 | 内容 |
 | --- | --- |
 | 台帳の形 | §1 と §3 に合う（列名と列の順、UTF-8・BOMなし・LF、セルにタブ・改行が無い、行が from → to → method の文字コード順）。合わない台帳は、更新でも確かめでも停止し、並べ直さない |
-| キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp、to は plan・lin・node。mention の台帳の to は plan・lin だけ |
+| キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp、to は plan・lin・node。mention と relink の台帳の to は plan・lin だけ |
 | 行の同一性 | (from, to, method) の重複が0件 |
 | 状態 | status が3つの値のいずれか。confirmed・rejected は reviewer と date（YYYY-MM-DD）がある。candidate は reviewer と date が空。rejected は note が空でない |
 | 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる |
@@ -215,6 +216,8 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 根拠の消失 | §6 の「再生成で出なくなった confirmed」が1件以上なら終了コード1 |
 | 台帳と lock の版 | §6 のとおり lock の版で作り直した台帳と、いまの台帳が同じ。違えば終了コード1 |
 | sentinel | 台帳を確かめるたびに、§5 の照合の対象の全行（confirmed と candidate）で、context の真ん中（文字数を2で割り、切り捨てた位置）の1文字を「〓」（context に「〓」が含まれるときは「※」）に替えて §5 の手順をかけ、移動か停止になることを確かめる。一致になる行が1件でもあれば終了コード1。台帳に検査用の行は置かない |
+| 付け替えの元 | relink の各行について、from・evidence・context が同じで status が rejected の mention の行があり、その行の to と relink の行の to が違う。無ければ終了コード1。relink の行の status は confirmed か rejected で、candidate は置かない |
+| 付け替えの重なり | relink の confirmed の行と同じ (from, to) を持つ mention の行が candidate か confirmed なら、一覧（relink_conflict.tsv）に出して終了コード1。人が、どちらかを却下するか、付け替えを取り消す |
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
 
 一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
@@ -227,4 +230,5 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | vanished.tsv | 再生成で出なくなった confirmed・rejected（移動として数えたものを除く） | §3 の11列・check（§5 の結果） |
 | removed.tsv | 更新で削除した candidate | §3 の11列 |
 | note_changed.tsv | 更新で note が変わった candidate | from・to・method・old_note・new_note |
+| relink_conflict.tsv | 付け替えの重なりになった relink の行と mention の行 | from・to・relink_status・mention_status・context |
 | update.md・check.md | 更新・確かめの件数の報告 | — |
