@@ -12,16 +12,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import apply_decisions as ad  # noqa: E402
+import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
-from test_ledger import BQ, FILLER, TEXTS, LedgerTestCase, sid  # noqa: E402
+from test_ledger import BQ, FILLER, TEXTS, TEXTS_TWO, LedgerTestCase, sid  # noqa: E402
 
 S1, S2, S4 = f"sp:{sid(1)}", f"sp:{sid(2)}", f"sp:{sid(4)}"
+COLUMNS_9 = ad.DECISION_COLUMNS + [ad.RELINK_TO]
 
 
 class ApplyTestCase(LedgerTestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.ledger_path = os.path.join(self.tmp.name, "mention.tsv")
+        self.relink_path = os.path.join(self.tmp.name, "relink.tsv")
         self.decisions_path = os.path.join(self.tmp.name, "decisions.tsv")
         self.out = os.path.join(self.tmp.name, "build")
         ledger.write_ledger(self.ledger_path, self.base())
@@ -33,27 +36,37 @@ class ApplyTestCase(LedgerTestCase):
         with open(self.ledger_path, "rb") as f:
             return f.read()
 
-    def dec(self, frm, to, status, note="", **kw):
-        """判定の一覧の1行。context は台帳の行のもの。"""
-        r = self.row(self.base(), frm, to)
+    def relink_bytes(self):
+        """relink の台帳のバイト列（無ければ None）。"""
+        if not os.path.exists(self.relink_path):
+            return None
+        with open(self.relink_path, "rb") as f:
+            return f.read()
+
+    def dec(self, frm, to, status, note="", rows=None, **kw):
+        """判定の一覧の1行。context は台帳の行（rows を省くと self.base()）のもの。"""
+        r = self.row(rows or self.base(), frm, to)
         d = {"from": frm, "to": to, "method": "mention", "context": r["context"], "status": status,
-             "reviewer": "kken78", "date": "2026-10-11", "note": note}
+             "reviewer": "kken78", "date": "2026-10-11", "note": note, ad.RELINK_TO: ""}
         d.update(kw)
         return d
 
-    def write_decisions(self, rows, raw=None):
+    def write_decisions(self, rows, raw=None, columns=ad.DECISION_COLUMNS):
         data = raw if raw is not None else (
-            "\n".join(["\t".join(ad.DECISION_COLUMNS)] + ["\t".join(d[c] for c in ad.DECISION_COLUMNS) for d in rows])
-            + "\n").encode("utf-8")
+            "\n".join(["\t".join(columns)] + ["\t".join(d[c] for c in columns) for d in rows]) + "\n").encode("utf-8")
         with open(self.decisions_path, "wb") as f:
             f.write(data)
 
-    def assert_stops_without_writing(self, rows=None, raw=None, needle=None):
-        before = self.ledger_bytes()
-        self.write_decisions(rows, raw)
+    def write(self, texts=TEXTS):
+        return ad.write(self.decisions_path, self.ledger_path, self.built(texts=texts), self.relink_path)
+
+    def assert_stops_without_writing(self, rows=None, raw=None, needle=None, columns=ad.DECISION_COLUMNS):
+        before, before_relink = self.ledger_bytes(), self.relink_bytes()
+        self.write_decisions(rows, raw, columns)
         with self.assertRaises(ad.DecisionError) as cm:
-            ad.write(self.decisions_path, self.ledger_path)
+            self.write()
         self.assertEqual(self.ledger_bytes(), before)  # 1件も書かない
+        self.assertEqual(self.relink_bytes(), before_relink)
         if needle:
             self.assertIn(needle, str(cm.exception))
         return str(cm.exception)
@@ -66,8 +79,9 @@ class TestApply(ApplyTestCase):
         self.write_decisions([self.dec(S1, "plan:kyoiku4", "confirmed"),
                               self.dec(S2, "plan:kodomo", "confirmed", note="見本のメモ"),
                               self.dec(S4, "lin:kodomo/2", "rejected", note="見本の却下の理由")])
-        applied = ad.write(self.decisions_path, self.ledger_path)
-        self.assertEqual((applied["confirmed"], applied["rejected"]), (2, 1))
+        applied = self.write()
+        self.assertEqual((applied["confirmed"], applied["rejected"], applied["relink"]), (2, 1, 0))
+        self.assertIsNone(self.relink_bytes())  # 付け替えが無ければ relink の台帳を作らない
         after = ledger.read_ledger(self.ledger_path, "mention")
         expect = {
             (S1, "plan:kyoiku4"): ("confirmed", self.row(base, S1, "plan:kyoiku4")["note"]),
@@ -96,7 +110,7 @@ class TestApply(ApplyTestCase):
 
     def test_bq_row(self):
         self.write_decisions([self.dec(BQ, "plan:kyoiku4", "confirmed")])
-        ad.write(self.decisions_path, self.ledger_path)
+        self.write()
         self.assertEqual(self.row(ledger.read_ledger(self.ledger_path, "mention"), BQ, "plan:kyoiku4")["status"],
                          "confirmed")
 
@@ -146,7 +160,7 @@ class TestRejectRows(ApplyTestCase):
             with self.subTest(name=name):
                 self.assert_stops_without_writing(raw=raw)
         self.write_decisions(None, raw=good)  # 形の正しい一覧は書き写せる
-        ad.write(self.decisions_path, self.ledger_path)
+        self.write()
 
 
 # 3. 同じ一覧を2回当てると「candidate でない」で止まる
@@ -154,7 +168,7 @@ class TestTwice(ApplyTestCase):
     def test_second_time_stops(self):
         rows = [self.dec(S1, "plan:kyoiku4", "confirmed"), self.dec(S4, "lin:kodomo/2", "rejected", note="理由")]
         self.write_decisions(rows)
-        ad.write(self.decisions_path, self.ledger_path)
+        self.write()
         after_first = self.ledger_bytes()
         msg = self.assert_stops_without_writing(rows, needle="candidate でない")
         self.assertIn("2 件", msg)
@@ -166,7 +180,7 @@ class TestRun(ApplyTestCase):
     def test_check_passes(self):
         self.write_decisions([self.dec(S1, "plan:kyoiku4", "confirmed"),
                               self.dec(S4, "lin:kodomo/2", "rejected", note="理由")])
-        code, applied, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(), self.out)
+        code, applied, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(), self.out, self.relink_path)
         self.assertEqual(code, 0)
         self.assertEqual([r["status"] for r in rows].count("confirmed"), 1)
         self.assertEqual((rep.checked.counts[ledger.MATCH], rep.stale, rep.sentinel_failures), (4, [], []))
@@ -176,10 +190,154 @@ class TestRun(ApplyTestCase):
         self.write_decisions([self.dec(S2, "plan:kodomo", "confirmed")])
         texts = list(TEXTS)
         texts[1] = FILLER
-        code, _, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(texts=texts), self.out)
+        code, _, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(texts=texts), self.out,
+                                    self.relink_path)
         self.assertEqual(code, 1)
         self.assertEqual(self.row(rows, S2, "plan:kodomo")["status"], "confirmed")
         self.assertEqual(len(rep.merged.vanished_confirmed), 1)
+
+
+# 5. 付け替え（§6）：relink_to のある rejected の行は、links/relink.tsv にも1行足す
+class TestRelink(ApplyTestCase):
+    REASON_NOTE = "却下：前の理由。判別の根拠：期の明記（第2期）"
+
+    def expected_relink(self, base_row, to, note, date="2026-10-11"):
+        label = gm.to_label(to, gm.plan_names(self.manifest, self.refs), self.refs)
+        return {"from": base_row["from"], "to": to, "method": "relink", "evidence": base_row["evidence"],
+                "where": base_row["where"], "context": base_row["context"], "to_label": label,
+                "status": "confirmed", "reviewer": "kken78", "date": date, "note": note}
+
+    def test_candidate_rejected_and_relinked(self):
+        base = self.base()
+        self.write_decisions([self.dec(S1, "plan:kyoiku4", "confirmed"),
+                              self.dec(S4, "lin:kodomo/2", "rejected", note="第3期の話", relink_to="plan:kodomo")],
+                             columns=COLUMNS_9)
+        code, applied, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(), self.out, self.relink_path)
+        self.assertEqual(code, 0)
+        self.assertEqual((applied["confirmed"], applied["rejected"], applied["relink"]), (1, 1, 1))
+        b4 = self.row(base, S4, "lin:kodomo/2")
+        self.assertEqual(self.row(rows, S4, "lin:kodomo/2"),
+                         dict(b4, status="rejected", reviewer="kken78", date="2026-10-11",
+                              note=f"却下：第3期の話。判別の根拠：{b4['note']}"))
+        relink = ledger.read_ledger(self.relink_path, "relink")
+        self.assertEqual(relink, [self.expected_relink(b4, "plan:kodomo", "付け替え：lin:kodomo/2 の却下から。第3期の話")])
+        self.assertTrue(self.relink_bytes().startswith("\t".join(ledger.LEDGER_COLUMNS).encode("utf-8") + b"\n"))
+        self.assertEqual((len(rep.relink.rows), rep.relink.checked.counts[ledger.MATCH], rep.relink.exit_code), (1, 1, 0))
+
+    def already_rejected(self):
+        rows = self.decide(self.base(), S4, "lin:kodomo/2", "rejected", note=self.REASON_NOTE)
+        ledger.write_ledger(self.ledger_path, rows)
+        return rows
+
+    def test_relink_already_rejected(self):
+        # 判定の note が空なら、mention の行の却下の理由（「却下：」から「。判別の根拠：」の前まで）を使う
+        for note, reason in (("", "前の理由"), ("第3期の話", "第3期の話")):
+            with self.subTest(note=note):
+                rows = self.already_rejected()
+                if os.path.exists(self.relink_path):
+                    os.remove(self.relink_path)
+                before = self.ledger_bytes()
+                self.write_decisions([self.dec(S4, "lin:kodomo/2", "rejected", note=note, relink_to="plan:kodomo",
+                                               date="2026-10-18")], columns=COLUMNS_9)
+                applied = self.write()
+                self.assertEqual(self.ledger_bytes(), before)  # mention の行は変えない
+                self.assertEqual((applied["confirmed"], applied["rejected"], applied["relink"]), (0, 0, 1))
+                self.assertEqual(ledger.read_ledger(self.relink_path, "relink"),
+                                 [self.expected_relink(self.row(rows, S4, "lin:kodomo/2"), "plan:kodomo",
+                                                       f"付け替え：lin:kodomo/2 の却下から。{reason}", date="2026-10-18")])
+
+    def test_relink_appended_in_order(self):
+        # relink の台帳にある行は残し、足した行と合わせて from → to → method の順に書く
+        rows = self.decide(self.already_rejected(), S2, "plan:kodomo", "rejected", note=self.REASON_NOTE)
+        ledger.write_ledger(self.ledger_path, rows)
+        self.write_decisions([self.dec(S4, "lin:kodomo/2", "rejected", relink_to="plan:kodomo")], columns=COLUMNS_9)
+        self.write()
+        self.write_decisions([self.dec(S2, "plan:kodomo", "rejected", relink_to="plan:kyoiku4")], columns=COLUMNS_9)
+        applied = self.write()
+        self.assertEqual(applied["relink"], 1)
+        self.assertEqual([(r["from"], r["to"]) for r in ledger.read_ledger(self.relink_path, "relink")],
+                         [(S2, "plan:kyoiku4"), (S4, "plan:kodomo")])
+
+    def test_eight_columns_still_accepted(self):
+        self.write_decisions([self.dec(S1, "plan:kyoiku4", "confirmed")])
+        self.assertEqual(self.write()["confirmed"], 1)
+
+
+# 6. 付け替えの誤り：どちらの台帳にも書かない
+class TestRelinkErrors(ApplyTestCase):
+    def test_bad_relink_to(self):
+        cases = {
+            "confirmed に relink_to": (self.dec(S2, "plan:kodomo", "confirmed", relink_to="plan:kyoiku4"),
+                                     "rejected の行にだけ"),
+            "存在しない plan": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="plan:nothing"),
+                            "manifest にも系譜表にも無い"),
+            "存在しない lin": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="lin:kodomo/9"),
+                           "manifest にも系譜表にも無い"),
+            "manifest にある版の lin": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="lin:kodomo/3"),
+                                   "manifest にも系譜表にも無い"),
+            "node": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="node:kodomo/第1節/(1)/①"),
+                     "plan・lin のキーでない"),
+            "元の to と同じ": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="lin:kodomo/2"),
+                          "元の行の to と同じ"),
+            "candidate の却下に理由が無い": (self.dec(S4, "lin:kodomo/2", "rejected", relink_to="plan:kodomo"),
+                                     "却下の理由）が空"),
+        }
+        good = self.dec(S1, "plan:kyoiku4", "confirmed")
+        for name, (bad, needle) in cases.items():
+            with self.subTest(name=name):
+                self.assert_stops_without_writing([good, bad], needle=needle, columns=COLUMNS_9)
+
+    def test_duplicate_in_relink_ledger(self):
+        rows = self.decide(self.base(), S4, "lin:kodomo/2", "rejected", note="却下：理由。判別の根拠：根拠")
+        ledger.write_ledger(self.ledger_path, rows)
+        self.write_decisions([self.dec(S4, "lin:kodomo/2", "rejected", relink_to="plan:kodomo")], columns=COLUMNS_9)
+        self.write()
+        self.assert_stops_without_writing([self.dec(S4, "lin:kodomo/2", "rejected", relink_to="plan:kodomo")],
+                                          needle="relink の台帳に同じ (from, to, method) の行がある", columns=COLUMNS_9)
+
+    def test_duplicate_in_decisions(self):
+        # 同じ発言の2行を、同じ計画に付け替える
+        gen, corpus = self.gen_and_corpus(texts=TEXTS_TWO)
+        rows = ledger.merge([], gen, corpus).rows
+        ledger.write_ledger(self.ledger_path, rows)
+        before = self.ledger_bytes()
+        self.write_decisions([self.dec(S4, "lin:kodomo/2", "rejected", note="理由", rows=rows, relink_to="plan:kodomo"),
+                              self.dec(S4, "plan:kyoiku4", "rejected", note="理由", rows=rows, relink_to="plan:kodomo")],
+                             columns=COLUMNS_9)
+        with self.assertRaises(ad.DecisionError) as cm:
+            self.write(texts=TEXTS_TWO)
+        self.assertIn("一覧に 2 回", str(cm.exception))
+        self.assertEqual((self.ledger_bytes(), self.relink_bytes()), (before, None))
+
+    def test_conflict_not_written(self):
+        # 付け替え先の (from, to) の mention の行が candidate のまま → 書く前に止める
+        gen, corpus = self.gen_and_corpus(texts=TEXTS_TWO)
+        rows = ledger.merge([], gen, corpus).rows
+        ledger.write_ledger(self.ledger_path, rows)
+        before = self.ledger_bytes()
+        self.write_decisions([self.dec(S4, "lin:kodomo/2", "rejected", note="理由", rows=rows, relink_to="plan:kyoiku4")],
+                             columns=COLUMNS_9)
+        with self.assertRaises(ad.DecisionError) as cm:
+            self.write(texts=TEXTS_TWO)
+        self.assertIn("付け替えの重なり", str(cm.exception))
+        self.assertEqual((self.ledger_bytes(), self.relink_bytes()), (before, None))
+
+    def test_already_rejected_without_relink_to(self):
+        ledger.write_ledger(self.ledger_path, self.decide(self.base(), S4, "lin:kodomo/2", "rejected",
+                                                          note="却下：理由。判別の根拠：根拠"))
+        self.assert_stops_without_writing([self.dec(S4, "lin:kodomo/2", "rejected", note="理由")],
+                                          needle="candidate でない（rejected）", columns=COLUMNS_9)
+
+    def test_headers(self):
+        row = self.dec(S2, "plan:kodomo", "confirmed")
+        line = "\t".join(row[c] for c in ad.DECISION_COLUMNS)
+        cases = {"9列目の名前が違う": ("\t".join(ad.DECISION_COLUMNS + ["relink"]), line + "\t"),
+                 "10列": ("\t".join(COLUMNS_9 + ["memo"]), line + "\t\t"),
+                 "relink_to が途中": ("\t".join(ad.DECISION_COLUMNS[:-1] + [ad.RELINK_TO, "note"]), line + "\t"),
+                 "9列のヘッダに8列の行": ("\t".join(COLUMNS_9), line)}
+        for name, (head, body) in cases.items():
+            with self.subTest(name=name):
+                self.assert_stops_without_writing(raw=(head + "\n" + body + "\n").encode("utf-8"))
 
 
 if __name__ == "__main__":

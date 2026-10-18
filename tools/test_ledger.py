@@ -557,5 +557,187 @@ class TestTools(LedgerTestCase):
                 check_links.run(self.built(), os.path.join(d, "mention.tsv"), os.path.join(d, "build"))
 
 
+# 10. 付け替え（§6・§11）：links/relink.tsv は人が作り、付け替えの元・重なり・§5・sentinel を確かめる
+S4 = f"sp:{sid(4)}"
+TEXTS_TWO = TEXTS[:3] + ["第2期子ども・子育て支援事業計画と教育振興基本計画を振り返ります"] + TEXTS[4:]  # 4 → lin:kodomo/2・plan:kyoiku4
+REJECT_NOTE = "却下：見本の却下の理由。判別の根拠：期の明記（第2期）"
+
+
+class RelinkTestCase(LedgerTestCase):
+    def rejected_rows(self, texts=TEXTS):
+        """見本の入力で作った台帳の、発言4の lin:kodomo/2 を却下したもの。"""
+        gen, corpus = self.gen_and_corpus(texts=texts)
+        return self.decide(ledger.merge([], gen, corpus).rows, S4, "lin:kodomo/2", "rejected", note=REJECT_NOTE)
+
+    def relinked(self, rows, to, status="confirmed", frm=S4, origin="lin:kodomo/2"):
+        """rows の (frm, origin) の行を to に付け替えた relink の行（§6 付け替え）。"""
+        r = self.row(rows, frm, origin)
+        label = gm.to_label(to, gm.plan_names(self.manifest, self.refs), self.refs)
+        return dict(r, to=to, method="relink", to_label=label, status=status, reviewer="見本", date="2026-10-18",
+                    note=f"付け替え：{origin} の却下から。見本の理由")
+
+
+class TestRelinkFormat(RelinkTestCase):
+    def test_round_trip(self):
+        rel = [self.relinked(self.rejected_rows(), "plan:kodomo")]
+        self.assertEqual(ledger.parse_ledger(ledger.format_ledger(rel), "relink"), rel)
+
+    def test_row_errors_stop(self):
+        cases = {"candidate": ({"status": "candidate", "reviewer": "", "date": ""}, "candidate は置かない"),
+                 "to に node": ({"to": "node:kodomo/第1節/(1)/①"}, "node は使えない"),
+                 "method がファイルと違う": ({"method": "mention"}, "method が台帳のファイル"),
+                 "rejected の note が空": ({"status": "rejected", "note": ""}, "rejected の note が空")}
+        for name, (change, needle) in cases.items():
+            with self.subTest(name=name):
+                rel = [dict(self.relinked(self.rejected_rows(), "plan:kodomo"), **change)]
+                with self.assertRaises(ledger.LedgerError) as cm:
+                    ledger.parse_ledger(ledger.format_ledger(rel), "relink")
+                self.assertIn(needle, str(cm.exception))
+
+
+class TestRelinkOrigin(RelinkTestCase):
+    def test_origin_found(self):
+        rows = self.rejected_rows()
+        _, corpus = self.gen_and_corpus()
+        rr = ledger.check_relink([self.relinked(rows, "plan:kodomo")], rows, corpus)
+        self.assertEqual((rr.origin_errors, rr.conflicts, rr.exit_code), ([], [], 0))
+        self.assertEqual(rr.checked.counts[ledger.MATCH], 1)
+
+    def test_origin_missing_stops(self):
+        rows = self.rejected_rows()
+        rel = self.relinked(rows, "plan:kodomo")
+        cases = {"元の行が candidate": self.base(),
+                 "元の行が confirmed": self.decide(self.base(), S4, "lin:kodomo/2", "confirmed"),
+                 "evidence が違う": [dict(r, evidence="子ども・子育て支援事業") if r["from"] == S4 else r for r in rows],
+                 "元の行が無い": [r for r in rows if r["from"] != S4]}
+        _, corpus = self.gen_and_corpus()
+        for name, mention_rows in cases.items():
+            with self.subTest(name=name):
+                rr = ledger.check_relink([rel], mention_rows, corpus)
+                self.assertEqual(len(rr.origin_errors), 1)
+                self.assertIn("付け替えの元の却下が無い", rr.origin_errors[0])
+                self.assertEqual(rr.exit_code, 1)
+
+    def test_same_to_stops(self):
+        rows = self.rejected_rows()
+        _, corpus = self.gen_and_corpus()
+        rr = ledger.check_relink([self.relinked(rows, "lin:kodomo/2")], rows, corpus)
+        self.assertEqual(len(rr.origin_errors), 1)
+        self.assertIn("to が同じ", rr.origin_errors[0])
+        self.assertEqual(rr.exit_code, 1)
+
+
+class TestRelinkConflict(RelinkTestCase):
+    def test_conflict(self):
+        # 発言4の lin:kodomo/2 を plan:kyoiku4 に付け替えたが、同じ発言の plan:kyoiku4 の mention の行がある
+        gen, corpus = self.gen_and_corpus(texts=TEXTS_TWO)
+        for status, stops in (("candidate", True), ("confirmed", True), ("rejected", False)):
+            with self.subTest(mention=status):
+                rows = self.rejected_rows(texts=TEXTS_TWO)
+                if status != "candidate":
+                    rows = self.decide(rows, S4, "plan:kyoiku4", status)
+                rel = [self.relinked(rows, "plan:kyoiku4")]
+                rep = ledger.check_ledger(rows, gen, corpus, rel)
+                expect = [{"from": S4, "to": "plan:kyoiku4", "relink_status": "confirmed", "mention_status": status,
+                           "context": rel[0]["context"]}] if stops else []
+                self.assertEqual(rep.relink.conflicts, expect)
+                self.assertEqual((rep.relink.exit_code, rep.exit_code), (1, 1) if stops else (0, 0))
+
+    def test_cancelled_relink_is_not_conflict(self):
+        # 付け替えを取り消した（rejected の）relink の行は重なりに数えない
+        gen, corpus = self.gen_and_corpus(texts=TEXTS_TWO)
+        rows = self.rejected_rows(texts=TEXTS_TWO)
+        rel = [dict(self.relinked(rows, "plan:kyoiku4"), status="rejected", note="付け替えの取り消し：見本")]
+        self.assertEqual(ledger.check_ledger(rows, gen, corpus, rel).relink.conflicts, [])
+
+
+class TestRelinkMatch(RelinkTestCase):
+    def test_stopped(self):
+        # 発言4の本文が変わった → relink の confirmed の行は §5 で停止
+        rows = self.rejected_rows()
+        texts = list(TEXTS)
+        texts[3] = FILLER
+        _, corpus = self.gen_and_corpus(texts=texts)
+        rr = ledger.check_relink([self.relinked(rows, "plan:kodomo")], rows, corpus)
+        self.assertEqual([(r["from"], r["to"], r["method"]) for r in rr.checked.stopped], [(S4, "plan:kodomo", "relink")])
+        self.assertEqual(rr.exit_code, 1)
+
+    def test_moved(self):
+        rows = self.rejected_rows()
+        _, corpus = self.gen_and_corpus(texts=[FILLER] + TEXTS)
+        rr = ledger.check_relink([self.relinked(rows, "plan:kodomo")], rows, corpus)
+        self.assertEqual([(r["from"], r["moved_to"]) for r in rr.checked.moved], [(S4, f"sp:{sid(5)}")])
+        self.assertEqual(rr.exit_code, 0)
+
+    def test_label_changed_stops(self):
+        rows = self.rejected_rows()
+        _, corpus = self.gen_and_corpus()
+        rel = [dict(self.relinked(rows, "plan:kodomo"), to_label="第3期 日野町子ども・子育て支援事業計画（旧）")]
+        rr = ledger.check_relink(rel, rows, corpus)
+        self.assertIn("いまの名称", rr.checked.stopped[0]["reason"])
+
+    def test_sentinel(self):
+        rows = self.rejected_rows()
+        ctx = self.row(rows, S4, "lin:kodomo/2")["context"]
+        texts = list(TEXTS)
+        texts[3] = ctx + ledger.mutate_context(ctx)
+        _, corpus = self.gen_and_corpus(texts=texts)
+        rel = self.relinked(rows, "plan:kodomo")
+        rr = ledger.check_relink([rel], rows, corpus)
+        self.assertEqual(rr.sentinel_failures, [{"from": S4, "to": "plan:kodomo", "method": "relink",
+                                                 "context": ledger.mutate_context(ctx)}])
+        self.assertEqual(rr.exit_code, 1)
+        # 取り消した（rejected の）行は sentinel の対象外
+        self.assertEqual(ledger.check_relink([dict(rel, status="rejected")], rows, corpus).sentinel_failures, [])
+
+
+class TestRelinkTools(RelinkTestCase):
+    LISTS = ["moved.tsv", "rejected_unmatched.tsv", "relink_conflict.tsv", "stopped.tsv"]
+
+    def test_check_without_relink_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "links", "mention.tsv"), os.path.join(d, "build", "mention")
+            ledger.write_ledger(path, self.base())
+            code, rows, rep = check_links.run(self.built(), path, out)
+            self.assertEqual((code, rep.relink.rows), (0, []))
+            self.assertFalse(os.path.exists(os.path.join(d, "links", "relink.tsv")))  # 確かめでは作らない
+            self.assertEqual(sorted(os.listdir(os.path.join(d, "build", "relink"))), self.LISTS)
+            with open(os.path.join(out, "check.md"), encoding="utf-8") as f:
+                text = f.read()
+            self.assertIn("付け替え（links/relink.tsv）：0 行（confirmed 0・rejected 0）", text)
+            self.assertIn("付け替えの元の誤り 0・付け替えの重なり 0", text)
+            self.assertIn("判定：合格", text)
+
+    def test_check_with_relink_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "links", "mention.tsv"), os.path.join(d, "build", "mention")
+            rows = self.rejected_rows(texts=TEXTS_TWO)
+            ledger.write_ledger(path, rows)
+            ledger.write_ledger(os.path.join(d, "links", "relink.tsv"), [self.relinked(rows, "plan:kodomo")])
+            code, _, rep = check_links.run(self.built(texts=TEXTS_TWO), path, out)
+            self.assertEqual((code, len(rep.relink.rows), rep.relink.checked.counts[ledger.MATCH]), (0, 1, 1))
+            # 重なり：plan:kyoiku4 への付け替えは、同じ発言の plan:kyoiku4 の candidate と重なる
+            ledger.write_ledger(os.path.join(d, "links", "relink.tsv"),
+                                [self.relinked(rows, "plan:kodomo"), self.relinked(rows, "plan:kyoiku4")])
+            code, _, rep = check_links.run(self.built(texts=TEXTS_TWO), path, out)
+            self.assertEqual((code, len(rep.relink.conflicts)), (1, 1))
+            with open(os.path.join(d, "build", "relink", "relink_conflict.tsv"), encoding="utf-8") as f:
+                lines = f.read().split("\n")
+            self.assertEqual(lines[0], "\t".join(ledger.RELINK_CONFLICT_COLUMNS))
+            self.assertTrue(lines[1].startswith(f"{S4}\tplan:kyoiku4\tconfirmed\tcandidate\t"))
+            with open(os.path.join(out, "check.md"), encoding="utf-8") as f:
+                self.assertIn("判定：停止", f.read())
+
+    def test_bad_relink_file_stops(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "mention.tsv")
+            rows = self.rejected_rows()
+            ledger.write_ledger(path, rows)
+            ledger.write_ledger(os.path.join(d, "relink.tsv"),
+                                [dict(self.relinked(rows, "plan:kodomo"), status="candidate", reviewer="", date="")])
+            with self.assertRaises(ledger.LedgerError):
+                check_links.run(self.built(), path, os.path.join(d, "build"))
+
+
 if __name__ == "__main__":
     unittest.main()

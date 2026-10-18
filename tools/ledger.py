@@ -1,6 +1,7 @@
 """リンク台帳の読み書き・照合・併合（LINK_SCHEMA.md §1〜§3・§5・§6・§11、DESIGN.md §5 工程4-3・4-4）。
 
 台帳（links/<method>.tsv）の形を確かめて読み書きし、§5 の照合と §6 の併合、§11 の sentinel を行う関数を置く。
+人が付け替えた行の台帳（links/relink.tsv）は、付け替えの元と付け替えの重なり（§6・§11）も確かめる。
 入力のリポジトリは読まない。読むのは tools/update_links.py・tools/check_links.py が gen_mentions で
 lock の版から作ったデータだけ（§10）。機械は status を confirmed・rejected にしない（DESIGN.md ADR-2）。
 """
@@ -19,10 +20,11 @@ MOVED_COLUMNS = ["from", "to", "method", "status", "moved_to", "context"]
 STOPPED_COLUMNS = ["from", "to", "method", "status", "reason", "context"]  # rejected_unmatched.tsv も同じ
 VANISHED_COLUMNS = LEDGER_COLUMNS + ["check"]
 NOTE_CHANGED_COLUMNS = ["from", "to", "method", "old_note", "new_note"]
+RELINK_CONFLICT_COLUMNS = ["from", "to", "relink_status", "mention_status", "context"]
 
 CANDIDATE, CONFIRMED, REJECTED = "candidate", "confirmed", "rejected"
 STATUSES = (CANDIDATE, CONFIRMED, REJECTED)
-METHODS = ("mention", "program", "semantic")
+METHODS = ("mention", "program", "semantic", "relink")
 MATCH, MOVED, STOPPED = "一致", "移動", "停止"
 NEIGHBORS = 5  # §5：連番の前後5以内
 SENTINEL_MARKS = ("〓", "※")  # §11：context に「〓」が含まれるときは「※」
@@ -35,7 +37,8 @@ KEY_FORMS = {
     "node": re.compile(r"node:[a-z0-9][a-z0-9-]*/[^/\s]+/[^/\s]+/[^/\s]+"),
 }
 FROM_KINDS, TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")
-TO_KINDS_OF = {"mention": ("plan", "lin")}  # §11：mention の台帳の to は plan・lin だけ
+TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin")}  # §11：mention と relink の台帳の to は plan・lin だけ
+HUMAN_ONLY = ("relink",)  # §6：機械が作らない台帳。candidate を置かない
 WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",)}
 
 
@@ -79,6 +82,8 @@ def _row_errors(n, r, method):
     st = r["status"]
     if st not in STATUSES:
         errs.append(f"status が {'・'.join(STATUSES)} でない（{st!r}）")
+    elif st == CANDIDATE and method in HUMAN_ONLY:
+        errs.append(f"{method} の台帳に candidate は置かない（status は confirmed か rejected）")
     elif st == CANDIDATE:
         if r["reviewer"] or r["date"]:
             errs.append("candidate に reviewer か date がある")
@@ -156,7 +161,7 @@ def format_ledger(rows):
 
 
 def _format(columns, rows):
-    bad = [f"{_key(r)} の {c}" for r in rows for c in columns
+    bad = [f"{(r.get('from'), r.get('to'), r.get('method'))} の {c}" for r in rows for c in columns
            if not isinstance(r[c], str) or any(ch in r[c] for ch in "\t\n\r")]
     _fail("台帳・一覧に書けない値（タブ・改行を含むか、文字列でない）", bad)
     lines = ["\t".join(columns)] + ["\t".join(r[c] for c in columns) for r in sorted(rows, key=lambda r: [r[c] for c in columns])]
@@ -387,20 +392,73 @@ class Report:
     merged: Merged
     stale: list          # 作り直した台帳といまの台帳で違う行（(from, to, method)）
     sentinel_failures: list
+    relink: "RelinkReport" = None
 
     @property
     def exit_code(self):
-        bad = (self.checked.stopped or self.merged.vanished_confirmed or self.stale or self.sentinel_failures)
+        bad = (self.checked.stopped or self.merged.vanished_confirmed or self.stale or self.sentinel_failures
+               or (self.relink is not None and self.relink.exit_code))
         return 1 if bad else 0
 
 
-def check_ledger(ledger_rows, gen_rows, corpus):
-    """台帳を確かめる（§5・§6・§11）。台帳は parse_ledger を通したものを渡す。"""
+def check_ledger(ledger_rows, gen_rows, corpus, relink_rows=()):
+    """台帳を確かめる（§5・§6・§11）。台帳は parse_ledger を通したものを渡す。relink の台帳もあわせて確かめる。"""
     merged = merge(ledger_rows, gen_rows, corpus)
     now = {_key(r): r for r in ledger_rows}
     redo = {_key(r): r for r in merged.rows}
     stale = sorted(k for k in now.keys() | redo.keys() if now.get(k) != redo.get(k))
-    return Report(check_rows(ledger_rows, corpus), merged, stale, sentinel(ledger_rows, corpus))
+    return Report(check_rows(ledger_rows, corpus), merged, stale, sentinel(ledger_rows, corpus),
+                  check_relink(list(relink_rows), ledger_rows, corpus))
+
+
+# ---- 付け替え（§6・§11） ----
+
+@dataclass
+class RelinkReport:
+    rows: list
+    checked: Checked          # §5 の照合（confirmed は from と to_label、rejected は sp の移動だけ）
+    sentinel_failures: list
+    origin_errors: list       # 付け替えの元が無い relink の行（文）
+    conflicts: list           # 付け替えの重なり（relink_conflict.tsv の行）
+
+    @property
+    def exit_code(self):
+        bad = self.checked.stopped or self.sentinel_failures or self.origin_errors or self.conflicts
+        return 1 if bad else 0
+
+
+def relink_origin_errors(relink_rows, mention_rows):
+    """§11 の付け替えの元：from・evidence・context が同じで、to の違う rejected の mention の行が無い relink の行。"""
+    rejected = {}
+    for m in mention_rows:
+        if m["status"] == REJECTED:
+            rejected.setdefault((m["from"], m["evidence"], m["context"]), []).append(m)
+    errs = []
+    for r in relink_rows:
+        same = rejected.get((r["from"], r["evidence"], r["context"]), [])
+        if not same:
+            errs.append(f"{r['from']} {r['to']}：付け替えの元の却下が無い（from・evidence・context が同じ rejected の mention の行）")
+        elif all(m["to"] == r["to"] for m in same):
+            errs.append(f"{r['from']} {r['to']}：付け替えの元の却下の行と to が同じ")
+    return errs
+
+
+def relink_conflicts(relink_rows, mention_rows):
+    """§11 の付け替えの重なり：relink の confirmed と同じ (from, to) の mention の行が candidate か confirmed。"""
+    by_pair = {(m["from"], m["to"]): m for m in mention_rows}
+    out = []
+    for r in relink_rows:
+        m = by_pair.get((r["from"], r["to"]))
+        if r["status"] == CONFIRMED and m is not None and m["status"] in (CANDIDATE, CONFIRMED):
+            out.append({"from": r["from"], "to": r["to"], "relink_status": r["status"],
+                        "mention_status": m["status"], "context": r["context"]})
+    return out
+
+
+def check_relink(relink_rows, mention_rows, corpus):
+    """relink の台帳を確かめる（§5・§11）。台帳と lock の版・根拠の消失はかけない（機械が作らないため）。"""
+    return RelinkReport(relink_rows, check_rows(relink_rows, corpus), sentinel(relink_rows, corpus),
+                        relink_origin_errors(relink_rows, mention_rows), relink_conflicts(relink_rows, mention_rows))
 
 
 def write_lists(outdir, checked, merged, update):
@@ -413,6 +471,19 @@ def write_lists(outdir, checked, merged, update):
     if update:
         files += [("removed.tsv", LEDGER_COLUMNS, merged.removed),
                   ("note_changed.tsv", NOTE_CHANGED_COLUMNS, merged.note_changed)]
+    return _write_files(outdir, files)
+
+
+def write_relink_lists(outdir, rrep):
+    """relink の §11 の一覧を build/links/relink/ に書く。返り値は書いたファイルの名前。"""
+    os.makedirs(outdir, exist_ok=True)
+    return _write_files(outdir, [("moved.tsv", MOVED_COLUMNS, rrep.checked.moved),
+                                 ("stopped.tsv", STOPPED_COLUMNS, rrep.checked.stopped),
+                                 ("rejected_unmatched.tsv", STOPPED_COLUMNS, rrep.checked.rejected_unmatched),
+                                 ("relink_conflict.tsv", RELINK_CONFLICT_COLUMNS, rrep.conflicts)])
+
+
+def _write_files(outdir, files):
     for name, columns, rows in files:
         with open(os.path.join(outdir, name), "wb") as f:
             f.write(_format(columns, rows))
