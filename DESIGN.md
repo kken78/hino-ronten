@@ -17,25 +17,26 @@
 
 ---
 
-## 2. 入力の状況（2026-10-10 時点）
+## 2. 入力の状況（2026-10-20 時点。lock 06905a8 の版）
 
-| 入力 | HEAD | 単位と規模 | このリポジトリで読むもの |
+| 入力 | lock の版 | 単位と規模 | このリポジトリで読むもの |
 | --- | --- | --- | --- |
-| council-dashboard | ae28342 | 議会だより第24〜36号の一般質問 326問。主テーマ11 | `docs/data/questions.json`、`data/minutes_links.json` |
-| hino-council-search | d3cb158 | 会議録 66会議・31,263発言（2017〜2026年） | `public/data/index-manifest.json`＋`index/<年>.json`、`proceedings.json`、`meetings.json`、`gian.json` |
-| shiga-hino-plans | b80dcf3 | 計画 43本（manifest）。構造化済み5本（kodomo・kyoiku4・kankyo・koutsu・kokyo-kanri） | `data/manifest.json`、`data/plans/<id>.json`、`data/sources_index.tsv` |
+| council-dashboard | e1507bf | 議会だより第24〜36号の一般質問 326問。主テーマ11 | `docs/data/questions.json`、`data/minutes_links.json` |
+| hino-council-search | 1af9baa | 会議録 66会議・31,263発言（2017〜2026年） | `public/data/index-manifest.json`＋`index/<年>.json`、`proceedings.json`、`meetings.json` |
+| shiga-hino-plans | 30bfb26 | 計画 43本（manifest。計画の JSON があるのは41本）。事業一覧（programs）のある計画20本・1,304事業。当初予算の附表（令和8年度）181事業 | `data/manifest.json`、`data/plans/<id>.json`、`data/sources_index.tsv`（附表 `data/fuhyo/<id>.json` は工程5で足す） |
 
-確認した事実は次のとおり。
+確認した事実は次のとおり。2026-10-10 時点の値は git の履歴にある。
 
 - 議会だよりの質問と会議録の対応：会議録のやりとり表示へのリンク（`questions.json` の minutes_exchange）があるのは 303/326問。そのうち、問の位置まで指すもの（`minutes_links.json` の questions）は 281問。会議録側の `qalign`（文字の2-gramの被覆率による推定）は 281/303問で、148の一般質問の場面に付いている
 - 審議構造（`proceedings.json`）の場面の数：一般質問 454、議案質疑 519、委員長報告 274、討論 107、提案説明 137、採決 414
 - 会議録の発言索引は年別ファイルに分かれている（`index.json` 1本の形式は廃止）。統合MCPは v0.4.0 以上でないと新しい形式を読めない
 - 会議録の埋め込み：`vectors.json` は生成されておらず、`@xenova/transformers` は依存から外れている。既存の埋め込みは無い
-- 計画の事業一覧（`programs`）：kodomo 100事業、koutsu 19事業。kankyo・kyoiku4・kokyo-kanri には `programs` が無い
-- 計画期間：manifest に start/end があるのは43本中19本
-- sogo6（第6次総合計画）の本編PDFは文字を取り出せない（`sources_index.tsv` に「OCRが必要」と記載）
-- shiga-hino-plans の検収台帳（`data/audit_log/`）は kankyo・kodomo・kokyo-kanri・koutsu の4本。kodomo は検収完了
-- 統合MCP（hino-council-search `mcp/hino-council-mcp.mjs` v0.4.1）に計画データは入っていない
+- 計画の事業一覧（`programs`）：20計画・1,304事業。どの事業にも key（`e` と3桁の数字）があり、node キーはこれで事業を指す（LINK_SCHEMA §2）。jisshi（第6次総合計画 実施計画）は176事業で、実施年度と概算事業費を持つ
+- 当初予算の附表（`data/fuhyo/fuhyo-r8.json`）：令和8年度、5つの柱・181事業（key `b001`〜`b181`）。manifest の外に置かれ、検収は完了（shiga-hino-plans PR #74）。書式は shiga-hino-plans の PLAN_SCHEMA §9（ADR-10）
+- 計画期間：manifest に start/end があるのは43本中31本
+- sogo6（第6次総合計画）の本編PDFは文字を取り出せない（`sources_index.tsv` に「OCRが必要」と記載）。shiga-hino-plans は OCR した原典で検収した（PR #59）
+- shiga-hino-plans の検収台帳（`data/audit_log/`）は、41計画と附表 fuhyo-r8 の42本
+- 統合MCP（hino-council-search `mcp/hino-council-mcp.mjs` v0.4.2）に計画データは入っていない
 - 会議録・議会だよりとも、週1回の自動取り込みで更新のPRが作られる
 
 ---
