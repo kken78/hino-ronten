@@ -275,7 +275,7 @@ class TestRelinkErrors(ApplyTestCase):
                            "manifest にも系譜表にも無い"),
             "manifest にある版の lin": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="lin:kodomo/3"),
                                    "manifest にも系譜表にも無い"),
-            "node": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="node:kodomo/第1節/(1)/①"),
+            "node": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="node:kodomo/e001"),
                      "plan・lin のキーでない"),
             "元の to と同じ": (self.dec(S4, "lin:kodomo/2", "rejected", note="理由", relink_to="lin:kodomo/2"),
                           "元の行の to と同じ"),

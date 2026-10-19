@@ -150,7 +150,7 @@ class TestFormat(LedgerTestCase):
             "from の形": {"from": "sp:12345_x_0001"},
             "from に plan": {"from": "plan:kodomo"},
             "to の形": {"to": "plan:Kodomo"},
-            "mention の to に node": {"to": "node:kodomo/第1節/(1)/①"},
+            "mention の to に node": {"to": "node:kodomo/e001"},
             "method がファイルと違う": {"method": "program"},
             "crosswalk": {"method": "crosswalk"},
             "status": {"status": "保留"},
@@ -584,7 +584,7 @@ class TestRelinkFormat(RelinkTestCase):
 
     def test_row_errors_stop(self):
         cases = {"candidate": ({"status": "candidate", "reviewer": "", "date": ""}, "candidate は置かない"),
-                 "to に node": ({"to": "node:kodomo/第1節/(1)/①"}, "node は使えない"),
+                 "to に node": ({"to": "node:kodomo/e001"}, "node は使えない"),
                  "method がファイルと違う": ({"method": "mention"}, "method が台帳のファイル"),
                  "rejected の note が空": ({"status": "rejected", "note": ""}, "rejected の note が空")}
         for name, (change, needle) in cases.items():
@@ -800,6 +800,18 @@ class TestRelinkedNotCandidate(RelinkTestCase):
             with open(os.path.join(out, "update.md"), encoding="utf-8") as f:
                 text = f.read()
             self.assertIn("- 移動先なので candidate にしなかった組 0\n- 付け替え済みなので candidate にしなかった組 1\n", text)
+
+
+class TestNodeKeyForm(unittest.TestCase):
+    def test_node_key_form(self):
+        """§2：node は node:<計画id>/<key>。key は e と3桁以上の数字（shiga-hino-plans の PLAN_SCHEMA）"""
+        for key in ("node:jisshi/e136", "node:kodomo/e001", "node:chiiki-fukushi4/e1000"):
+            with self.subTest(key=key):
+                self.assertIsNotNone(ledger.KEY_FORMS["node"].fullmatch(key))
+        for key in ("node:kodomo/第1節/(1)/①", "node:jisshi/136", "node:jisshi/e13",
+                    "node:jisshi/e136/e001", "node:Jisshi/e136", "node:jisshi/E136"):
+            with self.subTest(key=key):
+                self.assertIsNone(ledger.KEY_FORMS["node"].fullmatch(key))
 
 
 if __name__ == "__main__":

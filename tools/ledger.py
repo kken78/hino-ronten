@@ -34,7 +34,7 @@ KEY_FORMS = {
     "sp": re.compile(r"sp:[0-9]{10}_[^\s]+_[0-9]{4}"),
     "plan": re.compile(r"plan:[a-z0-9][a-z0-9-]*"),
     "lin": re.compile(r"lin:[a-z0-9][a-z0-9-]*/[0-9]+"),
-    "node": re.compile(r"node:[a-z0-9][a-z0-9-]*/[^/\s]+/[^/\s]+/[^/\s]+"),
+    "node": re.compile(r"node:[a-z0-9][a-z0-9-]*/e[0-9]{3,}"),
 }
 FROM_KINDS, TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")
 TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin")}  # §11：mention と relink の台帳の to は plan・lin だけ
