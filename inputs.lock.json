@@ -1,14 +1,14 @@
 {
   "council-dashboard": {
-    "sha": "ae283426431d81e5a94599ec4946a3a44458d113",
+    "sha": "e1507bf87f12806c5e9d7941ce7ecc3c1cf70eab",
     "files": ["docs/data/questions.json", "data/minutes_links.json"]
   },
   "hino-council-search": {
-    "sha": "6a2ef92c9891dcf943fbe33097924b79fa33e260",
+    "sha": "1af9baa455b866d57de8b1dd0e7612261a291878",
     "files": ["public/data/index-manifest.json", "public/data/index/*.json", "public/data/proceedings.json", "public/data/meetings.json"]
   },
   "shiga-hino-plans": {
-    "sha": "43edc96edaad8dddac158fbc9260f8c6b5ba3afa",
+    "sha": "30bfb26f1e743b787759da3268f3b8e108f1a645",
     "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv"]
   }
 }
