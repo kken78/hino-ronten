@@ -21,4 +21,18 @@
 
 ## ライセンス
 
-コードは MIT。データのライセンスは、データを置く工程で決める。
+対象ごとに扱いが異なる。詳しくは [LICENSE-DATA.md](LICENSE-DATA.md) を参照。
+
+- プログラム（tools/）：GNU Affero General Public License v3.0 以降（AGPL-3.0-or-later、[LICENSE](LICENSE)）
+- データの構造（ref/ の系譜表・別名辞書、links/ の判定と注記、LINK_SCHEMA.md のキーの形）：CC BY 4.0
+- 教材・プロンプト（prompts/ など。まだ置いていない）：CC BY-SA 4.0
+- 会議録・議会だより・計画から転記した部分（links/ の evidence・context・to_label、ref/lineage.tsv の name・start_fy・end_fy、note のうち原典から写した計画の名称・期間と「」で引いた文言）：このリポジトリのライセンスの対象外（著作権は日野町議会、日野町など各発行者にある）
+
+プログラムは、コミット a15ccfb までの版を MIT License で公開していた。その版は、引き続き MIT License の条件で使える。
+
+Copyright (C) 2026 Kenjiro HIGASHI
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
