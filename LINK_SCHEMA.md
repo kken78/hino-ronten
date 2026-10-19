@@ -22,11 +22,12 @@
 | sp | 会議録の発言 | `sp:<sid>` | `sp:0000008942_20260305_0161` | hino-council-search `public/data/index/<年>.json` の sid |
 | plan | manifest にある計画 | `plan:<id>` | `plan:kodomo` | shiga-hino-plans `data/manifest.json` の id |
 | lin | manifest に無い前の期の計画 | `lin:<系列>/<期>` | `lin:kodomo/2` | `ref/lineage.tsv` |
-| node | 計画の事業 | `node:<id>/<節>/<基本施策>/<事業>` | `node:kodomo/第1節/(1)/①` | `data/plans/<id>.json` の programs（`groups[].no`・`subgroups[].no`・`items[].no`） |
+| node | 計画の事業 | `node:<id>/<key>` | `node:jisshi/e001` | `data/plans/<id>.json` の programs（`items[].key`） |
 
 - bq の議員名は、member を NFKC 正規化し、空白を除いたもの。この形で326問すべてが一意であることを確認済み（2026-10-10）
-- sp と node は位置や番号に依存するため、単独では信頼しない。必ず §5 の照合を通す
-- node は programs を持つ計画にだけ定義する（2026-10-10 時点で kodomo 100事業・koutsu 19事業。例：`node:koutsu/Ⅰ./1./事業1`）。programs の無い計画や、subgroups の無い programs が必要になった場合は、この表に形式を追加してから使う
+- sp は発言の位置に依存し、node の key は元のデータの管理に依存するため、単独では信頼しない。必ず §5 の照合を通す
+- node は programs を持つ計画の事業にだけ定義する。key は shiga-hino-plans が事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の CLAUDE.md・PLAN_SCHEMA）。key の無い事業は指さない
+- node は、2026-10-19 に番号（`groups[].no`・`subgroups[].no`・`items[].no`）による形から key による形に替えた。番号の無い事業（jisshi など6計画）を指せないため（issue #1）。替えた時点で、台帳に node の行は無かった
 
 ---
 
@@ -81,7 +82,7 @@ sp（会議録の発言）：
 
 bq（議会だよりの質問）：where の欄の正規化テキストに context が含まれなければ停止する。where が answers の行は、answers のいずれかの要素の text に含まれれば一致とする。
 
-node：to_label と、現在の `data/plans/<id>.json` の該当事業の name が一致しなければ停止する。
+node：現在の `data/plans/<id>.json` の programs に同じ key の事業が無いか、その事業の name が to_label と一致しなければ停止する。
 
 plan・lin：to_label と、manifest または `ref/lineage.tsv` の name が一致しなければ停止する。
 

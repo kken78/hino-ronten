@@ -15,7 +15,7 @@
 2. 機械は候補まで：ツールが作るのは candidate だけ。confirmed・rejected は人が付ける。出力に使うのは confirmed だけ（DESIGN.md ADR-2）
 3. 文書が先：キー・列・状態・正規化・照合の規則を変えるときは、`LINK_SCHEMA.md` を先に改定し、検査 → 生成の順で実装を追従させる。設計判断を変えるときは `DESIGN.md` に ADR を追加する。文書と実装は別のコミットにする
 4. 入力は読むだけ：council-dashboard・hino-council-search・shiga-hino-plans には書き込まない。読むのは `inputs.lock.json` の SHA のデータだけ（ADR-1）。入力側の不具合を見つけたら、このリポジトリで補正せずに報告する
-5. 位置依存のキーを信頼しない：sid と node は `LINK_SCHEMA.md` §5 の照合を通してから使う（ADR-4）
+5. 位置依存のキーを信頼しない：sid と node（事業の key）は `LINK_SCHEMA.md` §5 の照合を通してから使う（ADR-4）
 6. 序列化しない：議員を件数で並べたり比べたりする出力を作らない（council-dashboard `docs/EDITORIAL_POLICY.md`）
 7. 手抜き禁止：検査を飛ばさない。エラーを握りつぶさない。失敗は件数と該当行を示して止める
 8. 生成物を手で直さない：`build/` の内容は `tools/` から作り直す
