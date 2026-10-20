@@ -11,11 +11,13 @@ inputs.lock.json の shiga-hino-plans の files に名指しした附表（data/
 
 §7 fuhyo の決まり：
 - 事業名と事業概要（附表は desc、計画は items[].desc）は §4 で正規化して比べる
-- 柱：附表の柱の no と、計画の programs ブロックを持つタブを文書の順に1から数えた番号を対応させる
+- 柱：附表の柱の no と、計画の programs ブロックを持つタブを文書の順に1から数えた番号を対応させる。
+  附表の柱に当たる計画の柱に事業が無ければ止める
+- 計画の programs に key の無い事業や key の重なる事業があれば止める（候補から黙って抜けないように）
 - 事業名が同じ計画の事業を候補にする。同じ名前が計画に2つ以上あれば、事業概要も同じものだけ（無ければ同じ名前のすべて）
 - 事業名も事業概要も同じ計画の事業が無ければ、none（記載なし）も候補にする
 - 事業名が同じ計画の事業が無ければ、none と、同じ柱の計画の事業のうち Dice 係数の大きい順に3つまで（0 は除く。
-  同じ値は key の番号の順）。Dice 係数は、同じ2文字の組を1つと数えた集まりで求め、note には四捨五入して小数第2位まで書く
+  同じ値は key の文字コード順）。Dice 係数は、同じ2文字の組を1つと数えた集まりで求め、note には四捨五入して小数第2位まで書く
 """
 import math
 import os
@@ -174,10 +176,6 @@ def dice_text(value):
     return f"{n // 100}.{n % 100:02d}"
 
 
-def _key_number(key):
-    return int(key[1:])
-
-
 def _row(fid, f, to, to_label, note):
     return {"from": f"fh:{fid}/{f['key']}", "to": to, "method": METHOD, "evidence": f["n"], "where": "name",
             "context": f["n"], "to_label": to_label, "status": ledger.CANDIDATE, "reviewer": "", "date": "",
@@ -198,12 +196,20 @@ def candidate_rows(fid, items, pid, programs):
         if not same:
             rows.append(_row(fid, f, f"none:{pid}", ledger.NONE_LABEL, "事業名が同じ事業が無い"))
             near = sorted(((dice(f["n"], x["n"]), x) for x in programs if x["pillar"] == f["pillar"]),
-                          key=lambda t: (-t[0], _key_number(t[1]["key"])))
+                          key=lambda t: (-t[0], t[1]["key"]))
             for value, x in [t for t in near if t[0] > 0][:NEAR]:
                 rows.append(_row(fid, f, f"node:{pid}/{x['key']}", x["name"], f"事業名が近い（Dice {dice_text(value)}）"))
         elif not any(x["d"] == f["d"] for x in same):
             rows.append(_row(fid, f, f"none:{pid}", ledger.NONE_LABEL, "事業名と事業概要が同じ事業が無い"))
     return rows
+
+
+def check_pillars(fid, items, pid, programs):
+    """附表の柱ごとに、同じ番号の計画の柱に事業があることを確かめる。無ければ、名前の近い候補が黙って0件になるため止める。"""
+    have = {x["pillar"] for x in programs}
+    errs = [f"附表の柱{n}に当たる計画 {pid} の柱{n}に事業が無い（計画の事業のある柱は {'・'.join(map(str, sorted(have)))}）"
+            for n in sorted({f["pillar"] for f in items} - have)]
+    gm._fail(f"附表 {fid} と計画 {pid} の柱", errs)
 
 
 @dataclass
@@ -219,6 +225,8 @@ def build(inp):
     names = manifest_names(inp.manifest)
     items = {fid: fuhyo_items(fid, data) for fid, data in sorted(inp.fuhyo.items())}
     programs = {pid: plan_programs(pid, plan) for pid, plan in sorted(inp.plans.items())}
+    for fid in items:
+        check_pillars(fid, items[fid], FUHYO_PLANS[fid], programs[FUHYO_PLANS[fid]])
     rows = [r for fid in items for r in candidate_rows(fid, items[fid], FUHYO_PLANS[fid], programs[FUHYO_PLANS[fid]])]
     keys = [(r["from"], r["to"], r["method"]) for r in rows]
     if len(set(keys)) != len(keys):

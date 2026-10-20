@@ -142,8 +142,12 @@ class FuhyoTestCase(unittest.TestCase):
         return hits[0]
 
     @staticmethod
-    def decide(rows, frm, to, status, note="見本の判断"):
-        """人の確定・却下（status・reviewer・date・note を書く）。"""
+    def decide(rows, frm, to, status, note=None):
+        """人の確定・却下（status・reviewer・date・note を書く）。note を省くと、確定は §7 fuhyo の区分つき
+        （node は「区分：一致」、none は「区分：一部」）、却下は「見本の判断」。"""
+        if note is None:
+            note = "見本の判断" if status != "confirmed" else \
+                f"見本の判断。メモ：区分：{'一致' if to.startswith('node:') else '一部'}"
         out = [dict(r) for r in rows]
         for r in out:
             if r["from"] == frm and r["to"] == to:
@@ -215,6 +219,26 @@ class TestCandidates(FuhyoTestCase):
         rows = self.built(plan=plan).rows
         self.assertEqual([to for to, _ in self.pairs(rows, fh("b004"))], [node("e002"), node("e003"), node("e004"), NONE])
 
+    @staticmethod
+    def near_keys(f_name, progs):
+        """柱1 の附表の事業1つと、柱1 の計画の事業（key, 正規化した名前）で候補を作り、近いものの key を候補を作った順に返す。"""
+        f = {"key": "b001", "pillar": 1, "name": f_name, "n": f_name, "d": ""}
+        xs = [{"key": k, "pillar": 1, "name": n, "n": n, "d": ""} for k, n in progs]
+        return [r["to"].rpartition("/")[2] for r in gf.candidate_rows(FID, [f], PID, xs) if r["to"].startswith("node:")]
+
+    def test_near_ties_by_key_text(self):
+        # 同じ値は key の文字コード順（§1 の並べ方と同じ）。番号の順なら e997・e998・e999 になる
+        progs = [(k, "AB" + t) for k, t in (("e997", "cde"), ("e998", "fgh"), ("e999", "ijk"), ("e1000", "lmn"))]
+        self.assertEqual(len({gf.dice("ABXY", n) for _, n in progs}), 1)
+        self.assertEqual(self.near_keys("ABXY", progs), ["e1000", "e997", "e998"])
+
+    def test_near_sorted_before_rounding(self):
+        # e101 は 1/8（0.125）、e102 は 2/15（0.133…）で、note の値はどちらも 0.13。並べるのは四捨五入する前の値
+        progs = [("e101", "AB" + "lmnopqrstuvw"), ("e102", "AB" + "abcdefghijk"), ("e103", "ABC"), ("e104", "BCD")]
+        self.assertEqual([gf.dice("ABCD", n) for _, n in progs], [Fraction(1, 8), Fraction(2, 15), Fraction(4, 5), Fraction(4, 5)])
+        self.assertEqual([gf.dice_text(gf.dice("ABCD", n)) for _, n in progs[:2]], ["0.13", "0.13"])
+        self.assertEqual(self.near_keys("ABCD", progs), ["e103", "e104", "e102"])
+
     def test_no_same_name_zero_excluded(self):
         self.assertEqual(self.pairs(self.rows, fh("b012")), [(NONE, "事業名が同じ事業が無い")])
         # 0 のもの（組合負担金）と別の柱のものは入れない。2つだけでもよい
@@ -271,6 +295,14 @@ class TestItems(FuhyoTestCase):
                 with self.assertRaises(gm.GenError) as cm:
                     gf.fuhyo_items(FID, data)
                 self.assertIn(needle, str(cm.exception))
+
+    def test_pillar_without_plan_items(self):
+        # 附表の柱2 に当たる計画の柱が無い（programs を持つタブが1つ）→ 名前の近い候補が黙って0件にならないよう止める
+        plan = copy.deepcopy(PLAN)
+        del plan["tabs"][2]
+        with self.assertRaises(gm.GenError) as cm:
+            self.built(plan=plan)
+        self.assertIn("附表の柱2に当たる計画 jisshi の柱2に事業が無い（計画の事業のある柱は 1）", str(cm.exception))
 
     def test_plan_errors(self):
         for name, (plan, needle) in {"key が無い": (self.edited_plan("e001", key=None), "key の形が違う"),

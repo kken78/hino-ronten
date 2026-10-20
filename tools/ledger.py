@@ -115,6 +115,8 @@ def _row_errors(n, r, method):
             errs.append(f"{c} が空か、§4 の正規化を通した値でない")
     if r["evidence"] and r["evidence"] not in r["context"]:
         errs.append("context に evidence が含まれない")
+    elif fk == "fh" and r["evidence"] != r["context"]:
+        errs.append("fh の行で evidence と context が同じでない")
     return [f"{n}行目 {r['from']} {r['to']}：{e}" for e in errs]
 
 
@@ -463,13 +465,27 @@ class Classification:
     missing: list         # 台帳に行が無い事業
     both: list            # confirmed の none と confirmed の node が両方ある事業
     all_rejected: list    # candidate も confirmed も無い事業（候補をすべて却下した）
+    bad_kubun: list = field(default_factory=list)  # 区分の無い・合わない confirmed の行（文）
 
     @property
     def errors(self):
         """§11 の附表の分類の誤り（文の一覧）。空なら合格。"""
         return ([f"{f}：台帳に行が無い" for f in self.missing]
                 + [f"{f}：confirmed の none と confirmed の node が両方ある" for f in self.both]
-                + [f"{f}：candidate も confirmed も無い（候補をすべて却下した）" for f in self.all_rejected])
+                + [f"{f}：candidate も confirmed も無い（候補をすべて却下した）" for f in self.all_rejected]
+                + self.bad_kubun)
+
+
+# §7 fuhyo の区分：node を確定する区分と、none を確定する区分
+FUHYO_KUBUN = {"node": ("一致", "一致（柱違い）", "表記の違い", "名称の変更"), "none": ("一部", "年度の事業", "中身の違い")}
+_KUBUN_RE = re.compile(r"(?:^|。)メモ：区分：(" + "|".join(map(re.escape, sorted(
+    FUHYO_KUBUN["node"] + FUHYO_KUBUN["none"], key=len, reverse=True))) + r")(?:。|$)")
+
+
+def fuhyo_kubun(note):
+    """台帳の note から §7 fuhyo の区分を読む。無ければ None。"""
+    m = _KUBUN_RE.search(note or "")
+    return m.group(1) if m else None
 
 
 def classify_fuhyo(rows, fuhyo_keys):
@@ -485,6 +501,14 @@ def classify_fuhyo(rows, fuhyo_keys):
             out.missing.append(f)
             continue
         confirmed = {_kind(r["to"]) for r in rs if r["status"] == CONFIRMED}
+        for r in rs:
+            if r["status"] != CONFIRMED:
+                continue
+            k = fuhyo_kubun(r["note"])
+            if k is None:
+                out.bad_kubun.append(f"{f} {r['to']}：confirmed の note に区分が無い（「メモ：区分：<区分>」）")
+            elif k not in FUHYO_KUBUN[_kind(r["to"])]:
+                out.bad_kubun.append(f"{f} {r['to']}：区分「{k}」は {_kind(r['to'])} の確定に使えない")
         if {"node", "none"} <= confirmed:
             out.both.append(f)
         elif any(r["status"] == CANDIDATE for r in rs):

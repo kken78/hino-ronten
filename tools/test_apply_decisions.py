@@ -517,9 +517,9 @@ class TestFuhyo(FuhyoTestCase):
         return str(cm.exception)
 
     def test_apply_and_counts(self):
-        rows = [self.dec(fh("b001"), node("e001"), "confirmed"),
+        rows = [self.dec(fh("b001"), node("e001"), "confirmed", note="区分：一致"),
                 self.dec(fh("b002"), node("e002"), "rejected", note="事業の中身が違う"),
-                self.dec(fh("b002"), NONE, "confirmed", note="見本のメモ")]
+                self.dec(fh("b002"), NONE, "confirmed", note="区分：一部。見本のメモ")]
         self.write_files(rows)
         code, applied, after, rep = ad.run_fuhyo(self.decisions_path, self.keys_path, self.ledger_path, self.built(),
                                                  self.out, out=self.printed)
@@ -535,6 +535,12 @@ class TestFuhyo(FuhyoTestCase):
                               note=f"却下：事業の中身が違う。判別の根拠：{self.row(base, fh('b002'), node('e002'))['note']}"))
         self.assertEqual((rep.classification.classified, len(rep.classification.pending)), ([fh("b001"), fh("b002")], 6))
         self.assertEqual(ledger.read_ledger(self.ledger_path, "fuhyo"), after)
+
+    def test_confirmed_without_kubun_stops(self):
+        # 確定の判定のメモに §7 fuhyo の区分が無い、または to の種類に合わない区分なら、書き写さない
+        for note, needle in (("見本のメモ", "区分が無い"), ("区分：一部", "区分「一部」は node の確定に使えない")):
+            with self.subTest(note=note):
+                self.assert_stops_without_writing([self.dec(fh("b001"), node("e001"), "confirmed", note=note)], needle)
 
     def test_relink_to_refused(self):
         rows = [self.dec(fh("b001"), node("e001"), "confirmed")]

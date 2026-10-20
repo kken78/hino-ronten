@@ -112,7 +112,8 @@ def fuhyo_report_lines(rows, rep):
          f"- 附表の sentinel：{len(rows) - sum(1 for r in rows if r['status'] == ledger.REJECTED)} 行で確かめ、"
          f"一致になった行 {len(rep.sentinel_failures)}",
          f"- 附表の分類：附表の事業 {cl.total}・分類済み {len(cl.classified)}・候補のある事業 {len(cl.pending)}・"
-         f"行の無い事業 {len(cl.missing)}・none と node の両方が確定 {len(cl.both)}・候補をすべて却下 {len(cl.all_rejected)}",
+         f"行の無い事業 {len(cl.missing)}・none と node の両方が確定 {len(cl.both)}・候補をすべて却下 {len(cl.all_rejected)}・"
+         f"区分の誤り {len(cl.bad_kubun)}",
          f"- 附表の台帳の判定：{'合格' if rep.exit_code == 0 else '停止'}"]
     if rep.checked.stopped:
         L += ["", f"附表の §5 の照合で停止した行（build/links/fuhyo/stopped.tsv。先頭{EXAMPLES}件）：", ""]

@@ -11,6 +11,7 @@ links/fuhyo.tsv に合わせて書く。付け替えは使わない（§6）。�
       python3 -B tools/update_links.py --ledger fuhyo （links/fuhyo.tsv）
 終了コード：0 は台帳を書いた。1 は止めた（台帳は書かない。件数と該当を表示し、一覧を build/links/<method>/ に書く）。
 止めるのは、使い方の誤り・台帳の形の誤り・入力の誤り・§5 の停止・再生成で出なくなった confirmed があるとき。
+--ledger fuhyo のときは、附表の分類（§11）の誤りがあるときも止める（誤りの事業を表示する）。
 """
 import os
 import sys
@@ -92,7 +93,7 @@ def run_fuhyo(fbuilt, ledger_path, outdir):
     checked = ledger.check_rows(merged.rows, corpus)
     ledger.parse_ledger(ledger.format_ledger(merged.rows), FUHYO)  # 書く前に §11 の形を確かめる
     classification = ledger.classify_fuhyo(merged.rows, gen_fuhyo.fuhyo_keys(fbuilt))
-    code = 1 if (checked.stopped or merged.vanished_confirmed) else 0
+    code = 1 if (checked.stopped or merged.vanished_confirmed or classification.errors) else 0
     if code == 0:
         ledger.write_ledger(ledger_path, merged.rows)
     ledger.write_lists(outdir, checked, merged, update=True)
@@ -118,6 +119,10 @@ def main_fuhyo():
         return 1
     print("\n".join(fuhyo_report_lines(merged, checked, code == 0, classification)[2:]))
     _stop_messages(merged, checked, check_links.FUHYO_OUT_DIR)
+    if classification.errors:
+        print(f"停止：附表の分類の誤り {len(classification.errors)} 件", file=sys.stderr)
+        for e in classification.errors:
+            print(f"  {e}", file=sys.stderr)
     return code
 
 

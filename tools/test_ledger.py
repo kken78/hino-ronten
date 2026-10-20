@@ -848,6 +848,7 @@ class TestFuhyoFormat(FuhyoTestCase):
                  "fuhyo の to に plan": ("fuhyo", {"to": "plan:jisshi"}, "to に plan は使えない"),
                  "fuhyo の to に lin": ("fuhyo", {"to": "lin:kodomo/2"}, "to に lin は使えない"),
                  "fuhyo の where": ("fuhyo", {"where": "text"}, "where が name でない"),
+                 "fh の evidence と context": ("fuhyo", {"evidence": "子育て"}, "fh の行で evidence と context が同じでない"),
                  "mention に fuhyo の行": ("mention", {"method": "mention"}, "mention の台帳の from に fh は使えない"),
                  "relink に fuhyo の行": ("relink", {"method": "relink", "status": "confirmed", "reviewer": "見本",
                                                    "date": "2026-10-20"}, "relink の台帳の from に fh は使えない")}
@@ -949,6 +950,22 @@ class TestClassify(FuhyoTestCase):
         self.assertEqual((rep.relink, len(rep.classification.errors), rep.exit_code), (None, 3, 1))
         self.assertEqual(rep.stale, [(fh("b012"), NONE, "fuhyo")])  # 行を除いた事業は、作り直した台帳とも違う
 
+    def test_kubun(self):
+        """§11 附表の分類：confirmed の行の note に §7 fuhyo の区分があり、node・none の種類に合う"""
+        self.assertEqual(ledger.fuhyo_kubun("事業名が同じ。事業概要も同じ。メモ：区分：一致（柱違い）"), "一致（柱違い）")
+        self.assertEqual(ledger.fuhyo_kubun("メモ：区分：一部。地域未来交付金事業（e163）の人員"), "一部")
+        self.assertIsNone(ledger.fuhyo_kubun("事業名が同じ。メモ：区分は一致"))
+        cases = {"区分が無い": (node("e001"), "見本の判断", "区分が無い"),
+                 "none に node の区分": (NONE, "見本の判断。メモ：区分：一致", "区分「一致」は none の確定に使えない"),
+                 "node に none の区分": (node("e001"), "見本の判断。メモ：区分：年度の事業", "区分「年度の事業」は node の確定に使えない")}
+        for name, (to, note, needle) in cases.items():
+            with self.subTest(name=name):
+                frm = fh("b001") if to.startswith("node:") else fh("b012")
+                rows = self.decide(self.fuhyo_base(), frm, to, "confirmed", note=note)
+                cl = ledger.classify_fuhyo(rows, self.keys())
+                self.assertEqual(len(cl.bad_kubun), 1)
+                self.assertIn(needle, cl.errors[0])
+
     def test_pending_with_partial_decision(self):
         # 一部だけ判定して candidate が残る事業は、候補のある事業に数える（誤りにしない）
         rows = self.decide(self.fuhyo_base(), fh("b002"), node("e002"), "confirmed")
@@ -1022,6 +1039,22 @@ class TestFuhyoTools(FuhyoTestCase):
             self.assertEqual((code, rep.stale, rep.classification.all_rejected), (1, [], [fh("b001")]))
             with open(os.path.join(out, "check.md"), encoding="utf-8") as f:
                 self.assertIn("候補をすべて却下した", f.read())
+
+    def test_classification_error_stops_update(self):
+        # 附表の分類の誤り（候補をすべて却下した事業）があれば、update も台帳を書かずに終了コード1
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "fuhyo.tsv"), os.path.join(d, "build")
+            ledger.write_ledger(path, self.decide(self.fuhyo_base(), fh("b001"), node("e001"), "rejected"))
+            with open(path, "rb") as f:
+                before = f.read()
+            code, merged, checked, cl = update_links.run_fuhyo(self.built(), path, out)
+            with open(path, "rb") as f:
+                self.assertEqual((code, f.read(), checked.stopped, merged.vanished_confirmed), (1, before, [], []))
+            self.assertEqual(cl.errors, [f"{fh('b001')}：candidate も confirmed も無い（候補をすべて却下した）"])
+            with open(os.path.join(out, "update.md"), encoding="utf-8") as f:
+                text = f.read()
+            self.assertIn("台帳：書いていない（止めた）", text)
+            self.assertIn("分類の誤り 1", text)
 
     def test_update_stops_without_writing(self):
         # confirmed の行が出なくなった（附表の事業名が、計画のどの事業名とも2文字の組を共有しない名前に変わった）
