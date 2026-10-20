@@ -1,0 +1,214 @@
+from	to	method	evidence	where	context	to_label	status	reviewer	date	note
+fh:fuhyo-r8/b001	node:jisshi/e001	fuhyo	県単独福祉医療費助成事業	name	県単独福祉医療費助成事業	県単独福祉医療費助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b002	node:jisshi/e002	fuhyo	町単独福祉医療費助成事業	name	町単独福祉医療費助成事業	町単独福祉医療費助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b003	node:jisshi/e003	fuhyo	児童福祉事務事業	name	児童福祉事務事業	児童福祉事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b004	node:jisshi/e032	fuhyo	児童健全育成事業	name	児童健全育成事業	児童健全育成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b005	node:jisshi/e033	fuhyo	地域子育て支援事業	name	地域子育て支援事業	地域子育て支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b006	node:jisshi/e004	fuhyo	早期療育事業	name	早期療育事業	早期療育事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b007	node:jisshi/e005	fuhyo	児童虐待防止対策事業	name	児童虐待防止対策事業	児童虐待防止対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b008	node:jisshi/e006	fuhyo	公立保育所運営事業	name	公立保育所運営事業	公立保育所運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b009	node:jisshi/e007	fuhyo	認定こども園運営事業	name	認定こども園運営事業	認定こども園運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b010	node:jisshi/e008	fuhyo	認定こども園整備事業	name	認定こども園整備事業	認定こども園整備事業	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b010	none:jisshi	fuhyo	認定こども園整備事業	name	認定こども園整備事業	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b011	node:jisshi/e009	fuhyo	私立保育園運営事業	name	私立保育園運営事業	私立保育園運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b012	node:jisshi/e010	fuhyo	児童手当支給事業	name	児童手当支給事業	児童手当支給事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b013	node:jisshi/e011	fuhyo	母子保健相談事業	name	母子保健相談事業	母子保健相談事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b014	node:jisshi/e012	fuhyo	乳幼児健診事業	name	乳幼児健診事業	乳幼児健診事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b015	node:jisshi/e013	fuhyo	母子保健助成事業	name	母子保健助成事業	母子保健助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b016	node:jisshi/e014	fuhyo	事務局運営事業	name	事務局運営事業	事務局運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b017	node:jisshi/e015	fuhyo	教育相談・子ども支援活動事業	name	教育相談・子ども支援活動事業	教育相談・子ども支援活動事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b018	node:jisshi/e018	fuhyo	奨学資金貸付事業	name	奨学資金貸付事業	奨学資金貸付事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b019	node:jisshi/e019	fuhyo	奨学金返還支援事業	name	奨学金返還支援事業	奨学金返還支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b020	node:jisshi/e016	fuhyo	幼稚園管理運営事業	name	幼稚園管理運営事業	幼稚園管理運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b021	node:jisshi/e017	fuhyo	幼稚園教育振興事業	name	幼稚園教育振興事業	幼稚園教育振興事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b022	node:jisshi/e020	fuhyo	小学校管理運営事業	name	小学校管理運営事業	小学校管理運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b023	node:jisshi/e021	fuhyo	小学校教育振興事業	name	小学校教育振興事業	小学校教育振興事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b024	node:jisshi/e017	fuhyo	会計年度任用職員人件費(小学校教育振興費)	name	会計年度任用職員人件費(小学校教育振興費)	幼稚園教育振興事業	candidate			事業名が近い（Dice 0.21）
+fh:fuhyo-r8/b024	node:jisshi/e021	fuhyo	会計年度任用職員人件費(小学校教育振興費)	name	会計年度任用職員人件費(小学校教育振興費)	小学校教育振興事業	candidate			事業名が近い（Dice 0.43）
+fh:fuhyo-r8/b024	node:jisshi/e026	fuhyo	会計年度任用職員人件費(小学校教育振興費)	name	会計年度任用職員人件費(小学校教育振興費)	中学校教育振興事業	candidate			事業名が近い（Dice 0.36）
+fh:fuhyo-r8/b024	none:jisshi	fuhyo	会計年度任用職員人件費(小学校教育振興費)	name	会計年度任用職員人件費(小学校教育振興費)	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b025	node:jisshi/e022	fuhyo	小学校就学援助事業	name	小学校就学援助事業	小学校就学援助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b026	node:jisshi/e023	fuhyo	小学校遠距離通学助成事業	name	小学校遠距離通学助成事業	小学校遠距離通学助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b027	node:jisshi/e024	fuhyo	小学校修学旅行助成事業	name	小学校修学旅行助成事業	小学校修学旅行助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b028	node:jisshi/e034	fuhyo	小学校フリースクール利用助成事業	name	小学校フリースクール利用助成事業	小学校フリースクール利用助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b029	node:jisshi/e025	fuhyo	中学校管理運営事業	name	中学校管理運営事業	中学校管理運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b030	node:jisshi/e020	fuhyo	フルタイム会計年度任用職員人件費(中学校管理費)	name	フルタイム会計年度任用職員人件費(中学校管理費)	小学校管理運営事業	candidate			事業名が近い（Dice 0.19）
+fh:fuhyo-r8/b030	node:jisshi/e025	fuhyo	フルタイム会計年度任用職員人件費(中学校管理費)	name	フルタイム会計年度任用職員人件費(中学校管理費)	中学校管理運営事業	candidate			事業名が近い（Dice 0.26）
+fh:fuhyo-r8/b030	node:jisshi/e026	fuhyo	フルタイム会計年度任用職員人件費(中学校管理費)	name	フルタイム会計年度任用職員人件費(中学校管理費)	中学校教育振興事業	candidate			事業名が近い（Dice 0.13）
+fh:fuhyo-r8/b030	none:jisshi	fuhyo	フルタイム会計年度任用職員人件費(中学校管理費)	name	フルタイム会計年度任用職員人件費(中学校管理費)	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b031	node:jisshi/e026	fuhyo	中学校教育振興事業	name	中学校教育振興事業	中学校教育振興事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b032	node:jisshi/e017	fuhyo	会計年度任用職員人件費(中学校教育振興費)	name	会計年度任用職員人件費(中学校教育振興費)	幼稚園教育振興事業	candidate			事業名が近い（Dice 0.21）
+fh:fuhyo-r8/b032	node:jisshi/e021	fuhyo	会計年度任用職員人件費(中学校教育振興費)	name	会計年度任用職員人件費(中学校教育振興費)	小学校教育振興事業	candidate			事業名が近い（Dice 0.36）
+fh:fuhyo-r8/b032	node:jisshi/e026	fuhyo	会計年度任用職員人件費(中学校教育振興費)	name	会計年度任用職員人件費(中学校教育振興費)	中学校教育振興事業	candidate			事業名が近い（Dice 0.43）
+fh:fuhyo-r8/b032	none:jisshi	fuhyo	会計年度任用職員人件費(中学校教育振興費)	name	会計年度任用職員人件費(中学校教育振興費)	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b033	node:jisshi/e027	fuhyo	中学校就学援助事業	name	中学校就学援助事業	中学校就学援助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b034	node:jisshi/e028	fuhyo	中学校修学旅行助成事業	name	中学校修学旅行助成事業	中学校修学旅行助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b035	node:jisshi/e035	fuhyo	中学校フリースクール利用助成事業	name	中学校フリースクール利用助成事業	中学校フリースクール利用助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b036	node:jisshi/e029	fuhyo	中学校クラブ活動育成事業	name	中学校クラブ活動育成事業	中学校クラブ活動育成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b037	node:jisshi/e036	fuhyo	社会教育総務事務事業	name	社会教育総務事務事業	社会教育総務事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b038	node:jisshi/e037	fuhyo	社会教育団体育成事業	name	社会教育団体育成事業	社会教育団体育成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b039	node:jisshi/e038	fuhyo	青少年育成地域活動支援事業	name	青少年育成地域活動支援事業	青少年育成地域活動支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b040	node:jisshi/e042	fuhyo	子ども読書活動推進事業	name	子ども読書活動推進事業	子ども読書活動推進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b041	node:jisshi/e166	fuhyo	中央公民館運営事業	name	中央公民館運営事業	中央公民館運営事業	candidate			事業名が同じ。事業概要も同じ。柱が違う（附表 柱1・計画 柱5）
+fh:fuhyo-r8/b042	node:jisshi/e167	fuhyo	地区公民館活動事業	name	地区公民館活動事業	地区公民館活動事業	candidate			事業名が同じ。事業概要も同じ。柱が違う（附表 柱1・計画 柱5）
+fh:fuhyo-r8/b043	node:jisshi/e168	fuhyo	地区公民館管理事業	name	地区公民館管理事業	地区公民館管理事業	candidate			事業名が同じ。事業概要も同じ。柱が違う（附表 柱1・計画 柱5）
+fh:fuhyo-r8/b044	node:jisshi/e039	fuhyo	家庭教育支援事業	name	家庭教育支援事業	家庭教育支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b045	node:jisshi/e045	fuhyo	民俗資料館運営事業	name	民俗資料館運営事業	民俗資料館運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b046	node:jisshi/e046	fuhyo	文化財保護事務事業	name	文化財保護事務事業	文化財保護事務事業	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b046	none:jisshi	fuhyo	文化財保護事務事業	name	文化財保護事務事業	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b047	node:jisshi/e047	fuhyo	文化財保存事業	name	文化財保存事業	文化財保存事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b048	node:jisshi/e048	fuhyo	近江日野商人ふるさと館運営事業	name	近江日野商人ふるさと館運営事業	近江日野商人ふるさと館運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b049	node:jisshi/e016	fuhyo	近江日野商人ふるさと館管理事業	name	近江日野商人ふるさと館管理事業	幼稚園管理運営事業	candidate			事業名が近い（Dice 0.18）
+fh:fuhyo-r8/b049	node:jisshi/e044	fuhyo	近江日野商人ふるさと館管理事業	name	近江日野商人ふるさと館管理事業	図書館管理事業	candidate			事業名が近い（Dice 0.40）
+fh:fuhyo-r8/b049	node:jisshi/e048	fuhyo	近江日野商人ふるさと館管理事業	name	近江日野商人ふるさと館管理事業	近江日野商人ふるさと館運営事業	candidate			事業名が近い（Dice 0.79）
+fh:fuhyo-r8/b049	none:jisshi	fuhyo	近江日野商人ふるさと館管理事業	name	近江日野商人ふるさと館管理事業	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b050	node:jisshi/e050	fuhyo	人権教育推進事業	name	人権教育推進事業	人権教育推進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b051	node:jisshi/e043	fuhyo	図書館運営事業	name	図書館運営事業	図書館運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b052	node:jisshi/e044	fuhyo	図書館管理事業	name	図書館管理事業	図書館管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b053	node:jisshi/e049	fuhyo	文化振興事業	name	文化振興事業	文化振興事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b054	node:jisshi/e040	fuhyo	スポーツ振興事業	name	スポーツ振興事業	スポーツ振興事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b055	node:jisshi/e041	fuhyo	スポーツ協会活動事業	name	スポーツ協会活動事業	スポーツ協会活動事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b056	node:jisshi/e030	fuhyo	学校給食事業	name	学校給食事業	学校給食事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b057	node:jisshi/e031	fuhyo	学校給食運営事業	name	学校給食運営事業	学校給食運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b058	node:jisshi/e077	fuhyo	労働対策事務事業	name	労働対策事務事業	労働対策事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b059	node:jisshi/e078	fuhyo	シルバー人材センター運営事業	name	シルバー人材センター運営事業	シルバー人材センター運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b060	node:jisshi/e079	fuhyo	勤労福祉会館管理運営事業	name	勤労福祉会館管理運営事業	勤労福祉会館管理運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b061	node:jisshi/e051	fuhyo	農業委員会運営事業	name	農業委員会運営事業	農業委員会運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b062	node:jisshi/e052	fuhyo	特産農産物振興事業	name	特産農産物振興事業	特産農産物振興事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b063	node:jisshi/e053	fuhyo	水田農業推進対策事業	name	水田農業推進対策事業	水田農業推進対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b064	node:jisshi/e054	fuhyo	担い手育成対策事業	name	担い手育成対策事業	担い手育成対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b065	node:jisshi/e071	fuhyo	農業構造改善施設管理事業	name	農業構造改善施設管理事業	農業構造改善施設管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b066	node:jisshi/e055	fuhyo	有害鳥獣駆除事業	name	有害鳥獣駆除事業	有害鳥獣駆除事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b067	node:jisshi/e056	fuhyo	環境保全型農業直接支援対策事業	name	環境保全型農業直接支援対策事業	環境保全型農業直接支援対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b068	node:jisshi/e058	fuhyo	土地改良事務事業	name	土地改良事務事業	土地改良事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b069	node:jisshi/e059	fuhyo	農道維持管理事業	name	農道維持管理事業	農道維持管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b070	node:jisshi/e060	fuhyo	日野町土地改良区運営事業	name	日野町土地改良区運営事業	日野町土地改良区運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b071	node:jisshi/e061	fuhyo	甲蒲土地改良区補助事業	name	甲蒲土地改良区補助事業	甲蒲土地改良区補助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b072	node:jisshi/e062	fuhyo	日野川流域土地改良区運営事業	name	日野川流域土地改良区運営事業	日野川流域土地改良区運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b073	node:jisshi/e063	fuhyo	町単独土地改良事業	name	町単独土地改良事業	町単独土地改良事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b074	node:jisshi/e064	fuhyo	日野川基幹水利施設管理事業	name	日野川基幹水利施設管理事業	日野川基幹水利施設管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b075	node:jisshi/e065	fuhyo	水利施設管理強化事業	name	水利施設管理強化事業	水利施設管理強化事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b076	node:jisshi/e066	fuhyo	農業水路等長寿命化事業	name	農業水路等長寿命化事業	農業水路等長寿命化事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b077	node:jisshi/e067	fuhyo	多面的機能支払交付金事業	name	多面的機能支払交付金事業	多面的機能支払交付金事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b078	node:jisshi/e068	fuhyo	中山間地域等直接支払交付金事業	name	中山間地域等直接支払交付金事業	中山間地域等直接支払交付金事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b079	node:jisshi/e069	fuhyo	農村整備事業(農道・集落道事業)	name	農村整備事業(農道・集落道事業)	農村整備事業（農道・集落道事業）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b080	node:jisshi/e073	fuhyo	グリム冒険の森管理運営事業	name	グリム冒険の森管理運営事業	グリム冒険の森管理運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b081	node:jisshi/e074	fuhyo	県単独造林間伐事業	name	県単独造林間伐事業	県単独造林間伐事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b082	node:jisshi/e075	fuhyo	町単独林道・作業道整備事業	name	町単独林道・作業道整備事業	町単独林道・作業道整備事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b083	node:jisshi/e057	fuhyo	収入保険加入推進事業	name	収入保険加入推進事業	収入保険加入推進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b084	node:jisshi/e070	fuhyo	みどりの食料システム戦略推進事業	name	みどりの食料システム戦略推進事業	みどりの食料システム戦略推進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b085	node:jisshi/e083	fuhyo	商工会運営事業	name	商工会運営事業	商工会運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b086	node:jisshi/e084	fuhyo	ふるさと応援寄附事業	name	ふるさと応援寄附事業	ふるさと応援寄附事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b087	node:jisshi/e076	fuhyo	住宅リフォーム促進事業	name	住宅リフォーム促進事業	住宅リフォーム促進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b088	node:jisshi/e080	fuhyo	観光協会運営事業	name	観光協会運営事業	観光協会運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b089	node:jisshi/e085	fuhyo	地域共生事務事業	name	地域共生事務事業	地域共生事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b090	node:jisshi/e086	fuhyo	重層的支援体制整備事業	name	重層的支援体制整備事業	重層的支援体制整備事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b091	node:jisshi/e087	fuhyo	民生委員児童委員活動事業	name	民生委員児童委員活動事業	民生委員児童委員活動事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b092	node:jisshi/e088	fuhyo	社会福祉協議会運営事業	name	社会福祉協議会運営事業	社会福祉協議会運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b093	node:jisshi/e089	fuhyo	社会福祉協議会活動事業	name	社会福祉協議会活動事業	社会福祉協議会活動事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b094	node:jisshi/e090	fuhyo	路線バス福祉対策事業	name	路線バス福祉対策事業	路線バス福祉対策事業	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b094	none:jisshi	fuhyo	路線バス福祉対策事業	name	路線バス福祉対策事業	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b095	node:jisshi/e091	fuhyo	福祉バス運行事業	name	福祉バス運行事業	福祉バス運行事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b096	node:jisshi/e094	fuhyo	国民健康保険特別会計繰出金	name	国民健康保険特別会計繰出金	国民健康保険特別会計繰出金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b097	node:jisshi/e102	fuhyo	老人クラブ活動事業	name	老人クラブ活動事業	老人クラブ活動事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b098	node:jisshi/e103	fuhyo	老人福祉施設入所措置事業	name	老人福祉施設入所措置事業	老人福祉施設入所措置事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b099	node:jisshi/e104	fuhyo	敬老祝金支給事業	name	敬老祝金支給事業	敬老祝金支給事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b100	node:jisshi/e105	fuhyo	在宅高齢者福祉推進支援事業	name	在宅高齢者福祉推進支援事業	在宅高齢者福祉推進支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b101	node:jisshi/e106	fuhyo	高齢者住宅小規模改造助成事業	name	高齢者住宅小規模改造助成事業	高齢者住宅小規模改造助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b102	node:jisshi/e092	fuhyo	高齢者生活支援事業	name	高齢者生活支援事業	高齢者生活支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b103	node:jisshi/e107	fuhyo	介護保険特別会計繰出金(保険事業勘定)	name	介護保険特別会計繰出金(保険事業勘定)	介護保険特別会計繰出金（保険事業勘定）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b104	node:jisshi/e109	fuhyo	重層的支援体制整備事業(地域介護予防活動支援事業)	name	重層的支援体制整備事業(地域介護予防活動支援事業)	重層的支援体制整備事業（地域介護予防活動支援事業）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b105	node:jisshi/e110	fuhyo	重層的支援体制整備事業(地域包括支援センター運営事業)	name	重層的支援体制整備事業(地域包括支援センター運営事業)	重層的支援体制整備事業（地域包括支援センター運営事業）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b106	node:jisshi/e093	fuhyo	重層的支援体制整備事業(生活支援体制整備事業)	name	重層的支援体制整備事業(生活支援体制整備事業)	重層的支援体制整備事業（生活支援体制整備事業）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b107	node:jisshi/e095	fuhyo	滋賀県後期高齢者医療広域連合負担金	name	滋賀県後期高齢者医療広域連合負担金	滋賀県後期高齢者医療広域連合負担金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b108	node:jisshi/e096	fuhyo	後期高齢者医療特別会計繰出金	name	後期高齢者医療特別会計繰出金	後期高齢者医療特別会計繰出金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b109	node:jisshi/e085	fuhyo	障害者福祉事務事業	name	障害者福祉事務事業	地域共生事務事業	candidate			事業名が近い（Dice 0.40）
+fh:fuhyo-r8/b109	node:jisshi/e115	fuhyo	障害者福祉事務事業	name	障害者福祉事務事業	障害者総合支援事業	candidate			事業名が近い（Dice 0.38）
+fh:fuhyo-r8/b109	node:jisshi/e116	fuhyo	障害者福祉事務事業	name	障害者福祉事務事業	障害者地域生活支援事業	candidate			事業名が近い（Dice 0.33）
+fh:fuhyo-r8/b109	none:jisshi	fuhyo	障害者福祉事務事業	name	障害者福祉事務事業	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b110	node:jisshi/e111	fuhyo	在宅重度障害者住宅改造補助事業	name	在宅重度障害者住宅改造補助事業	在宅重度障害者住宅改造補助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b111	node:jisshi/e112	fuhyo	補装具費(購入・修理)支給事業	name	補装具費(購入・修理)支給事業	補装具費（購入・修理）支給事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b112	node:jisshi/e113	fuhyo	自立支援医療費(更生医療)支給事業	name	自立支援医療費(更生医療)支給事業	自立支援医療費（更生医療）支給事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b113	node:jisshi/e114	fuhyo	障害児地域活動支援事業	name	障害児地域活動支援事業	障害児地域活動支援事業	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b113	none:jisshi	fuhyo	障害児地域活動支援事業	name	障害児地域活動支援事業	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b114	node:jisshi/e115	fuhyo	障害者総合支援事業	name	障害者総合支援事業	障害者総合支援事業	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b114	none:jisshi	fuhyo	障害者総合支援事業	name	障害者総合支援事業	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b115	node:jisshi/e116	fuhyo	障害者地域生活支援事業	name	障害者地域生活支援事業	障害者地域生活支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b116	node:jisshi/e117	fuhyo	障害者東近江圏域共同事業	name	障害者東近江圏域共同事業	障害者東近江圏域共同事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b117	node:jisshi/e118	fuhyo	障害者外出支援助成事業	name	障害者外出支援助成事業	障害者外出支援助成事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b118	node:jisshi/e119	fuhyo	障害者グループホーム運営事業	name	障害者グループホーム運営事業	障害者グループホーム運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b119	node:jisshi/e120	fuhyo	滋賀型地域活動支援センター事業	name	滋賀型地域活動支援センター事業	滋賀型地域活動支援センター事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b120	node:jisshi/e121	fuhyo	医療的ケア児者等支援事業	name	医療的ケア児者等支援事業	医療的ケア児者等支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b121	node:jisshi/e097	fuhyo	健康推進相談事業	name	健康推進相談事業	健康推進相談事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b122	node:jisshi/e098	fuhyo	健康づくり支援事業	name	健康づくり支援事業	健康づくり支援事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b123	node:jisshi/e099	fuhyo	健康診査事業	name	健康診査事業	健康診査事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b124	node:jisshi/e100	fuhyo	育成医療・養育医療給付事業	name	育成医療・養育医療給付事業	育成医療・養育医療給付事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b125	node:jisshi/e101	fuhyo	予防接種事業	name	予防接種事業	予防接種事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b126	node:jisshi/e126	fuhyo	環境保全対策事業	name	環境保全対策事業	環境保全対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b127	node:jisshi/e122	fuhyo	エコライフ地域住民活動推進事業	name	エコライフ地域住民活動推進事業	エコライフ地域住民活動推進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b128	node:jisshi/e127	fuhyo	美化推進対策事業	name	美化推進対策事業	美化推進対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b129	node:jisshi/e128	fuhyo	八日市布引ライフ組合負担金	name	八日市布引ライフ組合負担金	八日市布引ライフ組合負担金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b130	node:jisshi/e123	fuhyo	ごみ収集事業	name	ごみ収集事業	ごみ収集事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b131	node:jisshi/e086	fuhyo	ごみ集積施設整備事業	name	ごみ集積施設整備事業	重層的支援体制整備事業	candidate			事業名が近い（Dice 0.32）
+fh:fuhyo-r8/b131	node:jisshi/e123	fuhyo	ごみ集積施設整備事業	name	ごみ集積施設整備事業	ごみ収集事業	candidate			事業名が近い（Dice 0.29）
+fh:fuhyo-r8/b131	node:jisshi/e124	fuhyo	ごみ集積施設整備事業	name	ごみ集積施設整備事業	ごみ集積施設設置事業	candidate			事業名が近い（Dice 0.67）
+fh:fuhyo-r8/b131	none:jisshi	fuhyo	ごみ集積施設整備事業	name	ごみ集積施設整備事業	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b132	node:jisshi/e125	fuhyo	リサイクル促進事業	name	リサイクル促進事業	リサイクル促進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b133	node:jisshi/e129	fuhyo	中部清掃組合負担金	name	中部清掃組合負担金	中部清掃組合負担金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b134	node:jisshi/e136	fuhyo	東近江行政組合負担金	name	東近江行政組合負担金	東近江行政組合負担金	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b134	node:jisshi/e137	fuhyo	東近江行政組合負担金	name	東近江行政組合負担金	東近江行政組合負担金	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b134	none:jisshi	fuhyo	東近江行政組合負担金	name	東近江行政組合負担金	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b135	node:jisshi/e130	fuhyo	交通安全対策事業	name	交通安全対策事業	交通安全対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b136	node:jisshi/e131	fuhyo	交通安全施設対策事業	name	交通安全施設対策事業	交通安全施設対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b137	node:jisshi/e142	fuhyo	街灯設置補助事業	name	街灯設置補助事業	街灯設置補助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b138	node:jisshi/e153	fuhyo	鉄道対策事業	name	鉄道対策事業	鉄道対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b139	node:jisshi/e154	fuhyo	バス等運行事業	name	バス等運行事業	バス等運行事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b140	node:jisshi/e132	fuhyo	防犯対策事業	name	防犯対策事業	防犯対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b141	node:jisshi/e133	fuhyo	消費者行政推進事業	name	消費者行政推進事業	消費者行政推進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b142	node:jisshi/e136	fuhyo	東近江行政組合負担金	name	東近江行政組合負担金	東近江行政組合負担金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b143	node:jisshi/e158	fuhyo	浄化槽設置整備事業	name	浄化槽設置整備事業	浄化槽設置整備事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b144	node:jisshi/e159	fuhyo	浄化槽維持管理事業	name	浄化槽維持管理事業	浄化槽維持管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b145	node:jisshi/e143	fuhyo	地籍調査事業	name	地籍調査事業	地籍調査事業	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b145	none:jisshi	fuhyo	地籍調査事業	name	地籍調査事業	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b146	node:jisshi/e144	fuhyo	道路維持補修事業	name	道路維持補修事業	道路維持補修事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b147	node:jisshi/e134	fuhyo	除雪機械購入補助事業	name	除雪機械購入補助事業	除雪機械購入補助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b148	node:jisshi/e145	fuhyo	道路メンテナンス補助事業	name	道路メンテナンス補助事業	道路メンテナンス補助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b149	node:jisshi/e147	fuhyo	社会資本整備総合交付金事業	name	社会資本整備総合交付金事業	社会資本整備総合交付金事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b150	node:jisshi/e148	fuhyo	社会資本整備総合交付金事業(防災・安全)	name	社会資本整備総合交付金事業(防災・安全)	社会資本整備総合交付金事業（防災・安全）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b151	node:jisshi/e146	fuhyo	交通安全対策事業(通学路緊急対策)	name	交通安全対策事業(通学路緊急対策)	交通安全対策事業（通学路緊急対策）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b152	node:jisshi/e149	fuhyo	土木工事等補助事業	name	土木工事等補助事業	土木工事等補助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b153	node:jisshi/e150	fuhyo	道路改良工事県事業負担金	name	道路改良工事県事業負担金	道路改良工事県事業負担金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b154	node:jisshi/e151	fuhyo	河川管理事業	name	河川管理事業	河川管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b155	node:jisshi/e135	fuhyo	急傾斜地崩壊対策事業	name	急傾斜地崩壊対策事業	急傾斜地崩壊対策事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b156	node:jisshi/e152	fuhyo	都市計画総務事務事業	name	都市計画総務事務事業	都市計画総務事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b157	node:jisshi/e157	fuhyo	公園管理運営事業	name	公園管理運営事業	公園管理運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b158	node:jisshi/e160	fuhyo	下水道事業会計繰出金(公共)	name	下水道事業会計繰出金(公共)	下水道事業会計繰出金（公共）	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b159	node:jisshi/e155	fuhyo	木造住宅耐震改修促進事業	name	木造住宅耐震改修促進事業	木造住宅耐震改修促進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b160	node:jisshi/e156	fuhyo	公営住宅管理事業	name	公営住宅管理事業	公営住宅管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b161	node:jisshi/e137	fuhyo	東近江行政組合負担金	name	東近江行政組合負担金	東近江行政組合負担金	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b162	node:jisshi/e138	fuhyo	消防団運営事業	name	消防団運営事業	消防団運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b163	node:jisshi/e139	fuhyo	消防施設整備事業	name	消防施設整備事業	消防施設整備事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b164	node:jisshi/e140	fuhyo	消防設備等補助事業	name	消防設備等補助事業	消防設備等補助事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b165	node:jisshi/e141	fuhyo	防災活動事業	name	防災活動事業	防災活動事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b166	node:jisshi/e161	fuhyo	議会運営事業	name	議会運営事業	議会運営事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b167	node:jisshi/e170	fuhyo	人事管理事業	name	人事管理事業	人事管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b168	node:jisshi/e174	fuhyo	文書管理事業(企画)	name	文書管理事業(企画)	文書管理事業(企画)	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b169	node:jisshi/e171	fuhyo	情報発信事業	name	情報発信事業	情報発信事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b170	node:jisshi/e162	fuhyo	企画事務事業	name	企画事務事業	企画事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b171	node:jisshi/e162	fuhyo	会計年度任用職員人件費(企画費)	name	会計年度任用職員人件費(企画費)	企画事務事業	candidate			事業名が近い（Dice 0.10）
+fh:fuhyo-r8/b171	node:jisshi/e174	fuhyo	会計年度任用職員人件費(企画費)	name	会計年度任用職員人件費(企画費)	文書管理事業(企画)	candidate			事業名が近い（Dice 0.17）
+fh:fuhyo-r8/b171	none:jisshi	fuhyo	会計年度任用職員人件費(企画費)	name	会計年度任用職員人件費(企画費)	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b172	node:jisshi/e163	fuhyo	地域未来交付金事業	name	地域未来交付金事業	地域未来交付金事業	candidate			事業名が同じ。事業概要は違う
+fh:fuhyo-r8/b172	none:jisshi	fuhyo	地域未来交付金事業	name	地域未来交付金事業	記載なし	candidate			事業名と事業概要が同じ事業が無い
+fh:fuhyo-r8/b173	node:jisshi/e172	fuhyo	情報管理事業	name	情報管理事業	情報管理事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b174	node:jisshi/e173	fuhyo	滋賀県6町共同利用システム更新事業	name	滋賀県6町共同利用システム更新事業	滋賀県６町共同利用システム更新事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b175	node:jisshi/e164	fuhyo	自治の力で輝くまちづくり推進事業	name	自治の力で輝くまちづくり推進事業	自治の力で輝くまちづくり推進事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b176	node:jisshi/e165	fuhyo	自治ハウス整備事業	name	自治ハウス整備事業	自治ハウス整備事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b177	node:jisshi/e169	fuhyo	国際交流事業	name	国際交流事業	国際交流事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b178	node:jisshi/e175	fuhyo	戸籍住民基本台帳事務事業	name	戸籍住民基本台帳事務事業	戸籍住民基本台帳事務事業	candidate			事業名が同じ。事業概要も同じ
+fh:fuhyo-r8/b179	node:jisshi/e173	fuhyo	滋賀県知事選挙費	name	滋賀県知事選挙費	滋賀県６町共同利用システム更新事業	candidate			事業名が近い（Dice 0.17）
+fh:fuhyo-r8/b179	none:jisshi	fuhyo	滋賀県知事選挙費	name	滋賀県知事選挙費	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b180	node:jisshi/e161	fuhyo	滋賀県議会議員選挙費	name	滋賀県議会議員選挙費	議会運営事業	candidate			事業名が近い（Dice 0.14）
+fh:fuhyo-r8/b180	node:jisshi/e173	fuhyo	滋賀県議会議員選挙費	name	滋賀県議会議員選挙費	滋賀県６町共同利用システム更新事業	candidate			事業名が近い（Dice 0.16）
+fh:fuhyo-r8/b180	none:jisshi	fuhyo	滋賀県議会議員選挙費	name	滋賀県議会議員選挙費	記載なし	candidate			事業名が同じ事業が無い
+fh:fuhyo-r8/b181	node:jisshi/e176	fuhyo	まちづくり応援基金積立金	name	まちづくり応援基金積立金	まちづくり応援基金積立金	candidate			事業名が同じ。事業概要も同じ
