@@ -1,0 +1,494 @@
+<title>附表と実施計画の突き合わせ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@700&display=swap">
+<style>
+/* 区分のタブを上に並べ、選んだ区分の附表の事業を下に出す。一致の区分は一覧の表、ほかの区分は1事業1枚のカード。論点ノートの確認ページと同じ配色と文字 */
+:root{
+  --bg:#f3f5f7;
+  --surface:#ffffff;
+  --ink:#1c2733;
+  --muted:#5b6876;
+  --line:#d6dde4;
+  --accent:#1f5f8b;
+  --accent-soft:#e3eef6;
+  --ok:#2c7a4b;
+  --ok-soft:#e4f3ea;
+  --ng:#a33b2b;
+  --ng-soft:#f8e7e4;
+  --warn:#8a5a00;
+  --warn-soft:#fbf0d6;
+  --mark:#fff0a8;
+  --font-body:"BIZ UDPGothic","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --font-head:"BIZ UDPMincho","Hiragino Mincho ProN","Noto Serif JP",serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12181e;--surface:#1a222b;--ink:#e3e9ef;--muted:#9aa8b6;--line:#2c3743;
+  --accent:#7fb6dd;--accent-soft:#1d3346;--ok:#7cc79a;--ok-soft:#1b3326;--ng:#ec9a8c;--ng-soft:#3a201c;--warn:#e6c06a;--warn-soft:#3a2f14;--mark:#5a4d12;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12181e;--surface:#1a222b;--ink:#e3e9ef;--muted:#9aa8b6;--line:#2c3743;
+  --accent:#7fb6dd;--accent-soft:#1d3346;--ok:#7cc79a;--ok-soft:#1b3326;--ng:#ec9a8c;--ng-soft:#3a201c;--warn:#e6c06a;--warn-soft:#3a2f14;--mark:#5a4d12;color-scheme:dark}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.7;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:860px;margin:0 auto}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 10px;border-bottom:1px solid var(--line)}
+h1{font-family:var(--font-head);font-size:1.25rem;line-height:1.35;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:.85rem;margin:2px 0 8px}
+.progress{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line)}
+.progress span{display:block;height:100%;background:var(--ok)}
+.counts{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+.counts b{color:var(--ink)}
+.tabs{display:flex;gap:6px;margin-top:10px;overflow-x:auto;padding-bottom:2px}
+.tabs button{flex:0 0 auto;font:inherit;font-size:.85rem;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums}
+.tabs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.tabs .n{opacity:.8;margin-left:4px}
+.tabs .left{display:inline-block;min-width:1.4em;margin-left:4px;padding:0 6px;border-radius:999px;background:var(--ng-soft);color:var(--ng);font-weight:700;font-size:.75rem}
+.tabs button[aria-pressed="true"] .left{background:var(--surface)}
+details.guide{margin:14px 0 4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:.9rem}
+details.guide summary{cursor:pointer;font-weight:700}
+details.guide ul{margin:8px 0 2px;padding-left:1.2em}
+.notice{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:18px;color:var(--muted);margin-top:16px}
+.cathead{margin:16px 0 8px;display:grid;gap:4px}
+.cathead h2{font-family:var(--font-head);font-size:1.1rem;margin:0}
+.cathead p{margin:0;color:var(--muted);font-size:.88rem}
+.cathead .rule{font-size:.85rem;color:var(--ink)}
+.bulk{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0 10px;font-size:.88rem}
+.bulk button{font:inherit;font-weight:700;padding:9px 16px;border-radius:8px;border:0;background:var(--ok);color:var(--surface);cursor:pointer}
+.bulk button:disabled{opacity:.45;cursor:default}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.86rem;font-variant-numeric:tabular-nums}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:.78rem;color:var(--muted);font-weight:700;background:var(--bg);position:sticky;top:0}
+td.num{text-align:right;white-space:nowrap}
+td .k{color:var(--muted);font-size:.78rem;margin-right:6px}
+tr.done td{background:var(--ok-soft)}
+tr.done td.st{color:var(--ok);font-weight:700}
+td select,.field select{font:inherit;font-size:.82rem;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);max-width:100%}
+td details summary{cursor:pointer;color:var(--accent);font-size:.8rem}
+td details p{margin:4px 0 0;font-size:.82rem;color:var(--muted);min-width:16em}
+ol.list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:10px;min-width:0}
+.card.is-done{border-left:5px solid var(--ok)}
+.card.is-warn{border-left:5px solid var(--warn)}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.meta .k{color:var(--ink);font-weight:700}
+.chip{display:inline-block;font-size:.75rem;padding:1px 8px;border-radius:999px;background:var(--ok-soft);color:var(--ok)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.pair{grid-template-columns:1fr}}
+.side{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:6px;min-width:0;align-content:start}
+.side h3{margin:0;font-size:.78rem;color:var(--muted);letter-spacing:.04em;font-weight:700}
+.side .nm{font-family:var(--font-head);font-weight:700;font-size:1.02rem;line-height:1.45;text-wrap:balance}
+.side .amt{font-size:.85rem;font-variant-numeric:tabular-nums}
+.side p{margin:0;font-size:.9rem;word-break:break-word}
+.side mark{background:var(--mark);color:inherit;border-radius:2px;padding:0 1px}
+.side ul{margin:0;padding:6px 10px;background:var(--bg);border-radius:6px;list-style:none;font-size:.84rem;display:grid;gap:2px;word-break:break-word}
+.side .none{font-family:var(--font-head);font-weight:700}
+.side .why{font-size:.8rem;color:var(--muted)}
+a.open{font-size:.84rem;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.fields{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:end}
+.field{display:grid;gap:2px;font-size:.8rem;color:var(--muted);min-width:0}
+.field select{font-size:.9rem;padding:6px 8px}
+.memo{display:grid;gap:4px}
+.memo label{font-size:.8rem;color:var(--muted)}
+.memo textarea{font:inherit;font-size:.92rem;min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);resize:vertical;width:100%;box-sizing:border-box}
+.act{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.act .go{font:inherit;font-weight:700;min-height:42px;padding:0 18px;border-radius:8px;border:0;background:var(--ok);color:var(--surface);cursor:pointer}
+.act .go:disabled{opacity:.45;cursor:default}
+.state{font-size:.85rem;color:var(--ok);font-weight:700}
+.state .memo-t{color:var(--muted);font-weight:400}
+button.link{font:inherit;font-size:.82rem;background:none;border:0;color:var(--accent);text-decoration:underline;cursor:pointer;padding:0}
+.reason-box{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:.88rem;display:grid;gap:4px;min-width:0}
+.reason-box b{color:var(--accent);font-size:.82rem}
+.reason-box p{margin:0;word-break:break-word}
+td details p b{color:var(--ink)}
+.warn{font-size:.85rem;padding:8px 10px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-weight:700}
+.err{color:var(--ng);font-size:.82rem}
+.tag-wait{font-size:.75rem;padding:1px 8px;border-radius:999px;background:var(--ng-soft);color:var(--ng);font-weight:700}
+.sync{margin-top:8px;font-size:.82rem;line-height:1.55;padding:8px 10px;border-radius:6px;background:var(--surface);border:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.sync.is-wait{border-color:var(--ng);background:var(--ng-soft)}
+.sync b{font-variant-numeric:tabular-nums}
+.sync button{font:inherit;font-size:.82rem;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-size:.9rem;display:flex;gap:14px;align-items:center;max-width:calc(100% - 32px);box-sizing:border-box;z-index:20}
+#toast button{white-space:nowrap;flex:0 0 auto;font:inherit;background:none;border:0;color:var(--surface);text-decoration:underline;cursor:pointer;padding:0}
+button:focus-visible,a:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>附表と実施計画の突き合わせ</h1>
+    <p class="sub">令和8年度当初予算の附表「主な事業」181事業を、突き合わせの区分ごとに、第6次総合計画 実施計画の事業と突き合わせます</p>
+    <div class="progress" aria-hidden="true"><span id="bar" style="width:0"></span></div>
+    <div class="counts" id="counts" aria-live="polite">附表の事業を読み込んでいます</div>
+    <div class="sync" id="sync" aria-live="polite" hidden></div>
+    <div class="tabs" id="tabs" role="group" aria-label="突き合わせの区分"></div>
+  </header>
+
+  <details class="guide">
+    <summary>判定の決め方</summary>
+    <ul>
+      <li>附表の事業を、突き合わせの区分に仕分けてあります。仕分けは Claude の案です。区分が違うと思う事業は、「区分」を選び直すと、その区分に移ります。</li>
+      <li><b>一致・一致（柱違い）</b>：一覧で全件を見て、おかしいものを別の区分に移してから、「この区分をまとめて確定」を押します。</li>
+      <li><b>表記の違い・名称の変更</b>：附表と実施計画の概要を見比べて、同じ事業なら「確定する」を押します。概要の違う箇所に色を付けています。</li>
+      <li><b>一部・年度の事業・中身の違い</b>：実施計画に当たる事業が無いものです。記載なしとして確定し、附表の柱によって総合計画の柱に位置づけます。関わりのある実施計画の事業があれば、メモに書いてください（例：地域未来交付金事業（e163）の人員）。</li>
+      <li>確定すると、選んだ候補を確定し、ほかの候補を「〇〇に決めたため」の理由で却下します。台帳には、区分がメモとして残ります。確定はいつでも取り消せます。</li>
+      <li>附表の予算額は令和8年度の1年分、実施計画の概算事業費は令和8〜10年度の3年分です。</li>
+      <li>判定はこのページに保存され、スマホと PC のどちらから開いても同じ状態が見えます。電波が切れても判定を続けられます。すべて終わったら、Claude に「判定を反映して」と頼んでください。</li>
+    </ul>
+  </details>
+
+  <div id="notice" class="notice" hidden></div>
+  <div id="view"></div>
+</div>
+<div id="toast" role="status" hidden><span id="toastMsg"></span><button type="button" id="toastUndo">取り消す</button></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const CATS = [
+    { id: "icchi", name: "一致", kind: "node", bulk: true, table: true,
+      desc: "附表の事業名と概要が、実施計画のある事業の事業名・概要と一字も違わず、総合計画の柱も同じものです。",
+      how: "仕分けの根拠：事業名と概要を、全角・半角と空白をそろえて機械で比べ、どちらも同じで柱も同じものをここに入れました。",
+      rule: "実施計画の事業を確定します。" },
+    { id: "icchi-hashira", name: "一致（柱違い）", kind: "node", bulk: true,
+      desc: "事業名と概要は実施計画のある事業と一字も違わないが、総合計画の5つの柱のうち、附表と実施計画で置いている柱が違うものです。いまは公民館の3事業で、附表は柱1「未来を担うひとづくり」に、実施計画は柱5「みんなではぐくむ地域づくり」に置いています。",
+      how: "仕分けの根拠：事業名と概要は同じで、附表の柱の番号と、実施計画のタブ（柱）の番号が違うものをここに入れました。",
+      rule: "同じ事業なので、実施計画の事業を確定します。柱の違いは台帳の note に残ります。" },
+    { id: "hyoki", name: "表記の違い", kind: "node",
+      desc: "事業名は同じで、概要に読点・語句・地区名などの小さな違いがあるだけのものです。",
+      how: "仕分けの根拠：事業名が同じで概要が違うものを Claude が読み、違いが言い回しや具体化だけのものをここに入れました。違う箇所に色を付けています。",
+      rule: "実施計画の事業を確定します。" },
+    { id: "meisho", name: "名称の変更", kind: "node",
+      desc: "事業名が少し違うが、概要から同じ事業とみられるものです。",
+      how: "仕分けの根拠：名前の同じ事業が無いもののうち、名前の近い事業と概要が一致するものをここに入れました。",
+      rule: "実施計画の事業を確定します。" },
+    { id: "ichibu", name: "一部", kind: "none",
+      desc: "実施計画に同じ事業は無いが、実施計画のある事業や施策の一部（人件費、施設管理、事務経費など）を、予算で別の事業として切り出したとみられるものです。",
+      how: "仕分けの根拠：名前の同じ事業が無いものを Claude が読み、実施計画の事業の一部にあたるとみたものをここに入れました。",
+      rule: "記載なしを確定し、附表の柱に位置づけます。関わりのある実施計画の事業は、メモに書きます。" },
+    { id: "nendo", name: "年度の事業", kind: "none",
+      desc: "実施計画に無く、その年度だけ予算に載る事業（選挙など）です。",
+      how: "仕分けの根拠：名前の同じ事業が無く、実施計画に同じ種類の事業が1つも無いものをここに入れました。",
+      rule: "記載なしを確定し、附表の柱に位置づけます。" },
+    { id: "nakami", name: "中身の違い", kind: "none",
+      desc: "事業名は実施計画と同じだが、中身が別の事業です。",
+      how: "仕分けの根拠：事業名が同じで概要が違うものを Claude が読み、別の事業とみたものをここに入れました。",
+      rule: "記載なしを確定し、附表の柱に位置づけます。" },
+  ];
+  const CAT = new Map(CATS.map((c) => [c.id, c]));
+  const state = { db: null, items: [], decs: new Map(), cats: new Map(), meta: { reasons: {}, suggest: {} }, loaded: false, tab: null, errors: new Map(),
+    outbox: new Map(), storeOk: true, flushing: false, lastSent: null, memo: new Map() };
+  try { const t = localStorage.getItem("fuhyo.tab"); if (t && CAT.has(t)) state.tab = t; } catch (e) {}
+
+  const OUTBOX_KEY = "fuhyo.outbox.v2";
+  try {
+    const raw = localStorage.getItem(OUTBOX_KEY);
+    if (raw) for (const [id, e] of Object.entries(JSON.parse(raw))) if (e && typeof e === "object" && "body" in e && "col" in e) state.outbox.set(id, e);
+  } catch (e) { state.storeOk = false; }
+  function saveOutbox() {
+    try {
+      if (state.outbox.size) localStorage.setItem(OUTBOX_KEY, JSON.stringify(Object.fromEntries(state.outbox)));
+      else localStorage.removeItem(OUTBOX_KEY);
+      state.storeOk = true;
+    } catch (e) { state.storeOk = false; }
+  }
+  const offline = () => navigator.onLine === false;
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const yen = (n) => (n == null ? "" : Number(n).toLocaleString("ja-JP"));
+  const today = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+  const nowLabel = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const segHtml = (seg, plain) => (seg && seg.length ? seg.map(([t, m]) => (m ? `<mark>${esc(t)}</mark>` : esc(t))).join("") : esc(plain));
+
+  // 未送信の書き込み。キーは「コレクション/文書id」
+  const pend = (col, id) => state.outbox.get(col + "/" + id);
+  function decOf(id) { const p = pend("decisions", id); return p ? p.body : (state.decs.get(id) || null); }
+  function catDoc(key) { const p = pend("cats", key); return p ? p.body : (state.cats.get(key) || null); }
+  // 区分と結び付け先：依頼者が選び直したものがあればそれ、無ければ Claude の案
+  function placeOf(it) {
+    const c = catDoc(it.key);
+    const sg = (state.meta.suggest || {})[it.key] || it.suggest;
+    let cat = c && CAT.has(c.cat) ? c.cat : sg.cat;
+    let to = c && c.to ? c.to : sg.to;
+    const kind = CAT.get(cat).kind;
+    if (kind === "none") to = (it.cands.find((x) => x.to.startsWith("none:")) || {}).to || null;
+    else if (!to || !to.startsWith("node:") || !it.cands.some((x) => x.to === to)) to = (it.cands.find((x) => x.to.startsWith("node:")) || {}).to || null;
+    return { cat, to };
+  }
+  // 事業の状態：done（全候補を判定し、分類が正しい）・warn（台帳に書けない）・todo
+  function statusOf(it) {
+    const ds = it.cands.map((c) => decOf(c.id));
+    if (ds.some((d) => !d)) return { s: ds.some((d) => d) ? "warn" : "todo", msg: ds.some((d) => d) ? "候補の一部だけが判定されています。「判定を取り消す」でやり直してください。" : "" };
+    const okNone = it.cands.some((c, i) => ds[i].decision === "confirmed" && c.to.startsWith("none:"));
+    const okNode = it.cands.some((c, i) => ds[i].decision === "confirmed" && c.to.startsWith("node:"));
+    if (okNone && okNode) return { s: "warn", msg: "記載なしと実施計画の事業を両方確定しています。判定を取り消してやり直してください。" };
+    if (!okNone && !okNode) return { s: "warn", msg: "候補をすべて却下しています。判定を取り消してやり直してください。" };
+    return { s: "done" };
+  }
+  // この区分にした理由。Claude が仕分けた区分のままなら、その理由。依頼者が区分を移したら、そのことを書く
+  function reasonOf(it) {
+    const sg = (state.meta.suggest || {})[it.key] || it.suggest;
+    const pl = placeOf(it);
+    const r = (state.meta.reasons || {})[it.key] || "";
+    if (pl.cat === sg.cat) return r;
+    return `依頼者が「${CAT.get(sg.cat).name}」から「${CAT.get(pl.cat).name}」に移しました。Claude の仕分けの理由（もとの区分）：${r}`;
+  }
+  const labelOf = (c) => (c.to.startsWith("none:") ? "記載なし" : `${c.to_label}（${c.jkey}）`);
+
+  // 1事業の判定：選んだ候補を確定し、ほかを却下する。note は判定のメモ（LINK_SCHEMA §7 fuhyo）
+  function decideItem(it) {
+    const pl = placeOf(it); const cat = CAT.get(pl.cat);
+    const target = it.cands.find((c) => c.to === pl.to);
+    if (!target) return false;
+    const memo = (state.memo.get(it.key) || "").trim().replace(/[\t\n]+/g, " ");
+    const head = `区分：${cat.name}`;
+    for (const c of it.cands) {
+      const base = { decidedAt: today(), from: c.from, to: c.to, method: c.method, context: c.context, reviewer: "kken78" };
+      const body = c === target ? { ...base, decision: "confirmed", note: memo ? `${head}。${memo}` : head }
+        : { ...base, decision: "rejected", note: `${head}。${labelOf(target)}に決めたため` };
+      queue("decisions", c.id, body);
+    }
+    return true;
+  }
+  function clearItem(it) { for (const c of it.cands) queue("decisions", c.id, null); }
+
+  function queue(col, id, body) {
+    state.outbox.set(col + "/" + id, { col, id, body: body || null, at: Date.now() });
+    state.errors.delete(col + "/" + id);
+  }
+  function commit() { saveOutbox(); render(); flush(); }
+
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: "timeout" }), ms))]);
+  async function flush() {
+    if (!state.db || state.flushing || !state.outbox.size || offline()) { renderSync(); return; }
+    state.flushing = true; renderSync();
+    let sent = 0, stopped = false;
+    try {
+      const items = [...state.outbox.entries()].sort((a, b) => a[1].at - b[1].at);
+      for (const [k, e] of items) {
+        const ref = state.db.collection(e.col).doc(e.id);
+        try {
+          await withTimeout(e.body ? ref.set(e.body) : ref.delete(), 15000);
+          if (state.outbox.get(k) === e) state.outbox.delete(k);
+          state.errors.delete(k); sent++;
+        } catch (err) {
+          const code = err && err.code;
+          if (code === "invalid_argument" || code === "permission_denied") state.errors.set(k, "送れませんでした。このページを編集できる権限がないかもしれません。");
+          else if (code === "quota_exceeded" || code === "resource_exhausted") state.errors.set(k, "保存の容量がいっぱいで送れません。Claude に知らせてください。");
+          else { stopped = true; break; }
+        }
+      }
+    } finally {
+      saveOutbox(); state.flushing = false;
+      if (sent && !state.outbox.size) state.lastSent = nowLabel();
+      render();
+    }
+    if (!stopped && state.outbox.size && [...state.outbox.keys()].some((k) => !state.errors.has(k))) setTimeout(flush, 500);
+  }
+  window.addEventListener("online", () => { renderSync(); flush(); });
+  window.addEventListener("offline", renderSync);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") flush(); });
+  setInterval(() => { if (state.outbox.size) flush(); }, 20000);
+  window.addEventListener("beforeunload", (e) => { if (state.outbox.size && !state.storeOk) { e.preventDefault(); e.returnValue = ""; } });
+
+  function renderSync() {
+    const el = $("#sync"); const n = state.outbox.size;
+    let html = "";
+    if (n) {
+      html = `<span>未送信 <b>${n}</b> 件。</span>`;
+      html += offline() ? `<span>電波がありません。電波が戻ると自動で送ります。</span>`
+        : state.flushing ? `<span>送っています。</span>` : `<span>まだ送れていません。少し待つと自動で送ります。</span><button type="button" id="sendNow">いま送る</button>`;
+      if (!state.storeOk) html += `<span>この端末には未送信の判定を残せません。ページを閉じる前に送り終えてください。</span>`;
+      const errs = [...state.errors.values()];
+      if (errs.length) html += `<span class="err">${esc(errs[0])}</span>`;
+    } else if (offline()) html = `<span>電波がありません。判定はこの端末にためておき、電波が戻ると自動で送ります。</span>`;
+    else if (state.lastSent) html = `<span>未送信 <b>0</b> 件。${esc(state.lastSent)} にすべて送りました。</span>`;
+    el.hidden = !html; el.className = "sync" + (n ? " is-wait" : ""); el.innerHTML = html;
+  }
+  $("#sync").addEventListener("click", (e) => { if (e.target.closest("#sendNow")) flush(); });
+
+  function groups() {
+    const g = new Map(CATS.map((c) => [c.id, []]));
+    for (const it of state.items) g.get(placeOf(it).cat).push(it);
+    return g;
+  }
+
+  function renderHead(g) {
+    renderSync();
+    const n = state.items.length;
+    let done = 0, warn = 0;
+    for (const it of state.items) { const s = statusOf(it).s; if (s === "done") done++; else if (s === "warn") warn++; }
+    $("#bar").style.width = n ? (done / n * 100) + "%" : "0";
+    if (!state.loaded) { $("#counts").textContent = "附表の事業を読み込んでいます"; return; }
+    $("#counts").innerHTML = `<span>附表の事業 <b>${n}</b></span><span>判定済み <b>${done}</b></span><span>未判定 <b>${n - done - warn}</b></span>${warn ? `<span>要確認 <b>${warn}</b></span>` : ""}`;
+    $("#tabs").innerHTML = CATS.map((c) => {
+      const list = g.get(c.id); const left = list.filter((it) => statusOf(it).s !== "done").length;
+      return `<button type="button" data-tab="${c.id}" aria-pressed="${state.tab === c.id}">${esc(c.name)}<span class="n">${list.length}</span>${left ? `<span class="left">${left}</span>` : ""}</button>`;
+    }).join("");
+  }
+
+  const catOptions = (cur) => CATS.map((c) => `<option value="${c.id}"${c.id === cur ? " selected" : ""}>${esc(c.name)}</option>`).join("");
+
+  function bulkHtml(list) {
+    const todo = list.filter((it) => statusOf(it).s === "todo");
+    return `<div class="bulk"><span>この区分の未判定 <b>${todo.length}</b> 件を、示した実施計画の事業でまとめて確定します。違うものは、先に「区分」で移してください。</span><button type="button" data-act="bulk" ${todo.length ? "" : "disabled"}>この区分をまとめて確定</button></div>`;
+  }
+  function tableHtml(cat, list) {
+    let h = bulkHtml(list);
+    h += `<div class="tablewrap"><table><thead><tr><th>附表の事業</th><th>予算額（千円）</th><th>実施計画の事業</th><th>概算事業費（千円・3年）</th><th>区分</th><th>状態</th></tr></thead><tbody>`;
+    for (const it of list) {
+      const pl = placeOf(it); const c = it.cands.find((x) => x.to === pl.to) || {};
+      const st = statusOf(it);
+      h += `<tr class="${st.s === "done" ? "done" : ""}" data-key="${esc(it.key)}"><td><span class="k">${esc(it.key)}</span>${esc(it.name)}<details><summary>理由と概要</summary><p><b>この区分にした理由</b>　${esc(reasonOf(it))}</p><p>${esc(it.desc || (it.details || []).join(" "))}</p></details></td>`;
+      h += `<td class="num">${yen(it.amount)}</td><td><span class="k">${esc(c.jkey || "")}</span>${esc(c.to_label || "")}${c.note && c.note.includes("柱が違う") ? `<div class="k">${esc(c.note.split("。").pop())}</div>` : ""}</td><td class="num">${yen(c.jcost)}</td>`;
+      h += `<td><select data-cat="${esc(it.key)}" aria-label="${esc(it.name)}の区分" ${st.s === "done" ? "disabled" : ""}>${catOptions(pl.cat)}</select></td>`;
+      h += `<td class="st">${st.s === "done" ? "確定" : st.s === "warn" ? "要確認" : ""}${st.s !== "todo" ? ` <button type="button" class="link" data-act="clear" data-key="${esc(it.key)}">取り消す</button>` : ""}</td></tr>`;
+    }
+    return h + `</tbody></table></div>`;
+  }
+
+  function cardHtml(it) {
+    const pl = placeOf(it); const cat = CAT.get(pl.cat); const st = statusOf(it);
+    const nodes = it.cands.filter((c) => c.to.startsWith("node:"));
+    const tgt = it.cands.find((c) => c.to === pl.to);
+    const isNode = cat.kind === "node";
+    let h = `<li class="card ${st.s === "done" ? "is-done" : st.s === "warn" ? "is-warn" : ""}" data-key="${esc(it.key)}">`;
+    h += `<div class="meta"><span class="k">${esc(it.key)}</span><span>柱${esc(it.pillar)} ${esc(it.pillarName)}</span><span>${esc(it.kan)}</span><span>${esc((it.dept || []).join("・"))}</span>${(it.kubun || []).map((k) => `<span class="chip">${esc(k)}</span>`).join("")}</div>`;
+    const rs = reasonOf(it);
+    if (rs) h += `<div class="reason-box"><b>「${esc(cat.name)}」にした理由</b><p>${esc(rs)}</p></div>`;
+    h += `<div class="pair"><div class="side"><h3>附表</h3><div class="nm">${esc(it.name)}</div><div class="amt">令和8年度予算額 <b>${yen(it.amount)}</b> 千円</div>`;
+    const fseg = isNode && tgt && tgt.fseg && pl.cat !== "icchi" ? tgt.fseg : null;
+    if (it.desc) h += `<p>${fseg ? segHtml(fseg, it.desc) : esc(it.desc)}</p>`;
+    if (it.details && it.details.length) h += `<ul>${it.details.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    h += `<a class="open" href="${esc(it.pdf)}" target="_blank" rel="noreferrer">附表の原典 p.${esc(it.page)} ↗</a></div>`;
+    h += `<div class="side"><h3>実施計画</h3>`;
+    if (isNode && tgt) {
+      h += `<div class="nm">${esc(tgt.to_label)}</div><div class="why">${esc(tgt.jkey)}・柱${esc(tgt.jpillar)} ${esc(tgt.jtab)}・${esc(tgt.jfield)}</div>`;
+      if (tgt.jcost != null) h += `<div class="amt">概算事業費（令和8〜10年度） <b>${yen(tgt.jcost)}</b> 千円</div>`;
+      h += `<p>${segHtml(tgt.jseg, tgt.jdesc)}</p><div class="why">候補にした理由：${esc(tgt.note)}</div>`;
+    } else if (!isNode) {
+      h += `<div class="none">記載なし</div><p>実施計画に当たる事業はありません。附表の柱（柱${esc(it.pillar)} ${esc(it.pillarName)}）に位置づけます。</p>`;
+      if (nodes.length) h += `<div class="why">名前の近い実施計画の事業：${nodes.map((c) => `${esc(c.to_label)}（${esc(c.jkey)}）`).join("、")}</div>`;
+    }
+    h += `</div></div>`;
+    const locked = st.s !== "todo";
+    h += `<div class="fields"><label class="field">区分<select data-cat="${esc(it.key)}" ${locked ? "disabled" : ""}>${catOptions(pl.cat)}</select></label>`;
+    if (isNode && nodes.length > 1) h += `<label class="field">実施計画の事業<select data-to="${esc(it.key)}" ${locked ? "disabled" : ""}>${nodes.map((c) => `<option value="${esc(c.to)}"${c.to === pl.to ? " selected" : ""}>${esc(c.to_label)}（${esc(c.jkey)}）</option>`).join("")}</select></label>`;
+    h += `</div>`;
+    if (isNode && !tgt) h += `<div class="warn">この事業には実施計画の事業の候補がありません。記載なしの区分を選んでください。</div>`;
+    if (!isNode && !tgt) h += `<div class="warn">この事業には記載なしの候補がありません。実施計画の事業の区分を選ぶか、Claude に知らせてください。</div>`;
+    if (st.s === "todo") {
+      const memo = state.memo.get(it.key) || "";
+      h += `<div class="memo"><label for="m-${esc(it.key)}">メモ（任意。台帳に区分と一緒に残ります）</label><textarea id="m-${esc(it.key)}" data-memo="${esc(it.key)}" placeholder="${!isNode ? "例：地域未来交付金事業（e163）の人員" : ""}">${esc(memo)}</textarea></div>`;
+      h += `<div class="act"><button type="button" class="go" data-act="decide" ${tgt ? "" : "disabled"}>${isNode ? "この事業で確定する" : "記載なしで確定する"}</button><span class="why">${esc(cat.rule)}</span></div>`;
+    } else {
+      const d = tgt ? decOf(tgt.id) : null;
+      const wait = it.cands.some((c) => pend("decisions", c.id));
+      h += `<div class="act">${st.s === "done" ? `<span class="state">確定 ${esc(d && d.decidedAt || "")}${d && d.note ? ` <span class="memo-t">${esc(d.note)}</span>` : ""}</span>` : ""}${wait ? `<span class="tag-wait">未送信</span>` : ""}<button type="button" class="link" data-act="clear" data-key="${esc(it.key)}">判定を取り消す</button></div>`;
+      if (st.s === "warn") h += `<div class="warn">${esc(st.msg)}</div>`;
+    }
+    return h + `</li>`;
+  }
+
+  function render() {
+    const g = groups();
+    if (state.loaded && (!state.tab || !CAT.has(state.tab))) state.tab = (CATS.find((c) => g.get(c.id).some((it) => statusOf(it).s !== "done")) || CATS[0]).id;
+    renderHead(g);
+    const view = $("#view"), notice = $("#notice");
+    if (!state.db) return;
+    if (state.loaded && state.items.length === 0) { notice.hidden = false; notice.textContent = "附表の事業がまだありません。Claude が入れると、ここに並びます。"; view.innerHTML = ""; return; }
+    notice.hidden = true;
+    if (!state.loaded) return;
+    const cat = CAT.get(state.tab); const list = g.get(cat.id);
+    const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.memo : null;
+    let h = `<div class="cathead"><h2>${esc(cat.name)}（${list.length}）</h2><p class="rule">${esc(cat.desc)}</p><p>${esc(cat.how)}</p><p class="rule">${esc(cat.rule)}</p></div>`;
+    if (!list.length) h += `<div class="notice">この区分の事業はありません。</div>`;
+    else if (cat.table) h += tableHtml(cat, list);
+    else {
+      if (cat.bulk) h += bulkHtml(list);
+      h += `<ol class="list">${list.map(cardHtml).join("")}</ol>`;
+    }
+    if (g.size && [...g.values()].every((l) => l.every((it) => statusOf(it).s === "done"))) h += `<div class="notice">181事業すべてを判定しました。Claude に「判定を反映して」と頼んでください。</div>`;
+    view.innerHTML = h;
+    if (focusKey) { const t = document.getElementById("m-" + focusKey); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+  }
+
+  let toastTimer = null, undoFn = null;
+  function toast(msg, undo) {
+    $("#toastMsg").textContent = msg; undoFn = undo || null;
+    $("#toastUndo").hidden = !undo; $("#toast").hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("#toast").hidden = true; undoFn = null; }, 6000);
+  }
+  $("#toastUndo").addEventListener("click", () => { const f = undoFn; $("#toast").hidden = true; undoFn = null; if (f) f(); });
+  const sfx = () => (offline() ? "（未送信）" : "");
+
+  $("#tabs").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-tab]"); if (!b) return;
+    state.tab = b.dataset.tab; try { localStorage.setItem("fuhyo.tab", state.tab); } catch (err) {}
+    render(); window.scrollTo({ top: 0 });
+  });
+
+  $("#view").addEventListener("change", (e) => {
+    const s = e.target.closest("select[data-cat], select[data-to]"); if (!s) return;
+    const key = s.dataset.cat || s.dataset.to; const it = state.items.find((x) => x.key === key); if (!it) return;
+    const pl = placeOf(it);
+    if (s.dataset.cat) {
+      const next = { cat: s.value, to: pl.to };
+      queue("cats", key, next); commit();
+      toast(`${it.name}を「${CAT.get(s.value).name}」に移しました` + sfx(), () => { queue("cats", key, { cat: pl.cat, to: pl.to }); commit(); });
+    } else {
+      queue("cats", key, { cat: pl.cat, to: s.value }); commit();
+    }
+  });
+
+  $("#view").addEventListener("input", (e) => {
+    const t = e.target.closest("textarea[data-memo]"); if (t) state.memo.set(t.dataset.memo, t.value);
+  });
+
+  $("#view").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const act = b.dataset.act;
+    if (act === "bulk") {
+      const list = groups().get(state.tab).filter((it) => statusOf(it).s === "todo");
+      const done = list.filter((it) => decideItem(it));
+      commit();
+      toast(`${done.length} 件をまとめて確定しました` + sfx(), () => { done.forEach(clearItem); commit(); });
+      return;
+    }
+    const key = b.dataset.key || (b.closest("[data-key]") || {}).dataset?.key;
+    const it = state.items.find((x) => x.key === key); if (!it) return;
+    if (act === "decide") {
+      if (decideItem(it)) { state.memo.delete(it.key); commit(); toast(`${it.name}を確定しました` + sfx(), () => { clearItem(it); commit(); }); }
+    } else if (act === "clear") {
+      const prev = it.cands.map((c) => [c.id, decOf(c.id)]);
+      clearItem(it); commit();
+      toast(`${it.name}の判定を取り消しました` + sfx(), () => { prev.forEach(([id, d]) => queue("decisions", id, d)); commit(); });
+    }
+  });
+
+  render();
+
+  (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null)).then((db) => {
+    if (!db) {
+      const n = $("#notice"); n.hidden = false;
+      n.textContent = "このページは claude.ai（Claude のアプリ）で開いてください。ここでは附表の事業を読み込めず、判定も保存できません。";
+      $("#counts").textContent = "附表の事業を読み込めません";
+      return;
+    }
+    state.db = db;
+    db.collection("items").orderBy("order").onSnapshot((snap) => {
+      state.items = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((it) => it.suggest);
+      if (!snap.metadata || !snap.metadata.fromCache) state.loaded = true;
+      render();
+    }, () => { const n = $("#notice"); n.hidden = false; n.textContent = "附表の事業を読み込めませんでした。ページを開き直してください。"; });
+    db.collection("decisions").onSnapshot((snap) => { const m = new Map(); snap.docs.forEach((d) => m.set(d.id, d.data())); state.decs = m; render(); }, () => {});
+    db.collection("cats").onSnapshot((snap) => { const m = new Map(); snap.docs.forEach((d) => m.set(d.id, d.data())); state.cats = m; render(); }, () => {});
+    db.collection("meta").doc("reasons").onSnapshot((s) => {
+      const d = s && s.exists && s.data ? s.data() : null;
+      state.meta = { reasons: (d && d.reasons) || {}, suggest: (d && d.suggest) || {} }; render();
+    }, () => {});
+    flush();
+  });
+})();
+</script>

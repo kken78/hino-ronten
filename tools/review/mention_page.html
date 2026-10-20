@@ -1,0 +1,405 @@
+<title>論点ノート 候補の確定</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@700&display=swap">
+<style>
+/* 1列のカードの束。上に進み具合と絞り込み、下に候補を発言日の順に並べる。スマホで親指で押せる大きさ */
+:root{
+  --bg:#f3f5f7;
+  --surface:#ffffff;
+  --ink:#1c2733;
+  --muted:#5b6876;
+  --line:#d6dde4;
+  --accent:#1f5f8b;
+  --accent-soft:#e3eef6;
+  --ok:#2c7a4b;
+  --ok-soft:#e4f3ea;
+  --ng:#a33b2b;
+  --ng-soft:#f8e7e4;
+  --mark:#fff0a8;
+  --font-body:"BIZ UDPGothic","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --font-head:"BIZ UDPMincho","Hiragino Mincho ProN","Noto Serif JP",serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12181e;--surface:#1a222b;--ink:#e3e9ef;--muted:#9aa8b6;--line:#2c3743;
+  --accent:#7fb6dd;--accent-soft:#1d3346;--ok:#7cc79a;--ok-soft:#1b3326;--ng:#ec9a8c;--ng-soft:#3a201c;--mark:#5a4d12;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12181e;--surface:#1a222b;--ink:#e3e9ef;--muted:#9aa8b6;--line:#2c3743;
+  --accent:#7fb6dd;--accent-soft:#1d3346;--ok:#7cc79a;--ok-soft:#1b3326;--ng:#ec9a8c;--ng-soft:#3a201c;--mark:#5a4d12;color-scheme:dark}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.7;padding-inline:16px;padding-block:0 96px}
+.wrap{max-width:720px;margin:0 auto}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 10px;border-bottom:1px solid var(--line)}
+h1{font-family:var(--font-head);font-size:1.25rem;line-height:1.35;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:.85rem;margin:2px 0 10px}
+.progress{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line)}
+.progress span{display:block;height:100%}
+.p-ok{background:var(--ok)}.p-ng{background:var(--ng)}
+.counts{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+.counts b{color:var(--ink)}
+.filters{display:flex;gap:6px;margin-top:10px;overflow-x:auto;padding-bottom:2px}
+.filters button{flex:0 0 auto;font:inherit;font-size:.85rem;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+details.guide{margin:14px 0 4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:.9rem}
+details.guide summary{cursor:pointer;font-weight:700}
+details.guide ul{margin:8px 0 2px;padding-left:1.2em}
+.notice{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:18px;color:var(--muted);margin-top:16px}
+ol.list{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:8px;min-width:0}
+.card.is-confirmed{border-left:5px solid var(--ok)}
+.card.is-rejected{border-left:5px solid var(--ng)}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.meta .date{color:var(--ink);font-weight:700}
+.chip{display:inline-block;font-size:.75rem;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);letter-spacing:.02em}
+.plan{font-weight:700;font-size:.95rem}
+.plan .ed{font-weight:400;color:var(--muted);font-size:.8rem;margin-left:6px}
+.ctx{margin:0;padding:10px 12px;background:var(--bg);border-radius:6px;font-size:.95rem;word-break:break-all}
+.ctx mark{background:var(--mark);color:inherit;padding:0 1px;border-radius:2px}
+.why{font-size:.8rem;color:var(--muted)}
+.why b{font-weight:700;color:var(--ink)}
+.qtitle{font-size:.85rem}
+a.open{justify-self:start;font-size:.88rem;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
+.actions button{font:inherit;font-weight:700;min-height:44px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.actions .b-ok[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.actions .b-ng[aria-pressed="true"]{background:var(--ng);border-color:var(--ng);color:var(--surface)}
+.actions button:disabled{opacity:.5;cursor:default}
+.reason{display:grid;gap:6px}
+.reason label{font-size:.82rem;color:var(--muted)}
+.reason textarea{font:inherit;font-size:.95rem;min-height:64px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);resize:vertical;width:100%;box-sizing:border-box}
+.reason .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.reason .save{font:inherit;font-weight:700;padding:8px 14px;border-radius:6px;border:0;background:var(--ng);color:var(--surface);cursor:pointer}
+.reason .save.okc{background:var(--ok)}
+.reason .save:disabled{opacity:.45;cursor:default}
+.reason .hint{font-size:.8rem;color:var(--muted)}
+.reason select{font:inherit;font-size:.9rem;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box}
+.state .relink{flex-basis:100%;font-size:.82rem}
+.state{font-size:.85rem;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.state .s-ok{color:var(--ok);font-weight:700}.state .s-ng{color:var(--ng);font-weight:700}
+.state button.link,.reason button.link{font:inherit;font-size:.82rem;background:none;border:0;color:var(--accent);text-decoration:underline;cursor:pointer;padding:0}
+.state .memo{color:var(--muted);flex-basis:100%}
+.err{color:var(--ng);font-size:.82rem}
+.sync{margin-top:8px;font-size:.82rem;line-height:1.55;padding:8px 10px;border-radius:6px;background:var(--surface);border:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.sync.is-wait{border-color:var(--ng);background:var(--ng-soft)}
+.sync b{font-variant-numeric:tabular-nums}
+.sync button{font:inherit;font-size:.82rem;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer}
+.tag-wait{font-size:.75rem;padding:1px 8px;border-radius:999px;background:var(--ng-soft);color:var(--ng);font-weight:700}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-size:.9rem;display:flex;gap:14px;align-items:center;max-width:calc(100% - 32px);box-sizing:border-box}
+#toast button{white-space:nowrap;flex:0 0 auto;font:inherit;background:none;border:0;color:var(--surface);text-decoration:underline;cursor:pointer;padding:0}
+button:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>論点ノート 候補の確定</h1>
+    <p class="sub" id="sub">台帳の候補を、会議録を見ながら確かめます</p>
+    <div class="progress" aria-hidden="true"><span class="p-ok" id="barOk" style="width:0"></span><span class="p-ng" id="barNg" style="width:0"></span></div>
+    <div class="counts" id="counts" aria-live="polite">候補を読み込んでいます</div>
+    <div class="sync" id="sync" aria-live="polite" hidden></div>
+    <div class="filters" role="group" aria-label="表示する候補">
+      <button type="button" data-f="todo" aria-pressed="true">未判定</button>
+      <button type="button" data-f="confirmed" aria-pressed="false">確定</button>
+      <button type="button" data-f="rejected" aria-pressed="false">却下</button>
+      <button type="button" data-f="all" aria-pressed="false">すべて</button>
+    </div>
+  </header>
+
+  <details class="guide">
+    <summary>判定の決め方</summary>
+    <ul>
+      <li><b>確定</b>：その発言（質問）が、カードに書いた期の日野町の計画に触れている。</li>
+      <li><b>却下</b>：別の計画や国・県の計画を指している、期が違う、計画名を一般的な言葉として使っているだけ。却下には理由を書いてください（台帳の決まりで必要です）。発言が別の計画や別の期を指していると分かるときは、「正しい計画」で選んでください。その計画に付け替えます。</li>
+      <li>迷うときは「会議録で前後のやりとりを見る」で前後の発言を確かめてください。判定はいつでも取り消せます。</li>
+      <li>判定はこのページに保存され、スマホと PC のどちらから開いても同じ状態が見えます。台帳への反映は、すべて終わってから Claude に頼みます。</li>
+      <li>電波が切れても判定を続けられます。送れなかった判定は「未送信」としてこの端末にためておき、電波が戻ると自動で送ります。電波のないところではページを開き直せないので、ページは電波のあるところで開いておいてください。終える前に、未送信が0件になったことを確かめてください。</li>
+    </ul>
+  </details>
+
+  <div id="notice" class="notice" hidden></div>
+  <ol class="list" id="list"></ol>
+</div>
+<div id="toast" role="status" hidden><span id="toastMsg"></span><button type="button" id="toastUndo">取り消す</button></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const state = { db: null, cands: [], decs: new Map(), loaded: false, filter: "todo", open: new Map(), errors: new Map(),
+    outbox: new Map(), storeOk: true, flushing: false, lastSent: null };
+  try { const f = localStorage.getItem("kakutei.filter"); if (f) state.filter = f; } catch (e) {}
+
+  // 未送信の判定。id → { body（null は判定を消す）, at }。送れるまでこの端末に残す
+  const OUTBOX_KEY = "kakutei.outbox.v1";
+  function loadOutbox() {
+    try {
+      const raw = localStorage.getItem(OUTBOX_KEY);
+      if (raw) for (const [id, e] of Object.entries(JSON.parse(raw))) if (e && typeof e === "object" && "body" in e) state.outbox.set(id, e);
+    } catch (e) { state.storeOk = false; }
+  }
+  function saveOutbox() {
+    try {
+      if (state.outbox.size) localStorage.setItem(OUTBOX_KEY, JSON.stringify(Object.fromEntries(state.outbox)));
+      else localStorage.removeItem(OUTBOX_KEY);
+      state.storeOk = true;
+    } catch (e) { state.storeOk = false; }
+  }
+  loadOutbox();
+  const offline = () => navigator.onLine === false;
+
+  // 付け替え先の候補（系譜表の plan・lin。LINK_SCHEMA §6 付け替え）
+  const TARGETS = [{"key": "plan:bosai", "series": "bosai", "label": "日野町地域防災計画"}, {"key": "plan:bunbetsu", "series": "bunbetsu", "label": "分別収集計画（第11期）"}, {"key": "plan:bunkazai", "series": "bunkazai", "label": "日野町文化財保存活用地域計画"}, {"key": "plan:chiiki-fukushi4", "series": "chiiki-fukushi", "label": "日野町地域福祉計画（第4期）"}, {"key": "plan:chiiki-nogyo", "series": "chiiki-nogyo", "label": "地域計画（農業の将来設計図・町内7地区）"}, {"key": "plan:inochi2", "series": "inochi", "label": "第2期 いのちと生活を守るネットワーク計画"}, {"key": "plan:jisshi", "series": "jisshi", "label": "第6次総合計画 実施計画"}, {"key": "plan:jyuseikatsu", "series": "jyuseikatsu", "label": "日野町住生活基本計画"}, {"key": "plan:jyutaku-choju", "series": "jyutaku-choju", "label": "町営住宅長寿命化計画"}, {"key": "lin:kaigo/6", "series": "kaigo", "label": "第6期 高齢者福祉計画・介護保険事業計画"}, {"key": "lin:kaigo/7", "series": "kaigo", "label": "第7期 高齢者福祉計画・介護保険事業計画"}, {"key": "lin:kaigo/8", "series": "kaigo", "label": "日野町高齢者福祉計画・介護保険事業計画(第8期)"}, {"key": "plan:kaigo9", "series": "kaigo", "label": "第9期 高齢者福祉計画・介護保険事業計画"}, {"key": "plan:kanbatsu", "series": "kanbatsu", "label": "日野町特定間伐等促進計画"}, {"key": "plan:kankyo", "series": "kankyo", "label": "日野町環境基本計画"}, {"key": "plan:katsuyaku-cho", "series": "katsuyaku-cho", "label": "障がい者活躍推進計画（町長部局）"}, {"key": "plan:katsuyaku-kyo", "series": "katsuyaku-kyo", "label": "障がい者活躍推進計画（教育委員会部局）"}, {"key": "plan:kenko-shokuiku4", "series": "kenko-shokuiku", "label": "健康づくり・食育計画（第4期）"}, {"key": "lin:kodomo/2", "series": "kodomo", "label": "第2期日野町子ども・子育て支援事業計画"}, {"key": "plan:kodomo", "series": "kodomo", "label": "第3期 日野町子ども・子育て支援事業計画"}, {"key": "plan:kokudoriyou", "series": "kokudoriyou", "label": "日野町国土利用計画"}, {"key": "plan:kokyo-kanri", "series": "kokyo-kanri", "label": "日野町公共施設等総合管理計画（改定）"}, {"key": "plan:koutsu", "series": "koutsu", "label": "日野町地域公共交通計画"}, {"key": "plan:kyoiku3", "series": "kyoiku", "label": "第3期 日野町教育振興基本計画"}, {"key": "plan:kyoiku4", "series": "kyoiku", "label": "第4期 日野町教育振興基本計画"}, {"key": "plan:kyojin", "series": "kyojin", "label": "日野町国土強靭化地域計画"}, {"key": "plan:kyoryo", "series": "kyoryo", "label": "橋梁長寿命化修繕計画"}, {"key": "plan:midori", "series": "midori", "label": "日野町緑の基本計画"}, {"key": "plan:nogyo-tamen", "series": "nogyo-tamen", "label": "農業の有する多面的機能の発揮の促進に関する計画"}, {"key": "plan:partner", "series": "partner", "label": "男女共同参画行動計画「ひのパートナープラン2019」"}, {"key": "plan:security", "series": "security", "label": "日野町情報セキュリティポリシー"}, {"key": "plan:seibutsu", "series": "seibutsu", "label": "農業における生物多様性保全に関する計画"}, {"key": "lin:senryaku/1", "series": "senryaku", "label": "第1期「日野町くらし安心ひとづくり総合戦略」"}, {"key": "plan:senryaku2", "series": "senryaku", "label": "第2期 くらし安心ひとづくり総合戦略"}, {"key": "plan:shasi-jishin", "series": "shasi-jishin", "label": "社会資本総合整備計画（地震災害に強い住まい・まちづくり）"}, {"key": "plan:shasi-jyutaku", "series": "shasi-jyutaku", "label": "社会資本総合整備計画（地域住宅整備計画）"}, {"key": "plan:shasi-koen", "series": "shasi-koen", "label": "社会資本総合整備計画（安全で安心な都市公園づくり）"}, {"key": "plan:shasi-koutsu", "series": "shasi-koutsu", "label": "社会資本総合整備計画（県東部の公共交通再構築）"}, {"key": "plan:shinrin", "series": "shinrin", "label": "日野町森林整備計画"}, {"key": "lin:shogai-fukushi/5", "series": "shogai-fukushi", "label": "第5期障がい福祉計画"}, {"key": "lin:shogai-fukushi/6", "series": "shogai-fukushi", "label": "第6期日野町障がい福祉計画"}, {"key": "plan:shogai-fukushi7", "series": "shogai-fukushi", "label": "第7期 障がい福祉計画・第3期 障がい児福祉計画"}, {"key": "lin:shogai-jifukushi/1", "series": "shogai-jifukushi", "label": "第1期障がい児福祉計画"}, {"key": "lin:shogai-jifukushi/2", "series": "shogai-jifukushi", "label": "第2期日野町障がい児福祉計画"}, {"key": "plan:shogai-fukushi7", "series": "shogai-jifukushi", "label": "第7期 障がい福祉計画・第3期 障がい児福祉計画"}, {"key": "lin:shogai-keikaku/2", "series": "shogai-keikaku", "label": "第2期日野町障がい者計画"}, {"key": "plan:shogai-keikaku", "series": "shogai-keikaku", "label": "第3期 日野町障がい者計画"}, {"key": "lin:sogo/5", "series": "sogo", "label": "第5次日野町総合計画"}, {"key": "plan:sogo6", "series": "sogo", "label": "第6次日野町総合計画"}, {"key": "plan:suido2", "series": "suido", "label": "第2次日野町水道ビジョン"}, {"key": "plan:taishin", "series": "taishin", "label": "既存建築物耐震改修促進計画"}, {"key": "plan:tokutei-jigyo", "series": "tokutei-jigyo", "label": "特定事業主行動計画"}, {"key": "plan:toshimaster", "series": "toshimaster", "label": "日野町都市計画マスタープラン"}, {"key": "plan:tsugakuro", "series": "tsugakuro", "label": "通学路交通安全プログラム"}, {"key": "plan:youho", "series": "youho", "label": "幼児教育保育施設再編整備計画"}];
+  const TARGET_BY_KEY = new Map(TARGETS.map((t) => [t.key, t]));
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const today = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+  function highlight(ctx, ev) {
+    const i = ev ? ctx.indexOf(ev) : -1;
+    if (i < 0) return esc(ctx);
+    return esc(ctx.slice(0, i)) + "<mark>" + esc(ev) + "</mark>" + esc(ctx.slice(i + ev.length));
+  }
+  function edLabel(to) {
+    if (to.startsWith("lin:")) return "前の期の計画";
+    return "いまの計画";
+  }
+
+  function setFilterButtons() {
+    document.querySelectorAll(".filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.f === state.filter)));
+  }
+  document.querySelector(".filters").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-f]"); if (!b) return;
+    state.filter = b.dataset.f; setFilterButtons();
+    try { localStorage.setItem("kakutei.filter", state.filter); } catch (err) {}
+    render();
+  });
+  setFilterButtons();
+
+  // 未送信の判定があればそれを、なければ保存済みの判定を使う
+  function effective(id) { return state.outbox.has(id) ? state.outbox.get(id).body : (state.decs.get(id) || null); }
+  function decisionOf(id) { const d = effective(id); return d ? d.decision : null; }
+
+  function renderSync() {
+    const el = $("#sync"); const n = state.outbox.size;
+    let html = "";
+    if (n) {
+      html = `<span>未送信 <b>${n}</b> 件。</span>`;
+      html += offline() ? `<span>電波がありません。判定はこの端末にためておき、電波が戻ると自動で送ります。</span>`
+        : state.flushing ? `<span>送っています。</span>` : `<span>まだ送れていません。少し待つと自動で送ります。</span><button type="button" id="sendNow">いま送る</button>`;
+      if (!state.storeOk) html += `<span>この端末には未送信の判定を残せません。ページを閉じる前に送り終えてください。</span>`;
+    } else if (offline()) {
+      html = `<span>電波がありません。判定はこの端末にためておき、電波が戻ると自動で送ります。</span>`;
+    } else if (state.lastSent) {
+      html = `<span>未送信 <b>0</b> 件。${esc(state.lastSent)} にすべて送りました。</span>`;
+    }
+    el.hidden = !html; el.className = "sync" + (n ? " is-wait" : ""); el.innerHTML = html;
+  }
+  $("#sync").addEventListener("click", (e) => { if (e.target.closest("#sendNow")) flush(); });
+
+  function renderCounts() {
+    renderSync();
+    const n = state.cands.length;
+    let ok = 0, ng = 0;
+    for (const c of state.cands) { const d = decisionOf(c.id); if (d === "confirmed") ok++; else if (d === "rejected") ng++; }
+    const todo = n - ok - ng;
+    $("#barOk").style.width = n ? (ok / n * 100) + "%" : "0";
+    $("#barNg").style.width = n ? (ng / n * 100) + "%" : "0";
+    if (!state.loaded) { $("#counts").textContent = "候補を読み込んでいます"; return; }
+    $("#counts").innerHTML = `<span>候補 <b>${n}</b> 件</span><span>確定 <b>${ok}</b></span><span>却下 <b>${ng}</b></span><span>未判定 <b>${todo}</b></span>`;
+    // 見出しの下には、未判定の残っている回の名前を出す（すべて判定済みなら最後の回）
+    const pending = state.cands.filter((c) => !decisionOf(c.id));
+    const cur = pending.length ? pending[pending.length - 1] : state.cands[state.cands.length - 1];
+    if (cur && cur.batchLabel) $("#sub").textContent = "いま確かめる候補：" + cur.batchLabel;
+  }
+
+  function cardHtml(c) {
+    const d = effective(c.id);
+    const dec = d ? d.decision : null;
+    const open = state.open.get(c.id);           // 開いている入力欄："rejected" か "confirmed"
+    const busy = false;
+    const wait = state.outbox.has(c.id);
+    const err = state.errors.get(c.id);
+    const cls = dec === "confirmed" ? "is-confirmed" : dec === "rejected" ? "is-rejected" : "";
+    const isBq = c.key_from.startsWith("bq:");
+    let html = `<li class="card ${cls}" data-id="${esc(c.id)}">`;
+    html += `<div class="meta"><span class="date">${esc(c.date)}</span>${c.scene ? `<span class="chip">${esc(c.scene)}</span>` : ""}<span>${esc(c.speaker)}</span></div>`;
+    html += `<div class="meta">${esc(c.meeting)}</div>`;
+    html += `<div class="plan">${esc(c.to_label)}<span class="ed">${esc(edLabel(c.key_to))}</span></div>`;
+    if (isBq && c.qtitle) html += `<div class="qtitle">質問の題：${esc(c.qtitle)}</div>`;
+    html += `<p class="ctx">…${highlight(c.context, c.evidence)}…</p>`;
+    if (c.note) html += `<div class="why"><b>期の決め方</b>　${esc(c.note)}</div>`;
+    if (c.link) html += `<a class="open" href="${esc(c.link)}" target="_blank" rel="noreferrer">${esc(c.link_label || "原文を開く")} ↗</a>`;
+    html += `<div class="actions"><button type="button" class="b-ok" data-act="confirm" aria-pressed="${dec === "confirmed" || open === "confirmed"}" ${busy ? "disabled" : ""}>確定</button><button type="button" class="b-ng" data-act="reject" aria-pressed="${dec === "rejected" || open === "rejected"}" ${busy ? "disabled" : ""}>却下</button></div>`;
+    if (open) {
+      const isNg = open === "rejected";
+      const prev = d && d.decision === open ? (d.note || "") : (state.open.get(c.id + ":draft") || "");
+      html += `<div class="reason"><label for="r-${esc(c.id)}">${isNg ? "却下の理由（必須）" : "メモ（任意）"}</label><textarea id="r-${esc(c.id)}" data-draft="${esc(c.id)}">${esc(prev)}</textarea>${isNg ? relinkSelect(c, d) : ""}<div class="row"><button type="button" class="save ${isNg ? "" : "okc"}" data-act="save" data-kind="${open}" ${busy || (isNg && !prev.trim()) ? "disabled" : ""}>${isNg ? "却下を記録" : "確定を記録"}</button><button type="button" class="link" data-act="close">閉じる</button>${isNg ? `<span class="hint">例：国の計画を指している／第2期のことを言っている</span>` : ""}</div></div>`;
+    } else if (d) {
+      html += `<div class="state">${dec === "confirmed" ? `<span class="s-ok">確定</span>` : `<span class="s-ng">却下</span>`}<span>${esc(d.decidedAt || "")}</span>${wait ? `<span class="tag-wait">未送信</span>` : ""}<button type="button" class="link" data-act="clear" ${busy ? "disabled" : ""}>判定を取り消す</button>${d.note ? `<span class="memo">${esc(d.note)}</span>` : ""}${d.relinkTo ? `<span class="relink">付け替え先：${esc((TARGET_BY_KEY.get(d.relinkTo) || {label: d.relinkTo}).label)}</span>` : ""}</div>`;
+    } else if (wait) {
+      html += `<div class="state"><span>判定の取り消し</span><span class="tag-wait">未送信</span></div>`;
+    }
+    if (err) html += `<div class="err">${esc(err)}</div>`;
+    html += `</li>`;
+    return html;
+  }
+
+  function visible(c) {
+    const d = decisionOf(c.id);
+    if (state.filter === "all") return true;
+    if (state.filter === "todo") return !d || state.open.has(c.id);
+    return d === state.filter;
+  }
+
+  function render() {
+    renderCounts();
+    const list = $("#list"), notice = $("#notice");
+    if (!state.db) return;
+    if (state.loaded && state.cands.length === 0) {
+      notice.hidden = false;
+      notice.textContent = "候補がまだありません。Claude が候補を入れると、ここに並びます。";
+      list.innerHTML = ""; return;
+    }
+    const rows = state.cands.filter(visible);
+    if (state.loaded && rows.length === 0) {
+      notice.hidden = false;
+      notice.textContent = state.filter === "todo" ? "未判定の候補はありません。すべて判定しました。ここで Claude に「判定を反映して」と頼んでください。" : "この区分の候補はありません。";
+    } else notice.hidden = true;
+    const focusId = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.draft : null;
+    list.innerHTML = rows.map(cardHtml).join("");
+    if (focusId) { const t = document.getElementById("r-" + focusId); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+  }
+
+  let toastTimer = null, undoFn = null;
+  function toast(msg, undo) {
+    $("#toastMsg").textContent = msg; undoFn = undo || null;
+    $("#toastUndo").hidden = !undo; $("#toast").hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("#toast").hidden = true; undoFn = null; }, 5000);
+  }
+  $("#toastUndo").addEventListener("click", () => { const f = undoFn; $("#toast").hidden = true; undoFn = null; if (f) f(); });
+
+  // 判定はまず未送信としてこの端末に残し、それから送る。body が null なら判定を消す
+  function write(id, body) {
+    state.outbox.set(id, { body: body || null, at: Date.now() });
+    saveOutbox(); state.errors.delete(id); render();
+    flush();
+    return true;
+  }
+
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: "timeout" }), ms))]);
+  const nowLabel = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${p(d.getHours())}:${p(d.getMinutes())}`; };
+
+  // 未送信を古い順に送る。通信の失敗なら残して次の機会に回す。同じ判定を2度送っても結果は変わらない
+  async function flush() {
+    if (!state.db || state.flushing || !state.outbox.size || offline()) { renderSync(); return; }
+    state.flushing = true; renderSync();
+    let sent = 0, stopped = false;
+    try {
+      const items = [...state.outbox.entries()].sort((a, b) => a[1].at - b[1].at);
+      for (const [id, entry] of items) {
+        const ref = state.db.collection("decisions").doc(id);
+        try {
+          await withTimeout(entry.body ? ref.set(entry.body) : ref.delete(), 15000);
+          if (state.outbox.get(id) === entry) state.outbox.delete(id);   // 送るあいだに押し直していたら、新しい方を残す
+          state.errors.delete(id); sent++;
+        } catch (e) {
+          const code = e && e.code;
+          if (code === "invalid_argument") state.errors.set(id, "送れませんでした。このページを編集できる権限がないかもしれません。判定はこの端末に残しています。");
+          else if (code === "quota_exceeded" || code === "resource_exhausted") state.errors.set(id, "保存の容量がいっぱいで送れません。Claude に知らせてください。判定はこの端末に残しています。");
+          else { stopped = true; break; }   // 通信の失敗。残りは次の機会に送る
+        }
+      }
+    } finally {
+      saveOutbox();
+      state.flushing = false;
+      if (sent && !state.outbox.size) state.lastSent = nowLabel();
+      render();
+    }
+    if (!stopped && state.outbox.size && [...state.outbox.keys()].some((id) => !state.errors.has(id))) setTimeout(flush, 500);
+  }
+  window.addEventListener("online", () => { renderSync(); flush(); });
+  window.addEventListener("offline", renderSync);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") flush(); });
+  setInterval(() => { if (state.outbox.size) flush(); }, 20000);
+  window.addEventListener("beforeunload", (e) => { if (state.outbox.size && !state.storeOk) { e.preventDefault(); e.returnValue = ""; } });
+
+  function relinkSelect(c, d) {
+    // 却下するときだけ、正しい計画が分かれば選ぶ。同じ計画の別の期を先に並べる
+    const series = (TARGET_BY_KEY.get(c.key_to) || {}).series;
+    const cur = state.open.has(c.id + ":relink") ? state.open.get(c.id + ":relink") : (d && d.decision === "rejected" ? (d.relinkTo || "") : "");
+    const opt = (t) => `<option value="${esc(t.key)}"${t.key === cur ? " selected" : ""}>${esc(t.label)}</option>`;
+    const same = TARGETS.filter((t) => t.series === series && t.key !== c.key_to);
+    const other = TARGETS.filter((t) => t.series !== series).sort((a, b) => a.label.localeCompare(b.label, "ja"));
+    return `<label for="t-${esc(c.id)}">正しい計画（分かれば。選ぶと、その計画に付け替えます）</label><select id="t-${esc(c.id)}" data-relink="${esc(c.id)}"><option value="">付け替えない・分からない</option>${same.length ? `<optgroup label="同じ計画の別の期">${same.map(opt).join("")}</optgroup>` : ""}<optgroup label="ほかの計画">${other.map(opt).join("")}</optgroup></select>`;
+  }
+
+  function bodyFor(c, decision, note, relinkTo) {
+    const b = { decision, note: note.trim(), decidedAt: today(), from: c.key_from, to: c.key_to, method: c.method, context: c.context, reviewer: "kken78" };
+    if (decision === "rejected" && relinkTo) b.relinkTo = relinkTo;
+    return b;
+  }
+
+  $("#list").addEventListener("change", (e) => {
+    const s = e.target.closest("select[data-relink]"); if (!s) return;
+    state.open.set(s.dataset.relink + ":relink", s.value);   // 描き直しても選んだ計画を残す
+  });
+
+  $("#list").addEventListener("input", (e) => {
+    const t = e.target.closest("textarea[data-draft]"); if (!t) return;
+    const id = t.dataset.draft; state.open.set(id + ":draft", t.value);
+    const card = t.closest(".card"); const save = card && card.querySelector("button[data-act=save]");
+    if (save && save.dataset.kind === "rejected") save.disabled = !t.value.trim();
+  });
+
+  $("#list").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-act]"); if (!b) return;
+    const card = b.closest(".card"); const id = card.dataset.id;
+    const c = state.cands.find((x) => x.id === id); if (!c) return;
+    const prev = effective(id);
+    const act = b.dataset.act;
+    const sfx = () => (offline() ? "（未送信）" : "");
+    if (act === "confirm") {
+      if (prev && prev.decision === "confirmed") { state.open.set(id, "confirmed"); render(); return; }
+      state.open.delete(id); state.open.delete(id + ":draft");
+      const ok = await write(id, bodyFor(c, "confirmed", ""));
+      if (ok) toast("確定しました" + sfx(), () => write(id, prev));
+    } else if (act === "reject") {
+      state.open.set(id, "rejected"); render();
+      const t = document.getElementById("r-" + id); if (t) t.focus();
+    } else if (act === "close") {
+      state.open.delete(id); render();
+    } else if (act === "save") {
+      const kind = b.dataset.kind; const t = document.getElementById("r-" + id);
+      const note = t ? t.value : "";
+      if (kind === "rejected" && !note.trim()) return;
+      const sel = document.getElementById("t-" + id);
+      const ok = await write(id, bodyFor(c, kind, note, sel ? sel.value : ""));
+      if (ok) state.open.delete(id + ":relink");
+      if (ok) { state.open.delete(id); state.open.delete(id + ":draft"); render(); toast((kind === "rejected" ? "却下しました" : "確定しました") + sfx(), () => write(id, prev)); }
+    } else if (act === "clear") {
+      const ok = await write(id, null);
+      if (ok) toast("判定を取り消しました" + sfx(), () => write(id, prev));
+    }
+  });
+
+  render();
+
+  (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null)).then((db) => {
+    if (!db) {
+      const n = $("#notice"); n.hidden = false;
+      n.textContent = "このページは claude.ai（Claude のアプリ）で開いてください。ここでは候補を読み込めず、判定も保存できません。";
+      $("#counts").textContent = "候補を読み込めません";
+      return;
+    }
+    state.db = db;
+    db.collection("candidates").orderBy("order").onSnapshot((snap) => {
+      state.cands = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!snap.metadata.fromCache) state.loaded = true;
+      render();
+    }, () => { const n = $("#notice"); n.hidden = false; n.textContent = "候補を読み込めませんでした。ページを開き直してください。"; });
+    db.collection("decisions").onSnapshot((snap) => {
+      const m = new Map(); snap.docs.forEach((d) => m.set(d.id, d.data())); state.decs = m;
+      render();
+    }, () => {});
+    flush();   // 前に開いたときの未送信が残っていれば送る
+  });
+})();
+</script>
