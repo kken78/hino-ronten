@@ -3,10 +3,13 @@
 実行: python3 -B tools/test_apply_decisions.py -v
 見本の入力と台帳は tools/test_ledger.py と同じもの（LedgerTestCase）を使う。
 """
+import contextlib
+import io
 import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -26,7 +29,9 @@ class ApplyTestCase(LedgerTestCase):
         self.ledger_path = os.path.join(self.tmp.name, "mention.tsv")
         self.relink_path = os.path.join(self.tmp.name, "relink.tsv")
         self.decisions_path = os.path.join(self.tmp.name, "decisions.tsv")
+        self.keys_path = os.path.join(self.tmp.name, "keys.tsv")
         self.out = os.path.join(self.tmp.name, "build")
+        self.printed = io.StringIO()  # 書き写す前の件数の表示
         ledger.write_ledger(self.ledger_path, self.base())
 
     def tearDown(self):
@@ -51,22 +56,42 @@ class ApplyTestCase(LedgerTestCase):
         d.update(kw)
         return d
 
-    def write_decisions(self, rows, raw=None, columns=ad.DECISION_COLUMNS):
+    def write_decisions(self, rows, raw=None, columns=ad.DECISION_COLUMNS, keys=None):
+        """判定の一覧を書く。範囲の一覧も書く（keys を省くと、rows の (from, to, method) を重ねずに並べたもの）。"""
         data = raw if raw is not None else (
             "\n".join(["\t".join(columns)] + ["\t".join(d[c] for c in columns) for d in rows]) + "\n").encode("utf-8")
         with open(self.decisions_path, "wb") as f:
             f.write(data)
+        if keys is None:
+            keys = list(dict.fromkeys((d["from"], d["to"], d["method"]) for d in rows or []))
+        self.write_keys(keys)
+
+    def write_keys(self, keys, raw=None):
+        data = raw if raw is not None else (
+            "\n".join(["\t".join(ad.KEY_COLUMNS)] + ["\t".join(k) for k in keys]) + "\n").encode("utf-8")
+        with open(self.keys_path, "wb") as f:
+            f.write(data)
 
     def write(self, texts=TEXTS):
-        return ad.write(self.decisions_path, self.ledger_path, self.built(texts=texts), self.relink_path)
+        return ad.write(self.decisions_path, self.keys_path, self.ledger_path, self.built(texts=texts),
+                        self.relink_path, self.printed)
 
-    def assert_stops_without_writing(self, rows=None, raw=None, needle=None, columns=ad.DECISION_COLUMNS):
+    def run_apply(self, texts=TEXTS):
+        return ad.run(self.decisions_path, self.keys_path, self.ledger_path, self.built(texts=texts), self.out,
+                      self.relink_path, out=self.printed)
+
+    def assert_stops_without_writing(self, rows=None, raw=None, needle=None, columns=ad.DECISION_COLUMNS, keys=None,
+                                     keys_raw=None):
         before, before_relink = self.ledger_bytes(), self.relink_bytes()
-        self.write_decisions(rows, raw, columns)
+        self.write_decisions(rows, raw, columns, keys)
+        if keys_raw is not None:
+            self.write_keys(None, keys_raw)
+        self.printed = io.StringIO()
         with self.assertRaises(ad.DecisionError) as cm:
             self.write()
         self.assertEqual(self.ledger_bytes(), before)  # 1件も書かない
         self.assertEqual(self.relink_bytes(), before_relink)
+        self.assertEqual(self.printed.getvalue(), "")  # 止めたときは件数も表示しない
         if needle:
             self.assertIn(needle, str(cm.exception))
         return str(cm.exception)
@@ -156,10 +181,11 @@ class TestRejectRows(ApplyTestCase):
                  "ヘッダ": good.replace(b"from\tto", b"to\tfrom", 1),
                  "note にタブ": good[:-1] + b"\t\xe8\xbf\xbd\xe5\x8a\xa0\n",
                  "行が0件": ("\t".join(ad.DECISION_COLUMNS) + "\n").encode("utf-8")}
+        keys = [(S2, "plan:kodomo", "mention")]
         for name, raw in cases.items():
             with self.subTest(name=name):
-                self.assert_stops_without_writing(raw=raw)
-        self.write_decisions(None, raw=good)  # 形の正しい一覧は書き写せる
+                self.assert_stops_without_writing(raw=raw, keys=keys, needle="判定の一覧")
+        self.write_decisions(None, raw=good, keys=keys)  # 形の正しい一覧は書き写せる
         self.write()
 
 
@@ -180,7 +206,7 @@ class TestRun(ApplyTestCase):
     def test_check_passes(self):
         self.write_decisions([self.dec(S1, "plan:kyoiku4", "confirmed"),
                               self.dec(S4, "lin:kodomo/2", "rejected", note="理由")])
-        code, applied, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(), self.out, self.relink_path)
+        code, applied, rows, rep = self.run_apply()
         self.assertEqual(code, 0)
         self.assertEqual([r["status"] for r in rows].count("confirmed"), 1)
         self.assertEqual((rep.checked.counts[ledger.MATCH], rep.stale, rep.sentinel_failures), (4, [], []))
@@ -190,8 +216,7 @@ class TestRun(ApplyTestCase):
         self.write_decisions([self.dec(S2, "plan:kodomo", "confirmed")])
         texts = list(TEXTS)
         texts[1] = FILLER
-        code, _, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(texts=texts), self.out,
-                                    self.relink_path)
+        code, _, rows, rep = self.run_apply(texts=texts)
         self.assertEqual(code, 1)
         self.assertEqual(self.row(rows, S2, "plan:kodomo")["status"], "confirmed")
         self.assertEqual(len(rep.merged.vanished_confirmed), 1)
@@ -212,9 +237,13 @@ class TestRelink(ApplyTestCase):
         self.write_decisions([self.dec(S1, "plan:kyoiku4", "confirmed"),
                               self.dec(S4, "lin:kodomo/2", "rejected", note="第3期の話", relink_to="plan:kodomo")],
                              columns=COLUMNS_9)
-        code, applied, rows, rep = ad.run(self.decisions_path, self.ledger_path, self.built(), self.out, self.relink_path)
+        code, applied, rows, rep = self.run_apply()
         self.assertEqual(code, 0)
         self.assertEqual((applied["confirmed"], applied["rejected"], applied["relink"]), (1, 1, 1))
+        self.assertEqual(self.printed.getvalue().splitlines(),
+                         ["書き写す前の件数：lin:kodomo/2 confirmed 0・rejected 1",
+                          "書き写す前の件数：plan:kyoiku4 confirmed 1・rejected 0",
+                          "書き写す前の件数：付け替え 1"])
         b4 = self.row(base, S4, "lin:kodomo/2")
         self.assertEqual(self.row(rows, S4, "lin:kodomo/2"),
                          dict(b4, status="rejected", reviewer="kken78", date="2026-10-11",
@@ -337,7 +366,107 @@ class TestRelinkErrors(ApplyTestCase):
                  "9列のヘッダに8列の行": ("\t".join(COLUMNS_9), line)}
         for name, (head, body) in cases.items():
             with self.subTest(name=name):
-                self.assert_stops_without_writing(raw=(head + "\n" + body + "\n").encode("utf-8"))
+                self.assert_stops_without_writing(raw=(head + "\n" + body + "\n").encode("utf-8"),
+                                                  keys=[(S2, "plan:kodomo", "mention")], needle="判定の一覧")
+
+
+# 7. 判定の範囲（§11、CLAUDE.md 不変の制約11）：--keys の一覧と判定の一覧が同じでなければ、どちらの台帳にも書かない
+class TestScope(ApplyTestCase):
+    def test_usage(self):
+        # --keys が無い・引数の数が違う → 使い方を表示して終了コード1。入力を読まず、台帳は変わらない
+        self.write_decisions([self.dec(S1, "plan:kyoiku4", "confirmed")])
+        before = self.ledger_bytes()
+        cases = {"引数なし": [], "--keys が無い（前の形）": [self.decisions_path],
+                 "--keys が無い（2つ）": [self.keys_path, self.decisions_path],
+                 "判定の一覧が無い": ["--keys", self.keys_path],
+                 "引数が多い": ["--keys", self.keys_path, self.decisions_path, self.decisions_path],
+                 "--keys の位置が違う": [self.decisions_path, "--keys", self.keys_path]}
+        for name, args in cases.items():
+            with self.subTest(name=name):
+                err, out = io.StringIO(), io.StringIO()
+                with mock.patch.object(ad.check_links, "LEDGER_PATH", self.ledger_path), \
+                        mock.patch.object(ad.check_links, "RELINK_PATH", self.relink_path), \
+                        mock.patch.object(ad.check_links, "OUT_DIR", self.out), \
+                        mock.patch.object(ad.check_links, "RELINK_OUT_DIR", self.out), \
+                        mock.patch.object(ad.gm, "load_lock", side_effect=AssertionError("使い方の誤りで入力を読んだ")), \
+                        contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                    code = ad.main(["apply_decisions.py"] + args)
+                self.assertEqual(code, 1)
+                self.assertIn(ad.USAGE, err.getvalue())
+                self.assertEqual(out.getvalue(), "")
+                self.assertEqual((self.ledger_bytes(), self.relink_bytes()), (before, None))
+
+    def test_keys_format(self):
+        d = self.dec(S2, "plan:kodomo", "confirmed")
+        head = "\t".join(ad.KEY_COLUMNS) + "\n"
+        line = f"{S2}\tplan:kodomo\tmention\n"
+        good = (head + line).encode("utf-8")
+        cases = {"ヘッダの順": (good.replace(b"from\tto", b"to\tfrom", 1), "ヘッダ"),
+                 "ヘッダに列を足す": (("from\tto\tmethod\tcontext\n" + line[:-1] + "\t" + d["context"] + "\n").encode("utf-8"),
+                               "ヘッダ"),
+                 "ヘッダが2列": (("from\tto\n" + f"{S2}\tplan:kodomo\n").encode("utf-8"), "ヘッダ"),
+                 "行が0件": (head.encode("utf-8"), "範囲の行が0件"),
+                 "列の数の違い": ((head + line + f"{S1}\tplan:kyoiku4\n").encode("utf-8"), "3行目：列の数が 2"),
+                 "重複": ((head + line + line).encode("utf-8"), "範囲の一覧に 2 回"),
+                 "BOM": (b"\xef\xbb\xbf" + good, "BOM"),
+                 "CR": (good.replace(b"\n", b"\r\n"), "CR"),
+                 "最後の改行なし": (good[:-1], "改行で終わっていない")}
+        for name, (raw, needle) in cases.items():
+            with self.subTest(name=name):
+                msg = self.assert_stops_without_writing([d], keys_raw=raw, needle=needle)
+                self.assertIn("範囲の一覧", msg)
+        self.write_decisions([d])
+        self.write_keys(None, good)  # 形の正しい範囲の一覧なら書き写せる
+        self.assertEqual(self.write()["confirmed"], 1)
+
+    def test_duplicates_all_listed(self):
+        line = (S2, "plan:kodomo", "mention")
+        msg = self.assert_stops_without_writing([self.dec(S2, "plan:kodomo", "confirmed")], keys=[line, line, line])
+        self.assertIn("3 件", msg)
+        for n in (2, 3, 4):
+            self.assertIn(f"{n}行目 {S2} plan:kodomo mention：同じ (from, to, method) が範囲の一覧に 3 回ある", msg)
+
+    def test_out_of_scope(self):
+        msg = self.assert_stops_without_writing(
+            [self.dec(S1, "plan:kyoiku4", "confirmed"), self.dec(S2, "plan:kodomo", "confirmed")],
+            keys=[(S1, "plan:kyoiku4", "mention")])
+        self.assertIn(f"判定の一覧 3行目 {S2} plan:kodomo mention：範囲の外の行", msg)
+        self.assertIn("1 件", msg)
+
+    def test_no_decision(self):
+        msg = self.assert_stops_without_writing(
+            [self.dec(S1, "plan:kyoiku4", "confirmed")],
+            keys=[(S1, "plan:kyoiku4", "mention"), (S4, "lin:kodomo/2", "mention")])
+        self.assertIn(f"範囲の一覧 3行目 {S4} lin:kodomo/2 mention：判定が無い", msg)
+        self.assertIn("1 件", msg)
+
+    def test_both_listed_before_ledger_check(self):
+        # 範囲の外の行と判定の無い行をすべて示す。台帳との照合（apply）より前に止める
+        outside = self.dec(S1, "plan:kyoiku4", "confirmed", **{"from": f"sp:{sid(9)}"})  # 台帳にも無い行
+        msg = self.assert_stops_without_writing(
+            [self.dec(S2, "plan:kodomo", "confirmed"), outside],
+            keys=[(S2, "plan:kodomo", "mention"), (S4, "lin:kodomo/2", "mention")])
+        self.assertIn("2 件", msg)
+        self.assertIn(f"判定の一覧 3行目 sp:{sid(9)} plan:kyoiku4 mention：範囲の外の行", msg)
+        self.assertIn(f"範囲の一覧 3行目 {S4} lin:kodomo/2 mention：判定が無い", msg)
+        self.assertNotIn("台帳に同じ", msg)
+
+    def test_same_scope(self):
+        # 範囲と判定の一覧が同じ（並びは違ってよい）→ いまと同じに書き写し、書く前に件数を to の文字コード順に表示する
+        rows = [self.dec(S1, "plan:kyoiku4", "confirmed"), self.dec(S2, "plan:kodomo", "confirmed"),
+                self.dec(S4, "lin:kodomo/2", "rejected", note="理由")]
+        self.write_decisions(rows, keys=[(d["from"], d["to"], d["method"]) for d in reversed(rows)])
+        with open(self.decisions_path, "rb") as f:
+            expect, _ = ad.apply(self.base(), ad.parse_decisions(f.read()))
+        applied = self.write()
+        self.assertEqual((applied["confirmed"], applied["rejected"], applied["relink"]), (2, 1, 0))
+        self.assertEqual(ledger.read_ledger(self.ledger_path, "mention"), expect)
+        self.assertIsNone(self.relink_bytes())
+        self.assertEqual(self.printed.getvalue().splitlines(),
+                         ["書き写す前の件数：lin:kodomo/2 confirmed 0・rejected 1",
+                          "書き写す前の件数：plan:kodomo confirmed 1・rejected 0",
+                          "書き写す前の件数：plan:kyoiku4 confirmed 1・rejected 0",
+                          "書き写す前の件数：付け替え 0"])
 
 
 if __name__ == "__main__":

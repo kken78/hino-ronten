@@ -5,12 +5,16 @@
 relink_to（付け替え先の plan・lin）がある rejected の行は、links/relink.tsv にも付け替えの行を1行足す（§6 付け替え）。
 台帳の行がすでに rejected なら、relink_to があるときだけ受け付け、mention の行は変えずに付け替えの行だけを足す。
 確定・却下・付け替えをするのは人で、この道具は人が決めた値を写すだけ（DESIGN.md ADR-2）。
-1行でも合わなければどちらの台帳にも1件も書かず、合わない行をすべて示して止める。書いたあとに
-tools/check_links.py の確かめを動かす（入力のリポジトリは、lock の版だけを読む。§10）。
+人が判定した範囲の一覧（--keys。列は from・to・method）を必ず受け取り、判定の一覧の (from, to, method) の集まりと
+同じかを、台帳との照合より前に確かめる（§11 判定の範囲、CLAUDE.md 不変の制約11）。
+1行でも合わなければどちらの台帳にも1件も書かず、合わない行をすべて示して止める。台帳を書く前に、to と status
+ごとの件数と付け替えの数を表示する。書いたあとに tools/check_links.py の確かめを動かす（入力のリポジトリは、
+lock の版だけを読む。§10）。
 
-実行: python3 -B tools/apply_decisions.py <判定の一覧の TSV>
-終了コード：0 は書き写し、確かめも合格。1 は止めた（入力の読み込みか一覧の誤りで止めたときは台帳に書かない。
-書いたあとの確かめで合格しなかったときは、台帳は書いたまま、件数と該当を表示する）。
+実行: python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>
+終了コード：0 は書き写し、確かめも合格。1 は止めた（使い方の誤り、入力の読み込み、範囲の一覧・判定の一覧の誤り、
+範囲と判定の一覧の食い違いで止めたときは台帳に書かない。書いたあとの確かめで合格しなかったときは、台帳は
+書いたまま、件数と該当を表示する）。
 """
 import os
 import re
@@ -31,7 +35,10 @@ RELINK = check_links.RELINK
 DECISION_COLUMNS = ["from", "to", "method", "context", "status", "reviewer", "date", "note"]
 RELINK_TO = "relink_to"
 HEADERS = (DECISION_COLUMNS, DECISION_COLUMNS + [RELINK_TO])  # いまの8列か、relink_to を足した9列
+KEY_COLUMNS = ["from", "to", "method"]  # 判定した範囲の一覧（--keys）の列
 DECIDED = (ledger.CONFIRMED, ledger.REJECTED)
+USAGE = "使い方：python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>"
+COUNT_PREFIX = "書き写す前の件数："
 REJECT_PREFIX, REJECT_BASIS = "却下：", "。判別の根拠："  # decided_note の rejected の形
 
 
@@ -45,19 +52,24 @@ def _fail(title, items):
         raise DecisionError(f"{title}：{len(items)} 件\n" + "\n".join(f"  - {x}" for x in items))
 
 
-def parse_decisions(data):
-    """判定の一覧のバイト列を読み、§1 の形（UTF-8・BOMなし・LF・ヘッダ・列の数）を確かめる。"""
+def _lines(data, name):
+    """TSV のバイト列の形（UTF-8・BOMなし・LF・最後の改行）を確かめ、行の一覧を返す。name は誤りの文に使う一覧の名前。"""
     if data.startswith(b"\xef\xbb\xbf"):
-        raise DecisionError("判定の一覧が BOM で始まっている")
+        raise DecisionError(f"{name}が BOM で始まっている")
     if b"\r" in data:
-        raise DecisionError("判定の一覧に CR がある（改行は LF だけ）")
+        raise DecisionError(f"{name}に CR がある（改行は LF だけ）")
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
-        raise DecisionError(f"判定の一覧が UTF-8 でない（{e}）") from None
+        raise DecisionError(f"{name}が UTF-8 でない（{e}）") from None
     if not text.endswith("\n"):
-        raise DecisionError("判定の一覧の最後の行が改行で終わっていない")
-    lines = text[:-1].split("\n")
+        raise DecisionError(f"{name}の最後の行が改行で終わっていない")
+    return text[:-1].split("\n")
+
+
+def parse_decisions(data):
+    """判定の一覧のバイト列を読み、§1 の形（UTF-8・BOMなし・LF・ヘッダ・列の数）を確かめる。"""
+    lines = _lines(data, "判定の一覧")
     columns = lines[0].split("\t")
     if columns not in HEADERS:
         raise DecisionError(f"判定の一覧のヘッダが {DECISION_COLUMNS} か、その後ろに {RELINK_TO} を足したものでない（{columns}）")
@@ -72,6 +84,47 @@ def parse_decisions(data):
         errs.append("判定の行が0件")
     _fail("判定の一覧の形の誤り", errs)
     return rows
+
+
+def parse_keys(data):
+    """判定した範囲の一覧（--keys）のバイト列を読み、形（判定の一覧と同じ。ヘッダは from・to・method の3列ちょうど）を
+    確かめる。返り値は（行番号、(from, to, method)）の一覧。列の数の違い・重複・行が0件は、すべて示して止める。"""
+    lines = _lines(data, "範囲の一覧")
+    columns = lines[0].split("\t")
+    if columns != KEY_COLUMNS:
+        raise DecisionError(f"範囲の一覧のヘッダが {KEY_COLUMNS} でない（{columns}）")
+    rows, errs = [], []
+    for n, line in enumerate(lines[1:], start=2):
+        cells = line.split("\t")
+        if len(cells) != len(KEY_COLUMNS):
+            errs.append(f"{n}行目：列の数が {len(cells)}（{len(KEY_COLUMNS)} のはず）")
+            continue
+        rows.append((n, tuple(cells)))
+    counts = Counter(k for _, k in rows)
+    errs += [f"{n}行目 {' '.join(k)}：同じ (from, to, method) が範囲の一覧に {counts[k]} 回ある"
+             for n, k in rows if counts[k] > 1]
+    if not rows and not errs:
+        errs.append("範囲の行が0件")
+    _fail("範囲の一覧の形の誤り", errs)
+    return rows
+
+
+def scope_errors(keys, decisions):
+    """§11 判定の範囲：判定の一覧にあって範囲に無い行（範囲の外）と、範囲にあって判定の一覧に無い行（判定が無い）。"""
+    in_keys = {k for _, k in keys}
+    decided = {(d["from"], d["to"], d["method"]) for _, d in decisions}
+    return ([f"判定の一覧 {n}行目 {d['from']} {d['to']} {d['method']}：範囲の外の行"
+             for n, d in decisions if (d["from"], d["to"], d["method"]) not in in_keys]
+            + [f"範囲の一覧 {n}行目 {' '.join(k)}：判定が無い" for n, k in keys if k not in decided])
+
+
+def count_lines(decisions):
+    """書き写す前の件数の行。to の文字コード順に confirmed・rejected の件数（0件も書く）、最後に付け替えの数。"""
+    counts = Counter((d["to"], d["status"]) for _, d in decisions)
+    lines = [f"{COUNT_PREFIX}{to} {ledger.CONFIRMED} {counts[(to, ledger.CONFIRMED)]}・"
+             f"{ledger.REJECTED} {counts[(to, ledger.REJECTED)]}"
+             for to in sorted({d["to"] for _, d in decisions})]
+    return lines + [f"{COUNT_PREFIX}付け替え {sum(1 for _, d in decisions if d[RELINK_TO])}"]
 
 
 def decided_note(status, current, note):
@@ -176,12 +229,17 @@ def apply(ledger_rows, decisions, relink_rows=(), names=None, refs=None):
     return rows, sorted(list(relink_rows) + added, key=lambda r: (r["from"], r["to"], r["method"]))
 
 
-def write(decisions_path, ledger_path, built, relink_path=None):
-    """判定の一覧を読み、台帳に書き写して書く。relink の台帳は、省くと mention の台帳と同じ場所（links/relink.tsv）。
+def write(decisions_path, keys_path, ledger_path, built, relink_path=None, out=None):
+    """判定の一覧と判定した範囲の一覧を読み、台帳に書き写して書く。relink の台帳は、省くと mention の台帳と同じ場所
+    （links/relink.tsv）。書く前に、書き写す前の件数を out（省くと標準出力）に表示する。
     返り値は書き写した行の数（confirmed・rejected は mention の行、relink は足した付け替えの行の Counter）。"""
     relink_path = relink_path or check_links.relink_path_of(ledger_path)
     with open(decisions_path, "rb") as f:
         decisions = parse_decisions(f.read())
+    with open(keys_path, "rb") as f:
+        keys = parse_keys(f.read())
+    # 台帳との照合より前に、判定の一覧が人の判定した範囲と同じかを確かめる（§11 判定の範囲）
+    _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", scope_errors(keys, decisions))
     current = ledger.read_ledger(ledger_path, METHOD)
     current_relink = ledger.read_ledger(relink_path, RELINK, missing_ok=True)
     rows, relink_rows = apply(current, decisions, current_relink,
@@ -193,6 +251,7 @@ def write(decisions_path, ledger_path, built, relink_path=None):
           ledger.relink_origin_errors(relink_rows, rows)
           + [f"{c['from']} {c['to']}：mention の行が {c['mention_status']}（付け替えの重なり）"
              for c in ledger.relink_conflicts(relink_rows, rows)])
+    print("\n".join(count_lines(decisions)), file=out or sys.stdout)
     ledger.write_ledger(ledger_path, rows)
     if len(relink_rows) != len(current_relink):
         ledger.write_ledger(relink_path, relink_rows)
@@ -202,25 +261,26 @@ def write(decisions_path, ledger_path, built, relink_path=None):
     return applied
 
 
-def run(decisions_path, ledger_path, built, outdir, relink_path=None, relink_outdir=None):
+def run(decisions_path, keys_path, ledger_path, built, outdir, relink_path=None, relink_outdir=None, out=None):
     """書き写してから check_links.run で確かめる。返り値は（終了コード、書き写した数、台帳の行、check_links の Report）。"""
     relink_path = relink_path or check_links.relink_path_of(ledger_path)
-    applied = write(decisions_path, ledger_path, built, relink_path)
+    applied = write(decisions_path, keys_path, ledger_path, built, relink_path, out)
     code, rows, rep = check_links.run(built, ledger_path, outdir, relink_path, relink_outdir)
     return code, applied, rows, rep
 
 
 def main(argv):
-    if len(argv) != 2:
-        print("使い方：python3 -B tools/apply_decisions.py <判定の一覧の TSV>", file=sys.stderr)
+    if len(argv) != 4 or argv[1] != "--keys":
+        print(USAGE, file=sys.stderr)
         return 1
+    keys_path, decisions_path = argv[2], argv[3]
     try:
         refs = mention.load_refs(gm.LINEAGE, gm.ALIASES)
         lock = gm.load_lock(gm.LOCK_PATH)
         gi = gm.GitInputs(gm.INPUTS_ROOT, lock)
         gi.verify()
         built = gm.build(gm.read_inputs(gi, lock), refs)
-        code, applied, rows, rep = run(argv[1], check_links.LEDGER_PATH, built, check_links.OUT_DIR,
+        code, applied, rows, rep = run(decisions_path, keys_path, check_links.LEDGER_PATH, built, check_links.OUT_DIR,
                                        check_links.RELINK_PATH, check_links.RELINK_OUT_DIR)
     except (gm.GenError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
