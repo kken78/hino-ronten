@@ -9,6 +9,6 @@
   },
   "shiga-hino-plans": {
     "sha": "30bfb26f1e743b787759da3268f3b8e108f1a645",
-    "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv"]
+    "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r8.json"]
   }
 }
