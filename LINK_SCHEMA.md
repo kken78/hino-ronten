@@ -119,7 +119,7 @@ rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1
 - 確定・却下：人が status を confirmed または rejected に変え、reviewer・date を書く。人が note を書くのはこのときとする（candidate の行の note は再生成で置き換わる）。rejected の行には、note に却下の理由を書く。confirmed と rejected の間の変更も人だけが行い、note に理由を書く
 - まとめて確定：人は、同じ性質の candidate の組（例：期の明記がある、同じ to の行）から抜き取った行を1件ずつ判定し、その結果を見て、組の残りをまとめて confirmed にしてよい。抜き取りの数・選び方・まとめて確定する条件は、判定の前に DESIGN.md に書く。まとめて確定した行は、note に「抜き取りでまとめて確定（<組>、抜き取り<N>件・誤り0）」の形で書き、1件ずつ判定した行と区別する
 - 計画期間の前の行（§7）：発言がその計画の策定（策定の予定・審議会・パブリックコメント・案など）を指していれば confirmed とする。その時点で計画期間中だった前の版を指していれば、理由を書いて rejected とする（期の番号が無い前の版は、付け替えの対象にしない）
-- 付け替え：人は、却下した mention の行の発言が、別の計画（manifest にある plan か、`ref/lineage.tsv` にある lin）を指していると分かるときは、`links/relink.tsv` に method が relink の行を足して、その計画に結び付けてよい。from・evidence・where・context は却下した行と同じにし、to に正しい計画、to_label にその名称（§3）、status に confirmed、reviewer・date に付け替えた人と日を書く。note は「付け替え：<却下した行の to> の却下から。<理由>」の形にする。relink の行は機械が作らず、台帳の更新（tools/update_links.py）でも変えない。付け替えを取り消すときは、行を消さずに status を rejected にして note に理由を書く。期の番号が無い前の版の計画は、系譜表に載せる方法が決まるまで付け替えの対象にしない
+- 付け替え：人は、却下した mention の行の発言が、別の計画（manifest にある plan か、`ref/lineage.tsv` にある lin）を指していると分かるときは、`links/relink.tsv` に method が relink の行を足して、その計画に結び付けてよい。from・evidence・where・context は却下した行と同じにし、to に正しい計画、to_label にその名称（§3）、status に confirmed、reviewer・date に付け替えた人と日を書く。note は「付け替え：<却下した行の to> の却下から。<理由>」の形にする。relink の行は機械が作らず、台帳の更新（tools/update_links.py）でも変えない。付け替えを取り消すときは、行を消さずに status を rejected にして note に理由を書く。期の番号が無い前の版の計画は、系譜表に載せる方法が決まるまで付け替えの対象にしない。附表の台帳（fuhyo）では付け替えを使わない
 - 再生成で出なくなった行：candidate は削除し、一覧（removed.tsv）に出す。confirmed と rejected は削除せず、一覧（vanished.tsv）に出す。confirmed のうち再生成で出なくなったものがあれば、ビルドを停止する（別名辞書や系譜表の変更が既存の確定に影響したことを見落とさないため）。ただし、§5 で移動となり、移動先の (sid, to, method) が生成の結果にある confirmed・rejected は、出なくなった行に数えず、移動の一覧（moved.tsv）にだけ出す
 - 台帳と lock の版：台帳は、lock の版の入力でこの節のとおり更新した結果と同じでなければならない。台帳を確かめる道具（`tools/check_links.py`）は、更新と同じ処理で台帳を作り直していまの台帳と比べ、違えば停止して、更新の道具を先に動かすよう示す（§10）
 - 出力に使うのは、confirmed で、かつ §5 の照合が「一致」の行だけとする
@@ -160,8 +160,11 @@ fuhyo（附表と計画の事業の対応。DESIGN.md ADR-10）：
 - 事業名が同じ計画の事業を候補にする。同じ名前の事業が計画に2つ以上あるときは、事業概要も同じものだけを候補にする。事業概要も同じものが無ければ、同じ名前のすべてを候補にする。柱が違っても候補にし、note に書く
 - 事業名も事業概要も同じ計画の事業が無い附表の事業には、none（記載なし）も候補にする
 - 事業名が同じ計画の事業が無い附表の事業には、none と、同じ柱の計画の事業のうち、事業名の文字の2つ組（2-gram）の Dice 係数が大きい順に3つまで（0 のものは除く。同じ値は key の順）を候補にする
+- Dice 係数は、正規化した事業名の隣り合う2文字の組の集まり（同じ組は1つと数える）で、2×共通の組の数÷（両方の組の数の和）とする。どちらかの組が0個なら0とする。note の値は小数第3位を四捨五入して小数第2位まで書き、並べるときは四捨五入する前の値を使う
 - note は「事業名が同じ。事業概要も同じ」「事業名が同じ。事業概要は違う」「事業名が近い（Dice 0.67）」「事業名が同じ事業が無い」「事業名と事業概要が同じ事業が無い」の形とし、柱が違うときは「。柱が違う（附表 柱1・計画 柱5）」を後ろに付ける
 - 判定は、確認ページで附表の事業ごとに候補を並べ、1件ずつ行う（CLAUDE.md 不変の制約11）。附表の各事業は、confirmed の node が1行以上か、confirmed の none が1行のどちらかになる（DESIGN.md §5 工程5 のゲート）
+- 判定の範囲（`--keys`）には、附表の事業ごとに、その事業の candidate の行をすべて入れる。書き写したあとに附表の分類（§11）の誤りが出るなら、台帳に書かずに終了コード1
+- 正しい計画の事業が候補に無いとき（候補をすべて却下することになるとき）の扱いは決めていない。そうなったら、判定を書き写さずに止め、規則を改めてから進める（DESIGN.md §5 工程5）
 
 semantic：使う時点で、この節と §3 に規則を追加する。
 
@@ -240,7 +243,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp・fh、to は plan・lin・node・none。mention と relink の台帳は、from が bq・sp、to が plan・lin だけ。fuhyo の台帳は、from が fh、to が node・none だけ |
 | 行の同一性 | (from, to, method) の重複が0件 |
 | 状態 | status が3つの値のいずれか。confirmed・rejected は reviewer と date（YYYY-MM-DD）がある。candidate は reviewer と date が空。rejected は note が空でない |
-| 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる |
+| 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text、fh は name のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる |
 | 位置依存キーの照合 | §5 の一致・移動・停止の件数を表示する。停止が1件以上なら終了コード1。rejected の行で移動先が見つからないものは件数を表示し、終了コードは変えない |
 | 根拠の消失 | §6 の「再生成で出なくなった confirmed」が1件以上なら終了コード1 |
 | 台帳と lock の版 | §6 のとおり lock の版で作り直した台帳と、いまの台帳が同じ。違えば終了コード1 |
@@ -248,7 +251,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 付け替えの元 | relink の各行について、from・evidence・context が同じで status が rejected の mention の行があり、その行の to と relink の行の to が違う。無ければ終了コード1。relink の行の status は confirmed か rejected で、candidate は置かない |
 | 付け替えの重なり | relink の confirmed の行と同じ (from, to) を持つ mention の行が candidate か confirmed なら、一覧（relink_conflict.tsv）に出して終了コード1。人が、どちらかを却下するか、付け替えを取り消す |
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
-| 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する（CLAUDE.md 不変の制約11） |
+| 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する。fuhyo の台帳では、to の種類（node・none）と status ごとに表示する（CLAUDE.md 不変の制約11） |
 | 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート） |
 
 一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
