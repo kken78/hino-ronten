@@ -23,23 +23,26 @@
 | plan | manifest にある計画 | `plan:<id>` | `plan:kodomo` | shiga-hino-plans `data/manifest.json` の id |
 | lin | manifest に無い前の期の計画 | `lin:<系列>/<期>` | `lin:kodomo/2` | `ref/lineage.tsv` |
 | node | 計画の事業 | `node:<id>/<key>` | `node:jisshi/e001` | `data/plans/<id>.json` の programs（`items[].key`） |
+| fh | 当初予算の附表の事業 | `fh:<附表id>/<key>` | `fh:fuhyo-r8/b001` | shiga-hino-plans `data/fuhyo/<附表id>.json` の `pillars[].items[].key` |
+| none | 計画に当たる事業が無いこと（記載なし） | `none:<id>` | `none:jisshi` | shiga-hino-plans `data/manifest.json` の id |
 
 - bq の議員名は、member を NFKC 正規化し、空白を除いたもの。この形で326問すべてが一意であることを確認済み（2026-10-10）
 - sp は発言の位置に依存し、node の key は元のデータの管理に依存するため、単独では信頼しない。必ず §5 の照合を通す
 - node は programs を持つ計画の事業にだけ定義する。key は shiga-hino-plans が事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の CLAUDE.md・PLAN_SCHEMA）。key の無い事業は指さない
 - node は、2026-10-19 に番号（`groups[].no`・`subgroups[].no`・`items[].no`）による形から key による形に替えた。番号の無い事業（jisshi など6計画）を指せないため（issue #1）。替えた時点で、台帳に node の行は無かった
+- fh と none は、附表の台帳（`links/fuhyo.tsv`）だけで使う（§7 fuhyo）。fh の key は shiga-hino-plans が附表の事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の PLAN_SCHEMA §9）。none は、附表の事業が `<id>` の計画のどの事業にも当たらないこと（記載なし）を表す決まったキーで、事業を指さない
 
 ---
 
 ## 3. リンク台帳 `links/<method>.tsv`
 
-ファイル：`links/mention.tsv`、`links/program.tsv`。人が付け替えた行は `links/relink.tsv` に置く（§6 付け替え）。semantic を使う場合は `links/semantic.tsv` を加え、列の使い方をこの節に追記してから使う。crosswalk は台帳に行を持たず、`ref/crosswalk.tsv` から表示のときに求める（DESIGN.md ADR-3）。
+ファイル：`links/mention.tsv`、`links/program.tsv`、`links/fuhyo.tsv`（附表と計画の事業の対応。列の使い方は下の「附表の台帳」）。人が付け替えた行は `links/relink.tsv` に置く（§6 付け替え）。semantic を使う場合は `links/semantic.tsv` を加え、列の使い方をこの節に追記してから使う。crosswalk は台帳に行を持たず、`ref/crosswalk.tsv` から表示のときに求める（DESIGN.md ADR-3）。
 
 | 列 | 内容 | 例 |
 | --- | --- | --- |
 | from | 議会側のキー（bq・sp） | `sp:0000008942_20260305_0161` |
 | to | 計画側のキー（plan・lin・node） | `plan:kodomo` |
-| method | mention・program・semantic・relink | `mention` |
+| method | mention・program・semantic・relink・fuhyo | `mention` |
 | evidence | 一致した語（正規化後） | `子ども・子育て支援事業計画` |
 | where | from のどこで一致したか。bq は title・question_text・answer_title・answers、sp は text | `text` |
 | context | evidence を含む前後各15文字の抜粋（正規化後）。前後が15文字に満たない場合は、ある分だけ | `す。まとめるにあたりましては、子ども・子育て支援事業計画に掲げる3つの基本目標に分類し` |
@@ -51,6 +54,13 @@
 
 - 行の同一性は (from, to, method) の組とする。同じ組の行は1行だけ置く
 - 例の行は、令和8年3月定例会議の企画振興課長の発言（実在）から作った候補で、まだ人は確定していない
+
+附表の台帳（`links/fuhyo.tsv`）は、同じ11列を次のように使う（DESIGN.md ADR-10）。
+
+- from：附表の事業（fh）。to：計画の事業（node）か、記載なし（none）。method：fuhyo
+- evidence・context：附表の事業名（§4 の正規化を通した値。evidence と context は同じ）。where：name
+- to_label：node は計画の事業名（items[].name）、none は「記載なし」
+- note：候補を作った決まり（§7 fuhyo）、却下の理由など
 
 ---
 
@@ -83,6 +93,10 @@ sp（会議録の発言）：
 bq（議会だよりの質問）：where の欄の正規化テキストに context が含まれなければ停止する。where が answers の行は、answers のいずれかの要素の text に含まれれば一致とする。
 
 node：現在の `data/plans/<id>.json` の programs に同じ key の事業が無いか、その事業の name が to_label と一致しなければ停止する。
+
+fh：lock の版の `data/fuhyo/<附表id>.json` に同じ key の事業が無いか、その事業の name を §4 で正規化した値が context と一致しなければ停止する。
+
+none：to_label が「記載なし」でないか、`<id>` が manifest に無ければ停止する。
 
 plan・lin：to_label と、manifest または `ref/lineage.tsv` の name が一致しなければ停止する。
 
@@ -138,6 +152,16 @@ mention：
 program：
 
 - 事業名（`items[].name`）を照合の語とする。一般的な語で誤った一致が多い事業は、`ref/aliases.tsv` に別名・除外語を足して対応する（工程8で決める）
+
+fuhyo（附表と計画の事業の対応。DESIGN.md ADR-10）：
+
+- 対象は、lock の files に名指しした附表（`data/fuhyo/<附表id>.json`）の全事業と、突き合わせる計画（令和8年度の附表は jisshi）の programs の全事業。事業名と事業概要は §4 で正規化して比べる
+- 柱：附表の柱の no と、計画の programs ブロックを持つタブを文書の順に1から数えた番号を対応させる
+- 事業名が同じ計画の事業を候補にする。同じ名前の事業が計画に2つ以上あるときは、事業概要も同じものだけを候補にする。事業概要も同じものが無ければ、同じ名前のすべてを候補にする。柱が違っても候補にし、note に書く
+- 事業名も事業概要も同じ計画の事業が無い附表の事業には、none（記載なし）も候補にする
+- 事業名が同じ計画の事業が無い附表の事業には、none と、同じ柱の計画の事業のうち、事業名の文字の2つ組（2-gram）の Dice 係数が大きい順に3つまで（0 のものは除く。同じ値は key の順）を候補にする
+- note は「事業名が同じ。事業概要も同じ」「事業名が同じ。事業概要は違う」「事業名が近い（Dice 0.67）」「事業名が同じ事業が無い」「事業名と事業概要が同じ事業が無い」の形とし、柱が違うときは「。柱が違う（附表 柱1・計画 柱5）」を後ろに付ける
+- 判定は、確認ページで附表の事業ごとに候補を並べ、1件ずつ行う（CLAUDE.md 不変の制約11）。附表の各事業は、confirmed の node が1行以上か、confirmed の none が1行のどちらかになる（DESIGN.md §5 工程5 のゲート）
 
 semantic：使う時点で、この節と §3 に規則を追加する。
 
@@ -197,12 +221,13 @@ semantic：使う時点で、この節と §3 に規則を追加する。
   },
   "shiga-hino-plans": {
     "sha": "<40桁のコミットSHA>",
-    "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv"]
+    "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r8.json"]
   }
 }
 ```
 
 - ビルドは、ここに書いた SHA の、ここに書いたファイルだけを読む
+- 附表は年度ごとのファイルを名指しする（`data/fuhyo/*.json` とは書かない。見本の `_fuhyotest.json` を読まないため）
 - lock の更新は1コミットにまとめ、追加・変更・削除された質問と発言の件数をコミットメッセージに書く
 
 ---
@@ -212,7 +237,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 検査 | 内容 |
 | --- | --- |
 | 台帳の形 | §1 と §3 に合う（列名と列の順、UTF-8・BOMなし・LF、セルにタブ・改行が無い、行が from → to → method の文字コード順）。合わない台帳は、更新でも確かめでも停止し、並べ直さない |
-| キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp、to は plan・lin・node。mention と relink の台帳の to は plan・lin だけ |
+| キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp・fh、to は plan・lin・node・none。mention と relink の台帳は、from が bq・sp、to が plan・lin だけ。fuhyo の台帳は、from が fh、to が node・none だけ |
 | 行の同一性 | (from, to, method) の重複が0件 |
 | 状態 | status が3つの値のいずれか。confirmed・rejected は reviewer と date（YYYY-MM-DD）がある。candidate は reviewer と date が空。rejected は note が空でない |
 | 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる |
@@ -224,6 +249,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 付け替えの重なり | relink の confirmed の行と同じ (from, to) を持つ mention の行が candidate か confirmed なら、一覧（relink_conflict.tsv）に出して終了コード1。人が、どちらかを却下するか、付け替えを取り消す |
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
 | 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する（CLAUDE.md 不変の制約11） |
+| 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート） |
 
 一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
 
