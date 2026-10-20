@@ -22,7 +22,7 @@
 | 入力 | lock の版 | 単位と規模 | このリポジトリで読むもの |
 | --- | --- | --- | --- |
 | council-dashboard | e1507bf | 議会だより第24〜36号の一般質問 326問。主テーマ11 | `docs/data/questions.json`、`data/minutes_links.json` |
-| hino-council-search | 1af9baa | 会議録 66会議・31,263発言（2017〜2026年） | `public/data/index-manifest.json`＋`index/<年>.json`、`proceedings.json`、`meetings.json` |
+| hino-council-search | 1af9baa | 会議録 66会議・31,263発言（2017〜2026年）。議案と結果（gian.json、66会議） | `public/data/index-manifest.json`＋`index/<年>.json`、`proceedings.json`、`meetings.json`、`gian.json` |
 | shiga-hino-plans | 30bfb26 | 計画 43本（manifest。計画の JSON があるのは41本）。事業一覧（programs）のある計画20本・1,304事業。当初予算の附表（令和8年度）181事業 | `data/manifest.json`、`data/plans/<id>.json`、`data/sources_index.tsv`、附表 `data/fuhyo/fuhyo-r8.json`（77292c2 で足した） |
 
 確認した事実は次のとおり。2026-10-10 時点の値は git の履歴にある。

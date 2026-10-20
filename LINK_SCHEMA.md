@@ -222,7 +222,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
   },
   "hino-council-search": {
     "sha": "<40桁のコミットSHA>",
-    "files": ["public/data/index-manifest.json", "public/data/index/*.json", "public/data/proceedings.json", "public/data/meetings.json"]
+    "files": ["public/data/index-manifest.json", "public/data/index/*.json", "public/data/proceedings.json", "public/data/meetings.json", "public/data/gian.json"]
   },
   "shiga-hino-plans": {
     "sha": "<40桁のコミットSHA>",
@@ -232,6 +232,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 ```
 
 - ビルドは、ここに書いた SHA の、ここに書いたファイルだけを読む
+- `public/data/gian.json`（会議ごとの議案と結果）は、経緯の検証やテーマの議案の候補に使う（DESIGN.md §5）。いまの台帳の候補と照合には使わない
 - 附表は年度ごとのファイルを名指しする（`data/fuhyo/*.json` とは書かない。見本の `_fuhyotest.json` を読まないため）
 - lock の更新は1コミットにまとめ、追加・変更・削除された質問と発言の件数をコミットメッセージに書く
 
