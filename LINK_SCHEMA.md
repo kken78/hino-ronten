@@ -155,11 +155,11 @@ program：
 
 fuhyo（附表と計画の事業の対応。DESIGN.md ADR-10）：
 
-- 対象は、lock の files に名指しした附表（`data/fuhyo/<附表id>.json`）の全事業と、突き合わせる計画（令和8年度の附表は jisshi）の programs の全事業。事業名と事業概要は §4 で正規化して比べる
-- 柱：附表の柱の no と、計画の programs ブロックを持つタブを文書の順に1から数えた番号を対応させる
+- 対象は、lock の files に名指しした附表（`data/fuhyo/<附表id>.json`）の全事業と、突き合わせる計画（令和8年度の附表は jisshi）の programs の全事業。事業名と事業概要は §4 で正規化して比べる。計画の programs に key の無い事業や key の重なる事業があれば止める（§2 のとおり key の無い事業は指さないが、候補から黙って抜けないよう、候補を作る段階で止める）
+- 柱：附表の柱の no と、計画の programs ブロックを持つタブを文書の順に1から数えた番号を対応させる。附表の柱に当たる計画の柱に事業が無ければ止める（名前の近い候補が黙って0件にならないように）
 - 事業名が同じ計画の事業を候補にする。同じ名前の事業が計画に2つ以上あるときは、事業概要も同じものだけを候補にする。事業概要も同じものが無ければ、同じ名前のすべてを候補にする。柱が違っても候補にし、note に書く
 - 事業名も事業概要も同じ計画の事業が無い附表の事業には、none（記載なし）も候補にする
-- 事業名が同じ計画の事業が無い附表の事業には、none と、同じ柱の計画の事業のうち、事業名の文字の2つ組（2-gram）の Dice 係数が大きい順に3つまで（0 のものは除く。同じ値は key の順）を候補にする
+- 事業名が同じ計画の事業が無い附表の事業には、none と、同じ柱の計画の事業のうち、事業名の文字の2つ組（2-gram）の Dice 係数が大きい順に3つまで（0 のものは除く。同じ値は key の文字コード順。§1 の並べ方と同じ）を候補にする
 - Dice 係数は、正規化した事業名の隣り合う2文字の組の集まり（同じ組は1つと数える）で、2×共通の組の数÷（両方の組の数の和）とする。どちらかの組が0個なら0とする。note の値は小数第3位を四捨五入して小数第2位まで書き、並べるときは四捨五入する前の値を使う
 - note は「事業名が同じ。事業概要も同じ」「事業名が同じ。事業概要は違う」「事業名が近い（Dice 0.67）」「事業名が同じ事業が無い」「事業名と事業概要が同じ事業が無い」の形とし、柱が違うときは「。柱が違う（附表 柱1・計画 柱5）」を後ろに付ける
 - 判定は、確認ページで附表の事業を突き合わせの区分に仕分けてから、区分ごとに行う（DESIGN.md §5 工程5）。区分は、一致（事業名も概要も同じ）・一致（柱違い）（事業名も概要も同じで、柱だけ違う）・表記の違い（事業名は同じで、概要に小さな違いがあるだけ）・名称の変更（事業名が近く、同じ事業）・一部（実施計画の事業の一部を切り出した事業）・年度の事業（実施計画に無く、その年度に予算化された事業）・中身の違い（事業名は同じで、別の事業）。仕分けの案は Claude が作り、依頼者が確認ページで区分を移せる。一致と一致（柱違い）は、確認ページの一覧で全件を見たうえで、区分ごとにまとめて確定してよい（§6 の抜き取りによるまとめて確定とは別）。ほかの区分は1件ずつ判定する。附表の各事業は、confirmed の node が1行以上か、confirmed の none が1行のどちらかになる（DESIGN.md §5 工程5 のゲート）
@@ -245,7 +245,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp・fh、to は plan・lin・node・none。mention と relink の台帳は、from が bq・sp、to が plan・lin だけ。fuhyo の台帳は、from が fh、to が node・none だけ |
 | 行の同一性 | (from, to, method) の重複が0件 |
 | 状態 | status が3つの値のいずれか。confirmed・rejected は reviewer と date（YYYY-MM-DD）がある。candidate は reviewer と date が空。rejected は note が空でない |
-| 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text、fh は name のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる |
+| 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text、fh は name のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる。fh の行は evidence と context が同じ |
 | 位置依存キーの照合 | §5 の一致・移動・停止の件数を表示する。停止が1件以上なら終了コード1。rejected の行で移動先が見つからないものは件数を表示し、終了コードは変えない |
 | 根拠の消失 | §6 の「再生成で出なくなった confirmed」が1件以上なら終了コード1 |
 | 台帳と lock の版 | §6 のとおり lock の版で作り直した台帳と、いまの台帳が同じ。違えば終了コード1 |
@@ -254,7 +254,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 付け替えの重なり | relink の confirmed の行と同じ (from, to) を持つ mention の行が candidate か confirmed なら、一覧（relink_conflict.tsv）に出して終了コード1。人が、どちらかを却下するか、付け替えを取り消す |
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
 | 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する。fuhyo の台帳では、to の種類（node・none）と status ごとに表示する（CLAUDE.md 不変の制約11） |
-| 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート） |
+| 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の行の note に §7 fuhyo の区分（「メモ：区分：<区分>」）が無いか、node の行の区分が一致・一致（柱違い）・表記の違い・名称の変更のどれでもないか、none の行の区分が一部・年度の事業・中身の違いのどれでもなければ終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート）。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo`。台帳を書かない）でも確かめ（`tools/check_links.py`）でも止め、誤りの事業を表示する |
 
 一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
 
