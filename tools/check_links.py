@@ -1,10 +1,13 @@
-"""台帳 links/mention.tsv と links/relink.tsv を確かめる（LINK_SCHEMA.md §5・§6・§11、DESIGN.md §5 工程4-4）。
-ビルドのたびに動かす。
+"""台帳 links/mention.tsv・links/relink.tsv・links/fuhyo.tsv を確かめる（LINK_SCHEMA.md §5・§6・§11、
+DESIGN.md §5 工程4-4・工程5）。ビルドのたびに動かす。
 
 inputs.lock.json の版の入力で、台帳の形（§11）・§5 の照合・根拠の消失・台帳と lock の版・sentinel を確かめる。
 links/relink.tsv（人が付け替えた行。無ければ0行）には、台帳の形・§5 の照合・sentinel・付け替えの元・
 付け替えの重なりをかける（台帳と lock の版・根拠の消失はかけない。機械が作らないため）。
-台帳には書かない。一覧と報告は build/links/mention/ に、relink の一覧は build/links/relink/ に書く。
+links/fuhyo.tsv（附表の台帳）には、mention と同じ検査と、附表の分類（§11）をかける。無ければ、
+tools/update_links.py --ledger fuhyo を先に動かすよう示して止める。
+台帳には書かない。一覧と報告は build/links/mention/ に、relink の一覧は build/links/relink/ に、
+附表の一覧と報告は build/links/fuhyo/ に書く。
 
 実行: python3 -B tools/check_links.py
 終了コード：0 は合格（移動・移動先が見つからない rejected は一覧に出すだけ）。1 は止めた（件数と該当を表示する）。
@@ -15,6 +18,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import gen_fuhyo  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
@@ -25,6 +29,9 @@ OUT_DIR = os.path.join(gm.ROOT, "build", "links", METHOD)
 RELINK = "relink"
 RELINK_PATH = os.path.join(gm.ROOT, "links", f"{RELINK}.tsv")
 RELINK_OUT_DIR = os.path.join(gm.ROOT, "build", "links", RELINK)
+FUHYO = gen_fuhyo.METHOD
+FUHYO_PATH = os.path.join(gm.ROOT, "links", f"{FUHYO}.tsv")
+FUHYO_OUT_DIR = os.path.join(gm.ROOT, "build", "links", FUHYO)
 EXAMPLES = 10
 
 
@@ -93,6 +100,50 @@ def run(built, ledger_path, outdir, relink_path=None, relink_outdir=None):
     return rep.exit_code, rows, rep
 
 
+def fuhyo_report_lines(rows, rep):
+    c = rep.checked.counts
+    cl = rep.classification
+    L = ["# 台帳の確かめ（links/fuhyo.tsv）", "",
+         f"- 附表の台帳：{len(rows)} 行（{'・'.join(f'{s} {sum(1 for r in rows if r['status'] == s)}' for s in ledger.STATUSES)}。"
+         f"node {sum(1 for r in rows if r['to'].startswith('node:'))}・none {sum(1 for r in rows if r['to'].startswith('none:'))}）",
+         f"- 附表の §5 の照合（confirmed・candidate）：一致 {c[ledger.MATCH]}・移動 {c[ledger.MOVED]}・停止 {c[ledger.STOPPED]}",
+         f"- 附表の根拠の消失（再生成で出なくなった confirmed）：{len(rep.merged.vanished_confirmed)}",
+         f"- 附表の台帳と lock の版：作り直した台帳と違う行 {len(rep.stale)}",
+         f"- 附表の sentinel：{len(rows) - sum(1 for r in rows if r['status'] == ledger.REJECTED)} 行で確かめ、"
+         f"一致になった行 {len(rep.sentinel_failures)}",
+         f"- 附表の分類：附表の事業 {cl.total}・分類済み {len(cl.classified)}・候補のある事業 {len(cl.pending)}・"
+         f"行の無い事業 {len(cl.missing)}・none と node の両方が確定 {len(cl.both)}・候補をすべて却下 {len(cl.all_rejected)}",
+         f"- 附表の台帳の判定：{'合格' if rep.exit_code == 0 else '停止'}"]
+    if rep.checked.stopped:
+        L += ["", f"附表の §5 の照合で停止した行（build/links/fuhyo/stopped.tsv。先頭{EXAMPLES}件）：", ""]
+        L += [f"- {r['from']} {r['to']}：{r['reason']}" for r in rep.checked.stopped[:EXAMPLES]]
+    if rep.stale:
+        L += ["", f"附表の台帳が lock の版で更新されていない。tools/update_links.py --ledger fuhyo を先に動かす。"
+                  f"違う行（先頭{EXAMPLES}件）：", ""]
+        L += [f"- {' '.join(k)}" for k in rep.stale[:EXAMPLES]]
+    if rep.sentinel_failures:
+        L += ["", f"附表の sentinel で一致になった行（先頭{EXAMPLES}件）：", ""]
+        L += [f"- {r['from']} {r['to']}：{r['context']}" for r in rep.sentinel_failures[:EXAMPLES]]
+    if cl.errors:
+        L += ["", "附表の分類の誤り（全件）：", ""]
+        L += [f"- {e}" for e in cl.errors]
+    return L
+
+
+def run_fuhyo(fbuilt, ledger_path, outdir):
+    """附表の台帳を確かめる。返り値は（終了コード、台帳の行、Report）。台帳には書かない。
+    台帳が無ければ、tools/update_links.py --ledger fuhyo を先に動かすよう示して止める。"""
+    if not os.path.exists(ledger_path):
+        raise ledger.LedgerError(f"附表の台帳が無い（{ledger_path}）。tools/update_links.py --ledger fuhyo を先に動かす")
+    rows = ledger.read_ledger(ledger_path, FUHYO)
+    rep = ledger.check_ledger(rows, gen_fuhyo.generated_rows(fbuilt), gen_fuhyo.corpus(fbuilt), relink_rows=None,
+                              fuhyo_keys=gen_fuhyo.fuhyo_keys(fbuilt))
+    ledger.write_lists(outdir, rep.checked, rep.merged, update=False)
+    with open(os.path.join(outdir, "check.md"), "wb") as f:
+        f.write(("\n".join(fuhyo_report_lines(rows, rep)) + "\n").encode("utf-8"))
+    return rep.exit_code, rows, rep
+
+
 def main():
     try:
         refs = mention.load_refs(gm.LINEAGE, gm.ALIASES)
@@ -106,7 +157,16 @@ def main():
         return 1
     lines = report_lines(rows, rep)[2:]
     print("\n".join(lines), file=sys.stderr if code else sys.stdout)
-    return code
+    # 附表の台帳（mention・relink の報告のあとに出す）
+    try:
+        fcode, frows, frep = run_fuhyo(gen_fuhyo.build(gen_fuhyo.read_fuhyo_inputs(gi, lock)), FUHYO_PATH, FUHYO_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print("\n".join(fuhyo_report_lines(frows, frep)[2:]), file=sys.stderr if fcode else sys.stdout)
+    total = 1 if (code or fcode) else 0
+    print(f"- 全体の判定：{'合格' if total == 0 else '停止'}", file=sys.stderr if total else sys.stdout)
+    return total
 
 
 if __name__ == "__main__":

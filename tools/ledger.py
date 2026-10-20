@@ -1,8 +1,9 @@
-"""リンク台帳の読み書き・照合・併合（LINK_SCHEMA.md §1〜§3・§5・§6・§11、DESIGN.md §5 工程4-3・4-4）。
+"""リンク台帳の読み書き・照合・併合（LINK_SCHEMA.md §1〜§3・§5・§6・§11、DESIGN.md §5 工程4-3・4-4・工程5）。
 
 台帳（links/<method>.tsv）の形を確かめて読み書きし、§5 の照合と §6 の併合、§11 の sentinel を行う関数を置く。
 人が付け替えた行の台帳（links/relink.tsv）は、付け替えの元と付け替えの重なり（§6・§11）も確かめる。
-入力のリポジトリは読まない。読むのは tools/update_links.py・tools/check_links.py が gen_mentions で
+附表の台帳（links/fuhyo.tsv）は、附表の分類（§11）も確かめる。
+入力のリポジトリは読まない。読むのは tools/update_links.py・tools/check_links.py が gen_mentions・gen_fuhyo で
 lock の版から作ったデータだけ（§10）。機械は status を confirmed・rejected にしない（DESIGN.md ADR-2）。
 """
 import os
@@ -24,22 +25,28 @@ RELINK_CONFLICT_COLUMNS = ["from", "to", "relink_status", "mention_status", "con
 
 CANDIDATE, CONFIRMED, REJECTED = "candidate", "confirmed", "rejected"
 STATUSES = (CANDIDATE, CONFIRMED, REJECTED)
-METHODS = ("mention", "program", "semantic", "relink")
+METHODS = ("mention", "program", "semantic", "relink", "fuhyo")
 MATCH, MOVED, STOPPED = "一致", "移動", "停止"
 NEIGHBORS = 5  # §5：連番の前後5以内
 SENTINEL_MARKS = ("〓", "※")  # §11：context に「〓」が含まれるときは「※」
+NONE_LABEL = "記載なし"  # §3：none の to_label
 
 KEY_FORMS = {
     "bq": re.compile(r"bq:[0-9]+/[^/\s]+/[0-9]+"),
     "sp": re.compile(r"sp:[0-9]{10}_[^\s]+_[0-9]{4}"),
+    "fh": re.compile(r"fh:[a-z0-9][a-z0-9-]*/b[0-9]{3,}"),
     "plan": re.compile(r"plan:[a-z0-9][a-z0-9-]*"),
     "lin": re.compile(r"lin:[a-z0-9][a-z0-9-]*/[0-9]+"),
     "node": re.compile(r"node:[a-z0-9][a-z0-9-]*/e[0-9]{3,}"),
+    "none": re.compile(r"none:[a-z0-9][a-z0-9-]*"),
 }
-FROM_KINDS, TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")
-TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin")}  # §11：mention と relink の台帳の to は plan・lin だけ
+FROM_KINDS, TO_KINDS = ("bq", "sp", "fh"), ("plan", "lin", "node", "none")
+# §11：台帳ごとの from・to の種類。mention と relink は from が bq・sp、to が plan・lin。fuhyo は from が fh、to が node・none
+FROM_KINDS_OF = {"fuhyo": ("fh",)}
+TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none")}
+DEFAULT_FROM_KINDS, DEFAULT_TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")  # program・semantic（§3）
 HUMAN_ONLY = ("relink",)  # §6：機械が作らない台帳。candidate を置かない
-WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",)}
+WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",), "fh": ("name",)}
 
 
 class LedgerError(gm.GenError):
@@ -68,9 +75,11 @@ def _row_errors(n, r, method):
     fk, tk = _kind(r["from"]), _kind(r["to"])
     if fk not in FROM_KINDS or not KEY_FORMS[fk].fullmatch(r["from"]):
         errs.append(f"from の形が違う（{r['from']!r}）")
+    elif fk not in FROM_KINDS_OF.get(method, DEFAULT_FROM_KINDS):
+        errs.append(f"{method} の台帳の from に {fk} は使えない（{r['from']}）")
     if tk not in TO_KINDS or not KEY_FORMS[tk].fullmatch(r["to"]):
         errs.append(f"to の形が違う（{r['to']!r}）")
-    elif tk not in TO_KINDS_OF.get(method, TO_KINDS):
+    elif tk not in TO_KINDS_OF.get(method, DEFAULT_TO_KINDS):
         errs.append(f"{method} の台帳の to に {tk} は使えない（{r['to']}）")
     if r["method"] != method:
         errs.append(f"method が台帳のファイル（{method}）と違う（{r['method']!r}）")
@@ -183,6 +192,8 @@ class Corpus:
     fields: dict   # bq のキー → {where: [正規化した本文, …]}
     names: dict    # manifest の id → name
     refs: object
+    fuhyo: dict = field(default_factory=dict)     # (附表id, key) → 附表の事業（name は元の表記）
+    programs: dict = field(default_factory=dict)  # (計画id, key) → 計画の事業（name は元の表記）
 
 
 def make_corpus(inputs, refs):
@@ -234,11 +245,32 @@ def match_row(row, corpus, context=None):
         if any(ctx in t for t in f.get(row["where"], [])):
             return Match(MATCH)
         return Match(STOPPED, reason=f"欄（{row['where']}）に含まれない")
+    if kind == "fh":
+        item = corpus.fuhyo.get(tuple(row["from"][3:].split("/", 1)))
+        if item is None:
+            return Match(STOPPED, reason="附表の事業が無い")
+        if mention.normalize(item["name"]) != ctx:
+            return Match(STOPPED, reason=f"事業名が context と違う（いまの事業名：{item['name']}）")
+        return Match(MATCH)
     raise LedgerError(f"from の形が違う（{row['from']}）")
 
 
 def match_label(row, corpus):
-    """plan・lin の to_label の照合（§5）。node は工程8で足す。"""
+    """to の照合（§5）。plan・lin は名称、node は計画の事業の有無と事業名、none は「記載なし」と manifest の id。"""
+    kind = _kind(row["to"])
+    if kind == "node":
+        item = corpus.programs.get(tuple(row["to"][5:].split("/", 1)))
+        if item is None:
+            return Match(STOPPED, reason="計画の事業が無い")
+        if item["name"] != row["to_label"]:
+            return Match(STOPPED, reason=f"事業名が違う（いまの事業名：{item['name']}）")
+        return Match(MATCH)
+    if kind == "none":
+        if row["to_label"] != NONE_LABEL:
+            return Match(STOPPED, reason=f"to_label が「{NONE_LABEL}」でない")
+        if row["to"][5:] not in corpus.names:
+            return Match(STOPPED, reason="計画が manifest に無い")
+        return Match(MATCH)
     try:
         name = gm.to_label(row["to"], corpus.names, corpus.refs)
     except gm.GenError:
@@ -399,22 +431,69 @@ class Report:
     stale: list          # 作り直した台帳といまの台帳で違う行（(from, to, method)）
     sentinel_failures: list
     relink: "RelinkReport" = None
+    classification: "Classification" = None  # 附表の台帳だけ（§11 附表の分類）
 
     @property
     def exit_code(self):
         bad = (self.checked.stopped or self.merged.vanished_confirmed or self.stale or self.sentinel_failures
-               or (self.relink is not None and self.relink.exit_code))
+               or (self.relink is not None and self.relink.exit_code)
+               or (self.classification is not None and self.classification.errors))
         return 1 if bad else 0
 
 
-def check_ledger(ledger_rows, gen_rows, corpus, relink_rows=()):
-    """台帳を確かめる（§5・§6・§11）。台帳は parse_ledger を通したものを渡す。relink の台帳もあわせて確かめる。"""
-    merged = merge(ledger_rows, gen_rows, corpus, relink_rows)
+def check_ledger(ledger_rows, gen_rows, corpus, relink_rows=(), fuhyo_keys=None):
+    """台帳を確かめる（§5・§6・§11）。台帳は parse_ledger を通したものを渡す。
+    relink_rows が None でなければ relink の台帳もあわせて確かめ、fuhyo_keys（附表の全事業の fh）を渡すと附表の分類も確かめる。"""
+    merged = merge(ledger_rows, gen_rows, corpus, relink_rows or ())
     now = {_key(r): r for r in ledger_rows}
     redo = {_key(r): r for r in merged.rows}
     stale = sorted(k for k in now.keys() | redo.keys() if now.get(k) != redo.get(k))
     return Report(check_rows(ledger_rows, corpus), merged, stale, sentinel(ledger_rows, corpus),
-                  check_relink(list(relink_rows), ledger_rows, corpus))
+                  None if relink_rows is None else check_relink(list(relink_rows), ledger_rows, corpus),
+                  None if fuhyo_keys is None else classify_fuhyo(ledger_rows, fuhyo_keys))
+
+
+# ---- 附表の分類（§7 fuhyo・§11） ----
+
+@dataclass
+class Classification:
+    total: int            # 附表の事業の数
+    classified: list      # confirmed の node か none で分類された事業（candidate が無い）
+    pending: list         # まだ candidate のある事業
+    missing: list         # 台帳に行が無い事業
+    both: list            # confirmed の none と confirmed の node が両方ある事業
+    all_rejected: list    # candidate も confirmed も無い事業（候補をすべて却下した）
+
+    @property
+    def errors(self):
+        """§11 の附表の分類の誤り（文の一覧）。空なら合格。"""
+        return ([f"{f}：台帳に行が無い" for f in self.missing]
+                + [f"{f}：confirmed の none と confirmed の node が両方ある" for f in self.both]
+                + [f"{f}：candidate も confirmed も無い（候補をすべて却下した）" for f in self.all_rejected])
+
+
+def classify_fuhyo(rows, fuhyo_keys):
+    """§11 附表の分類：附表の全事業（fuhyo_keys）が from に1行以上あり、none と node の確定が重ならず、
+    candidate の無い事業には confirmed がある。分類済みの事業とまだ candidate のある事業も数える。"""
+    by_from = {}
+    for r in rows:
+        by_from.setdefault(r["from"], []).append(r)
+    out = Classification(len(fuhyo_keys), [], [], [], [], [])
+    for f in fuhyo_keys:
+        rs = by_from.get(f, [])
+        if not rs:
+            out.missing.append(f)
+            continue
+        confirmed = {_kind(r["to"]) for r in rs if r["status"] == CONFIRMED}
+        if {"node", "none"} <= confirmed:
+            out.both.append(f)
+        elif any(r["status"] == CANDIDATE for r in rs):
+            out.pending.append(f)
+        elif confirmed:
+            out.classified.append(f)
+        else:
+            out.all_rejected.append(f)
+    return out
 
 
 # ---- 付け替え（§6・§11） ----

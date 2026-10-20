@@ -1,24 +1,31 @@
 """tools/ledger.py・tools/update_links.py・tools/check_links.py の検査（LINK_SCHEMA.md §1〜§3・§5・§6・§11、
-DESIGN.md §5 工程4-3・4-4）。
+DESIGN.md §5 工程4-3・4-4・工程5）。
 
 実行: python3 -B tools/test_ledger.py -v
 入力のデータは小さな見本を使い、候補は tools/gen_mentions.py の build で作る。参照表は実物（ref/lineage.tsv・
 ref/aliases.tsv）を読む。参照表の場所は、環境変数 HINO_RONTEN_LINEAGE・HINO_RONTEN_ALIASES で変えられる。
+附表の台帳の見本は tools/test_gen_fuhyo.py の FuhyoTestCase を使い、候補は tools/gen_fuhyo.py の build で作る。
 """
+import contextlib
+import copy
+import io
 import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import check_links  # noqa: E402
+import gen_fuhyo as gf  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
 import update_links  # noqa: E402
+from test_gen_fuhyo import FUHYO, MANIFEST, NONE, PID, FuhyoTestCase, fh, node  # noqa: E402
 
 LINEAGE = os.environ.get("HINO_RONTEN_LINEAGE", os.path.join(ROOT, "ref", "lineage.tsv"))
 ALIASES = os.environ.get("HINO_RONTEN_ALIASES", os.path.join(ROOT, "ref", "aliases.tsv"))
@@ -812,6 +819,234 @@ class TestNodeKeyForm(unittest.TestCase):
                     "node:jisshi/e136/e001", "node:Jisshi/e136", "node:jisshi/E136"):
             with self.subTest(key=key):
                 self.assertIsNone(ledger.KEY_FORMS["node"].fullmatch(key))
+
+
+# 附表の台帳（links/fuhyo.tsv。§2・§3・§5・§6・§7 fuhyo・§11）
+
+class TestFuhyoKeyForm(unittest.TestCase):
+    def test_fh_and_none(self):
+        """§2：fh は fh:<附表id>/<key>（key は b と3桁以上の数字）、none は none:<計画id>"""
+        for kind, key in (("fh", "fh:fuhyo-r8/b001"), ("fh", "fh:fuhyo-r8/b1000"), ("none", "none:jisshi")):
+            with self.subTest(key=key):
+                self.assertIsNotNone(ledger.KEY_FORMS[kind].fullmatch(key))
+        for kind, key in (("fh", "fh:fuhyo-r8/e001"), ("fh", "fh:fuhyo-r8/b01"), ("fh", "fh:_fuhyotest/b001"),
+                          ("fh", "fh:fuhyo-r8"), ("none", "none:jisshi/e001"), ("none", "none:"), ("none", "none:Jisshi")):
+            with self.subTest(key=key):
+                self.assertIsNone(ledger.KEY_FORMS[kind].fullmatch(key))
+
+
+class TestFuhyoFormat(FuhyoTestCase):
+    def test_round_trip(self):
+        rows = self.fuhyo_base()
+        self.assertEqual(ledger.parse_ledger(ledger.format_ledger(rows), "fuhyo"), rows)
+
+    def test_kinds_by_ledger(self):
+        """§11 キーの形式：fuhyo の台帳は from が fh、to が node・none だけ。mention・relink の台帳は fh・none を使えない"""
+        rows = self.fuhyo_base()
+        cases = {"fuhyo の from に sp": ("fuhyo", {"from": "sp:0000000001_kaigiroku-honbun_0002"}, "from に sp は使えない"),
+                 "fuhyo の from に bq": ("fuhyo", {"from": "bq:35/中西佳子/1"}, "from に bq は使えない"),
+                 "fuhyo の to に plan": ("fuhyo", {"to": "plan:jisshi"}, "to に plan は使えない"),
+                 "fuhyo の to に lin": ("fuhyo", {"to": "lin:kodomo/2"}, "to に lin は使えない"),
+                 "fuhyo の where": ("fuhyo", {"where": "text"}, "where が name でない"),
+                 "mention に fuhyo の行": ("mention", {"method": "mention"}, "mention の台帳の from に fh は使えない"),
+                 "relink に fuhyo の行": ("relink", {"method": "relink", "status": "confirmed", "reviewer": "見本",
+                                                   "date": "2026-10-20"}, "relink の台帳の from に fh は使えない")}
+        for name, (method, change, needle) in cases.items():
+            with self.subTest(name=name):
+                r = dict(self.row(rows, fh("b001"), node("e001")), **change)
+                with self.assertRaises(ledger.LedgerError) as cm:
+                    ledger.parse_ledger(ledger.format_ledger([r]), method)
+                self.assertIn(needle, str(cm.exception))
+        # mention の台帳の to に none は使えない
+        r = dict(self.row(rows, fh("b012"), NONE), method="mention", **{"from": "sp:0000000001_kaigiroku-honbun_0002"},
+                 where="text")
+        with self.assertRaises(ledger.LedgerError) as cm:
+            ledger.parse_ledger(ledger.format_ledger([r]), "mention")
+        self.assertIn("mention の台帳の to に none は使えない", str(cm.exception))
+
+
+class TestFuhyoMatch(FuhyoTestCase):
+    """§5：fh は附表の事業の key と事業名、node は計画の事業の key と事業名、none は「記載なし」と manifest の id"""
+
+    def stopped(self, rows, **kw):
+        ck = ledger.check_rows(rows, gf.corpus(self.built(**kw)))
+        return {(r["from"], r["to"]): r["reason"] for r in ck.stopped}
+
+    def test_base_all_match(self):
+        rows = self.fuhyo_base()
+        ck = ledger.check_rows(rows, gf.corpus(self.built()))
+        self.assertEqual((ck.counts[ledger.MATCH], ck.counts[ledger.STOPPED], ck.moved), (16, 0, []))
+
+    def test_fh_stops(self):
+        rows = self.fuhyo_base()
+        renamed = self.stopped(rows, fuhyo=self.edited_fuhyo("b001", name="子育て応援事業"))
+        self.assertEqual(renamed, {(fh("b001"), node("e001")): "事業名が context と違う（いまの事業名：子育て応援事業）"})
+        gone = copy_fuhyo_without("b012")
+        self.assertEqual(self.stopped(rows, fuhyo=gone), {(fh("b012"), NONE): "附表の事業が無い"})
+
+    def test_node_stops(self):
+        rows = self.fuhyo_base()
+        renamed = self.stopped(rows, plan=self.edited_plan("e001", name="子育て応援事業"))
+        self.assertEqual(renamed, {(fh("b001"), node("e001")): "事業名が違う（いまの事業名：子育て応援事業）",
+                                   (fh("b004"), node("e001")): "事業名が違う（いまの事業名：子育て応援事業）"})
+        gone = self.stopped(rows, plan=self.edited_plan("e013", key="e099"))
+        self.assertEqual(gone, {(fh("b013"), node("e013")): "計画の事業が無い"})
+
+    def test_none_stops(self):
+        rows = [dict(r, to_label="なし") if r["from"] == fh("b012") else r for r in self.fuhyo_base()]
+        self.assertEqual(self.stopped(rows), {(fh("b012"), NONE): "to_label が「記載なし」でない"})
+        other = {"schema": 1, "plans": [{"id": "kodomo", "name": "見本"}]}
+        stopped = self.stopped(self.fuhyo_base(), manifest=other)
+        self.assertEqual(len(stopped), 5)
+        self.assertEqual(set(stopped.values()), {"計画が manifest に無い"})
+
+    def test_sentinel(self):
+        """§11 sentinel：context の1文字を替えると、附表の全行（confirmed・candidate）が停止になる"""
+        rows = self.decide(self.fuhyo_base(), fh("b001"), node("e001"), "confirmed")
+        corpus = gf.corpus(self.built())
+        self.assertEqual(ledger.sentinel(rows, corpus), [])
+        for r in rows:
+            with self.subTest(row=(r["from"], r["to"])):
+                changed = ledger.mutate_context(r["context"])
+                self.assertEqual(ledger.match_row(r, corpus, context=changed).result, ledger.STOPPED)
+
+
+def copy_fuhyo_without(key):
+    """見本の附表の写しから、key の事業を除いたもの。"""
+    out = copy.deepcopy(FUHYO)
+    for p in out["pillars"]:
+        p["items"] = [it for it in p["items"] if it["key"] != key]
+    return out
+
+
+class TestClassify(FuhyoTestCase):
+    """§11 附表の分類：行の無い事業・none と node の両方の確定・候補をすべて却下で止め、分類済みと候補のある事業を数える"""
+
+    def keys(self):
+        return gf.fuhyo_keys(self.built())
+
+    def test_base(self):
+        cl = ledger.classify_fuhyo(self.fuhyo_base(), self.keys())
+        self.assertEqual((cl.total, len(cl.classified), len(cl.pending), cl.errors), (8, 0, 8, []))
+
+    def test_classified(self):
+        rows = self.decide(self.fuhyo_base(), fh("b001"), node("e001"), "confirmed")
+        rows = self.decide(rows, fh("b002"), node("e002"), "rejected")
+        rows = self.decide(rows, fh("b002"), NONE, "confirmed")
+        cl = ledger.classify_fuhyo(rows, self.keys())
+        self.assertEqual((cl.classified, len(cl.pending), cl.errors), ([fh("b001"), fh("b002")], 6, []))
+
+    def test_three_errors(self):
+        rows = [r for r in self.fuhyo_base() if r["from"] != fh("b012")]               # 行の無い事業
+        rows = self.decide(rows, fh("b002"), node("e002"), "confirmed")
+        rows = self.decide(rows, fh("b002"), NONE, "confirmed")                         # none と node の両方
+        rows = self.decide(rows, fh("b001"), node("e001"), "rejected")                  # 候補をすべて却下
+        cl = ledger.classify_fuhyo(rows, self.keys())
+        self.assertEqual((cl.missing, cl.both, cl.all_rejected), ([fh("b012")], [fh("b002")], [fh("b001")]))
+        self.assertEqual(len(cl.errors), 3)
+        b = self.built()
+        rep = ledger.check_ledger(rows, gf.generated_rows(b), gf.corpus(b), relink_rows=None, fuhyo_keys=self.keys())
+        self.assertEqual((rep.relink, len(rep.classification.errors), rep.exit_code), (None, 3, 1))
+        self.assertEqual(rep.stale, [(fh("b012"), NONE, "fuhyo")])  # 行を除いた事業は、作り直した台帳とも違う
+
+    def test_pending_with_partial_decision(self):
+        # 一部だけ判定して candidate が残る事業は、候補のある事業に数える（誤りにしない）
+        rows = self.decide(self.fuhyo_base(), fh("b002"), node("e002"), "confirmed")
+        cl = ledger.classify_fuhyo(rows, self.keys())
+        self.assertEqual((fh("b002") in cl.pending, cl.errors), (True, []))
+
+
+class TestFuhyoTools(FuhyoTestCase):
+    """update_links.run_fuhyo と check_links.run_fuhyo（§6・§11）"""
+
+    def files(self, d):
+        return TestTools.files(self, d)
+
+    def test_update_then_check(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "links", "fuhyo.tsv"), os.path.join(d, "build")
+            code, merged, checked, cl = update_links.run_fuhyo(self.built(), path, out)
+            self.assertEqual((code, len(merged.added), len(merged.rows), len(cl.pending)), (0, 16, 16, 8))
+            self.assertEqual(sorted(os.listdir(out)), ["moved.tsv", "note_changed.tsv", "rejected_unmatched.tsv",
+                                                       "removed.tsv", "stopped.tsv", "update.md", "vanished.tsv"])
+            code, rows, rep = check_links.run_fuhyo(self.built(), path, out)
+            self.assertEqual((code, len(rows), rep.relink), (0, 16, None))
+            with open(os.path.join(out, "check.md"), encoding="utf-8") as f:
+                text = f.read()
+            self.assertIn("附表の分類：附表の事業 8・分類済み 0・候補のある事業 8", text)
+            self.assertIn("附表の台帳の判定：合格", text)
+
+    def test_twice_identical(self):
+        outs = []
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "links", "fuhyo.tsv")
+            for n in range(2):
+                out = os.path.join(d, f"build{n}")
+                code, merged, _, _ = update_links.run_fuhyo(self.built(), path, out)
+                self.assertEqual(code, 0)
+                with open(path, "rb") as f:
+                    outs.append((self.files(out), f.read()))
+            self.assertEqual(len(merged.added), 0)
+        self.assertEqual(outs[0][1], outs[1][1])
+        self.assertEqual({k: v for k, v in outs[0][0].items() if k != "update.md"},
+                         {k: v for k, v in outs[1][0].items() if k != "update.md"})
+
+    def test_decided_rows_kept(self):
+        # confirmed・rejected の行は、再生成で11列とも変えない
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "fuhyo.tsv"), os.path.join(d, "build")
+            rows = self.decide(self.fuhyo_base(), fh("b002"), node("e002"), "confirmed")
+            rows = self.decide(rows, fh("b002"), NONE, "rejected", note="見本の却下の理由")
+            ledger.write_ledger(path, rows)
+            code, merged, _, cl = update_links.run_fuhyo(self.built(), path, out)
+            self.assertEqual((code, ledger.read_ledger(path, "fuhyo"), cl.classified), (0, rows, [fh("b002")]))
+
+    def test_missing_ledger_stops(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ledger.LedgerError) as cm:
+                check_links.run_fuhyo(self.built(), os.path.join(d, "fuhyo.tsv"), os.path.join(d, "build"))
+            self.assertIn("tools/update_links.py --ledger fuhyo を先に動かす", str(cm.exception))
+
+    def test_stale_ledger_stops(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "fuhyo.tsv"), os.path.join(d, "build")
+            ledger.write_ledger(path, [r for r in self.fuhyo_base() if r["from"] != fh("b013")])
+            code, _, rep = check_links.run_fuhyo(self.built(), path, out)
+            self.assertEqual((code, len(rep.stale), rep.classification.missing), (1, 3, [fh("b013")]))
+
+    def test_classification_error_stops_check(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "fuhyo.tsv"), os.path.join(d, "build")
+            ledger.write_ledger(path, self.decide(self.fuhyo_base(), fh("b001"), node("e001"), "rejected"))
+            code, _, rep = check_links.run_fuhyo(self.built(), path, out)
+            self.assertEqual((code, rep.stale, rep.classification.all_rejected), (1, [], [fh("b001")]))
+            with open(os.path.join(out, "check.md"), encoding="utf-8") as f:
+                self.assertIn("候補をすべて却下した", f.read())
+
+    def test_update_stops_without_writing(self):
+        # confirmed の行が出なくなった（附表の事業名が、計画のどの事業名とも2文字の組を共有しない名前に変わった）
+        # → 終了コード1、台帳は書かない
+        with tempfile.TemporaryDirectory() as d:
+            path, out = os.path.join(d, "fuhyo.tsv"), os.path.join(d, "build")
+            ledger.write_ledger(path, self.decide(self.fuhyo_base(), fh("b001"), node("e001"), "confirmed"))
+            with open(path, "rb") as f:
+                before = f.read()
+            built = self.built(fuhyo=self.edited_fuhyo("b001", name="見本の取り組み"))
+            code, merged, checked, _ = update_links.run_fuhyo(built, path, out)
+            with open(path, "rb") as f:
+                self.assertEqual((code, f.read()), (1, before))
+            self.assertEqual(len(merged.vanished_confirmed), 1)
+            self.assertEqual([r["from"] for r in checked.stopped], [fh("b001")])
+
+    def test_usage(self):
+        # 使い方の誤りは終了コード1。入力を読まない（mention の形は引数なし）
+        for args in (["--ledger"], ["--ledger", "mention"], ["--ledger", "fuhyo", "x"], ["fuhyo"]):
+            with self.subTest(args=args):
+                err = io.StringIO()
+                with mock.patch.object(gm, "load_lock", side_effect=AssertionError("使い方の誤りで入力を読んだ")), \
+                        contextlib.redirect_stderr(err):
+                    self.assertEqual(update_links.main(["update_links.py"] + args), 1)
+                self.assertIn(update_links.USAGE, err.getvalue())
 
 
 if __name__ == "__main__":

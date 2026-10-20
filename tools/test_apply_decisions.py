@@ -1,7 +1,8 @@
-"""tools/apply_decisions.py の検査（LINK_SCHEMA.md §1・§3・§6、DESIGN.md §5 工程4-5）。
+"""tools/apply_decisions.py の検査（LINK_SCHEMA.md §1・§3・§6・§7 fuhyo・§11、DESIGN.md §5 工程4-5・工程5）。
 
 実行: python3 -B tools/test_apply_decisions.py -v
-見本の入力と台帳は tools/test_ledger.py と同じもの（LedgerTestCase）を使う。
+見本の入力と台帳は tools/test_ledger.py と同じもの（LedgerTestCase）を使う。附表の台帳の見本は
+tools/test_gen_fuhyo.py の FuhyoTestCase を使う。
 """
 import contextlib
 import io
@@ -15,8 +16,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import apply_decisions as ad  # noqa: E402
+import gen_fuhyo as gf  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
+from test_gen_fuhyo import NONE, FuhyoTestCase, fh, node  # noqa: E402
 from test_ledger import BQ, FILLER, TEXTS, TEXTS_TWO, LedgerTestCase, sid  # noqa: E402
 
 S1, S2, S4 = f"sp:{sid(1)}", f"sp:{sid(2)}", f"sp:{sid(4)}"
@@ -467,6 +470,115 @@ class TestScope(ApplyTestCase):
                           "書き写す前の件数：plan:kodomo confirmed 1・rejected 0",
                           "書き写す前の件数：plan:kyoiku4 confirmed 1・rejected 0",
                           "書き写す前の件数：付け替え 0"])
+
+
+# 8. 附表の台帳（--ledger fuhyo。§6・§7 fuhyo・§11）
+class TestFuhyo(FuhyoTestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ledger_path = os.path.join(self.tmp.name, "fuhyo.tsv")
+        self.decisions_path = os.path.join(self.tmp.name, "decisions.tsv")
+        self.keys_path = os.path.join(self.tmp.name, "keys.tsv")
+        self.out = os.path.join(self.tmp.name, "build")
+        self.printed = io.StringIO()
+        ledger.write_ledger(self.ledger_path, self.fuhyo_base())
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def ledger_bytes(self):
+        with open(self.ledger_path, "rb") as f:
+            return f.read()
+
+    def dec(self, frm, to, status, note=""):
+        r = self.row(self.fuhyo_base(), frm, to)
+        return {"from": frm, "to": to, "method": "fuhyo", "context": r["context"], "status": status,
+                "reviewer": "kken78", "date": "2026-10-20", "note": note, ad.RELINK_TO: ""}
+
+    def write_files(self, rows, columns=ad.DECISION_COLUMNS, keys=None):
+        data = "\n".join(["\t".join(columns)] + ["\t".join(d[c] for c in columns) for d in rows]) + "\n"
+        with open(self.decisions_path, "wb") as f:
+            f.write(data.encode("utf-8"))
+        keys = keys if keys is not None else [(d["from"], d["to"], d["method"]) for d in rows]
+        with open(self.keys_path, "wb") as f:
+            f.write(("\n".join(["\t".join(ad.KEY_COLUMNS)] + ["\t".join(k) for k in keys]) + "\n").encode("utf-8"))
+
+    def write(self):
+        return ad.write_fuhyo(self.decisions_path, self.keys_path, self.ledger_path, self.built(), self.printed)
+
+    def assert_stops_without_writing(self, rows, needle, **kw):
+        before = self.ledger_bytes()
+        self.write_files(rows, **kw)
+        with self.assertRaises(ad.DecisionError) as cm:
+            self.write()
+        self.assertEqual(self.ledger_bytes(), before)  # 1件も書かない
+        self.assertEqual(self.printed.getvalue(), "")
+        self.assertIn(needle, str(cm.exception))
+        return str(cm.exception)
+
+    def test_apply_and_counts(self):
+        rows = [self.dec(fh("b001"), node("e001"), "confirmed"),
+                self.dec(fh("b002"), node("e002"), "rejected", note="事業の中身が違う"),
+                self.dec(fh("b002"), NONE, "confirmed", note="見本のメモ")]
+        self.write_files(rows)
+        code, applied, after, rep = ad.run_fuhyo(self.decisions_path, self.keys_path, self.ledger_path, self.built(),
+                                                 self.out, out=self.printed)
+        self.assertEqual((code, applied["confirmed"], applied["rejected"]), (0, 2, 1))
+        # 書き写す前の件数は、to の種類（node・none）と status ごと。付け替えの行は無い
+        self.assertEqual(self.printed.getvalue().splitlines(),
+                         ["書き写す前の件数：node confirmed 1・rejected 1",
+                          "書き写す前の件数：none confirmed 1・rejected 0"])
+        base = self.fuhyo_base()
+        self.assertEqual(self.row(after, fh("b002"), node("e002")),
+                         dict(self.row(base, fh("b002"), node("e002")), status="rejected", reviewer="kken78",
+                              date="2026-10-20",
+                              note=f"却下：事業の中身が違う。判別の根拠：{self.row(base, fh('b002'), node('e002'))['note']}"))
+        self.assertEqual((rep.classification.classified, len(rep.classification.pending)), ([fh("b001"), fh("b002")], 6))
+        self.assertEqual(ledger.read_ledger(self.ledger_path, "fuhyo"), after)
+
+    def test_relink_to_refused(self):
+        rows = [self.dec(fh("b001"), node("e001"), "confirmed")]
+        self.assert_stops_without_writing(rows, "relink_to の列を使わない", columns=ad.DECISION_COLUMNS + [ad.RELINK_TO])
+
+    def test_scope_must_hold_all_candidates_of_a_project(self):
+        # b002 の候補は node と none の2行。node だけを判定した範囲は止める
+        msg = self.assert_stops_without_writing([self.dec(fh("b002"), node("e002"), "confirmed")],
+                                                "candidate の行が欠けている")
+        self.assertIn(f"{fh('b002')} {NONE} fuhyo", msg)
+
+    def test_scope_mismatch(self):
+        rows = [self.dec(fh("b001"), node("e001"), "confirmed")]
+        msg = self.assert_stops_without_writing(rows, "範囲の外の行", keys=[(fh("b003"), node("e012"), "fuhyo")])
+        self.assertIn("判定が無い", msg)
+
+    def test_classification_errors(self):
+        both = [self.dec(fh("b002"), node("e002"), "confirmed"), self.dec(fh("b002"), NONE, "confirmed")]
+        self.assert_stops_without_writing(both, "confirmed の none と confirmed の node が両方ある")
+        all_rejected = [self.dec(fh("b002"), node("e002"), "rejected", note="理由"),
+                        self.dec(fh("b002"), NONE, "rejected", note="理由")]
+        self.assert_stops_without_writing(all_rejected, "候補をすべて却下した")
+
+    def test_mention_rules_still_apply(self):
+        # 理由の無い却下・context の違いは、附表の台帳でも止める（apply の検査を通す）
+        self.assert_stops_without_writing([self.dec(fh("b001"), node("e001"), "rejected")], "却下の理由")
+        bad = dict(self.dec(fh("b001"), node("e001"), "confirmed"), context="別の事業")
+        self.assert_stops_without_writing([bad], "context が台帳の行と違う")
+
+    def test_usage(self):
+        cases = {"--keys が無い": ["--ledger", "fuhyo", self.decisions_path],
+                 "判定の一覧が無い": ["--ledger", "fuhyo", "--keys", self.keys_path],
+                 "台帳の名前が違う": ["--ledger", "relink", "--keys", self.keys_path, self.decisions_path],
+                 "--ledger の位置が違う": ["--keys", self.keys_path, self.decisions_path, "--ledger", "fuhyo"]}
+        before = self.ledger_bytes()
+        for name, args in cases.items():
+            with self.subTest(name=name):
+                err, out = io.StringIO(), io.StringIO()
+                with mock.patch.object(gm, "load_lock", side_effect=AssertionError("使い方の誤りで入力を読んだ")), \
+                        mock.patch.object(gf, "load_built", side_effect=AssertionError("使い方の誤りで入力を読んだ")), \
+                        contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                    self.assertEqual(ad.main(["apply_decisions.py"] + args), 1)
+                self.assertIn(ad.USAGE, err.getvalue())
+                self.assertEqual((out.getvalue(), self.ledger_bytes()), ("", before))
 
 
 if __name__ == "__main__":

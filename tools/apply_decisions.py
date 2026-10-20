@@ -10,11 +10,15 @@ relink_to（付け替え先の plan・lin）がある rejected の行は、links
 1行でも合わなければどちらの台帳にも1件も書かず、合わない行をすべて示して止める。台帳を書く前に、to と status
 ごとの件数と付け替えの数を表示する。書いたあとに tools/check_links.py の確かめを動かす（入力のリポジトリは、
 lock の版だけを読む。§10）。
+--ledger fuhyo のときは、附表の台帳 links/fuhyo.tsv に書き写す（§7 fuhyo）。判定の一覧は8列だけを受け付け
+（付け替えは使わない。§6）、範囲には附表の事業ごとにその事業の candidate の行をすべて入れる。書き写したあとの
+台帳に附表の分類（§11）の誤りが出るなら書かない。書き写す前の件数は、to の種類（node・none）と status ごとに表示する。
 
 実行: python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>
+      python3 -B tools/apply_decisions.py --ledger fuhyo --keys <判定した範囲の TSV> <判定の一覧の TSV>
 終了コード：0 は書き写し、確かめも合格。1 は止めた（使い方の誤り、入力の読み込み、範囲の一覧・判定の一覧の誤り、
-範囲と判定の一覧の食い違いで止めたときは台帳に書かない。書いたあとの確かめで合格しなかったときは、台帳は
-書いたまま、件数と該当を表示する）。
+範囲と判定の一覧の食い違い、附表の分類の誤りで止めたときは台帳に書かない。書いたあとの確かめで合格しなかったときは、
+台帳は書いたまま、件数と該当を表示する）。
 """
 import os
 import re
@@ -26,18 +30,20 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import check_links  # noqa: E402
+import gen_fuhyo  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
 
 METHOD = "mention"
 RELINK = check_links.RELINK
+FUHYO = check_links.FUHYO
 DECISION_COLUMNS = ["from", "to", "method", "context", "status", "reviewer", "date", "note"]
 RELINK_TO = "relink_to"
 HEADERS = (DECISION_COLUMNS, DECISION_COLUMNS + [RELINK_TO])  # いまの8列か、relink_to を足した9列
 KEY_COLUMNS = ["from", "to", "method"]  # 判定した範囲の一覧（--keys）の列
 DECIDED = (ledger.CONFIRMED, ledger.REJECTED)
-USAGE = "使い方：python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>"
+USAGE = "使い方：python3 -B tools/apply_decisions.py [--ledger fuhyo] --keys <判定した範囲の TSV> <判定の一覧の TSV>"
 COUNT_PREFIX = "書き写す前の件数："
 REJECT_PREFIX, REJECT_BASIS = "却下：", "。判別の根拠："  # decided_note の rejected の形
 
@@ -67,10 +73,13 @@ def _lines(data, name):
     return text[:-1].split("\n")
 
 
-def parse_decisions(data):
-    """判定の一覧のバイト列を読み、§1 の形（UTF-8・BOMなし・LF・ヘッダ・列の数）を確かめる。"""
+def parse_decisions(data, relink=True):
+    """判定の一覧のバイト列を読み、§1 の形（UTF-8・BOMなし・LF・ヘッダ・列の数）を確かめる。
+    relink が偽（附表の台帳）なら、relink_to の列を受け付けない（§6：附表の台帳では付け替えを使わない）。"""
     lines = _lines(data, "判定の一覧")
     columns = lines[0].split("\t")
+    if not relink and columns == HEADERS[1]:
+        raise DecisionError(f"附表の台帳では {RELINK_TO} の列を使わない（LINK_SCHEMA §6。ヘッダは {DECISION_COLUMNS}）")
     if columns not in HEADERS:
         raise DecisionError(f"判定の一覧のヘッダが {DECISION_COLUMNS} か、その後ろに {RELINK_TO} を足したものでない（{columns}）")
     rows, errs = [], []
@@ -125,6 +134,22 @@ def count_lines(decisions):
              f"{ledger.REJECTED} {counts[(to, ledger.REJECTED)]}"
              for to in sorted({d["to"] for _, d in decisions})]
     return lines + [f"{COUNT_PREFIX}付け替え {sum(1 for _, d in decisions if d[RELINK_TO])}"]
+
+
+def fuhyo_count_lines(decisions):
+    """附表の台帳の書き写す前の件数の行（§11 判定の範囲）。to の種類 node・none の順に confirmed・rejected の件数（0件も書く）。"""
+    counts = Counter((d["to"].partition(":")[0], d["status"]) for _, d in decisions)
+    return [f"{COUNT_PREFIX}{kind} {ledger.CONFIRMED} {counts[(kind, ledger.CONFIRMED)]}・"
+            f"{ledger.REJECTED} {counts[(kind, ledger.REJECTED)]}" for kind in ("node", "none")]
+
+
+def incomplete_scope_errors(keys, ledger_rows):
+    """§7 fuhyo：範囲に入れた附表の事業の candidate の行が、すべて範囲に入っているか。入っていない行の文の一覧。"""
+    in_keys = {k for _, k in keys}
+    froms = {k[0] for k in in_keys}
+    return [f"{r['from']} {r['to']} {r['method']}：範囲に入れた附表の事業の candidate の行が範囲に無い"
+            for r in ledger_rows
+            if r["from"] in froms and r["status"] == ledger.CANDIDATE and (r["from"], r["to"], r["method"]) not in in_keys]
 
 
 def decided_note(status, current, note):
@@ -269,7 +294,48 @@ def run(decisions_path, keys_path, ledger_path, built, outdir, relink_path=None,
     return code, applied, rows, rep
 
 
+def write_fuhyo(decisions_path, keys_path, ledger_path, fbuilt, out=None):
+    """判定の一覧を附表の台帳に書き写して書く（§7 fuhyo）。付け替えは使わない。返り値は書き写した行の数（Counter）。"""
+    with open(decisions_path, "rb") as f:
+        decisions = parse_decisions(f.read(), relink=False)
+    with open(keys_path, "rb") as f:
+        keys = parse_keys(f.read())
+    _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", scope_errors(keys, decisions))
+    current = ledger.read_ledger(ledger_path, FUHYO)
+    _fail("判定した範囲に、附表の事業の candidate の行が欠けている（台帳には書いていない）",
+          incomplete_scope_errors(keys, current))
+    rows, _ = apply(current, decisions)
+    ledger.parse_ledger(ledger.format_ledger(rows), FUHYO)  # 書く前に台帳の形（§1・§3・§11）を確かめる
+    _fail("書き写したあとの台帳に附表の分類の誤りがある（台帳には書いていない）",
+          ledger.classify_fuhyo(rows, gen_fuhyo.fuhyo_keys(fbuilt)).errors)
+    print("\n".join(fuhyo_count_lines(decisions)), file=out or sys.stdout)
+    ledger.write_ledger(ledger_path, rows)
+    old = {(r["from"], r["to"], r["method"]): r for r in current}
+    return Counter(r["status"] for r in rows if old[(r["from"], r["to"], r["method"])] != r)
+
+
+def run_fuhyo(decisions_path, keys_path, ledger_path, fbuilt, outdir, out=None):
+    """附表の台帳に書き写してから check_links.run_fuhyo で確かめる。返り値は（終了コード、書き写した数、台帳の行、Report）。"""
+    applied = write_fuhyo(decisions_path, keys_path, ledger_path, fbuilt, out)
+    code, rows, rep = check_links.run_fuhyo(fbuilt, ledger_path, outdir)
+    return code, applied, rows, rep
+
+
+def main_fuhyo(keys_path, decisions_path):
+    try:
+        code, applied, rows, rep = run_fuhyo(decisions_path, keys_path, check_links.FUHYO_PATH, gen_fuhyo.load_built(),
+                                             check_links.FUHYO_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print(f"書き写した：confirmed {applied[ledger.CONFIRMED]}・rejected {applied[ledger.REJECTED]}")
+    print("\n".join(check_links.fuhyo_report_lines(rows, rep)[2:]), file=sys.stderr if code else sys.stdout)
+    return code
+
+
 def main(argv):
+    if len(argv) == 6 and argv[1:3] == ["--ledger", FUHYO] and argv[3] == "--keys":
+        return main_fuhyo(argv[4], argv[5])
     if len(argv) != 4 or argv[1] != "--keys":
         print(USAGE, file=sys.stderr)
         return 1
