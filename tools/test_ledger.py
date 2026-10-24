@@ -82,7 +82,8 @@ class LedgerTestCase(unittest.TestCase):
         return gm.Inputs(
             lock={"council-dashboard": {"sha": "a" * 40, "files": []},
                   "hino-council-search": {"sha": "b" * 40, "files": []},
-                  "shiga-hino-plans": {"sha": "c" * 40, "files": []}},
+                  "shiga-hino-plans": {"sha": "c" * 40, "files": []},
+                  "hino-town-docs": {"sha": "d" * 40, "files": []}},
             questions=[question(answers)], minutes_links={"35": {"中西 佳子": {"meeting_id": M}}},
             meetings=MEETINGS, index=index_of(texts), proceedings={}, manifest=self.manifest,
             plan_listing=[], ref_hashes={})

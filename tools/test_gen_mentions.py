@@ -502,6 +502,7 @@ class TestLock(unittest.TestCase):
         "council-dashboard": {"sha": "a" * 40, "files": ["docs/data/questions.json"]},
         "hino-council-search": {"sha": "b" * 40, "files": ["public/data/index/*.json"]},
         "shiga-hino-plans": {"sha": "c" * 40, "files": ["data/manifest.json"]},
+        "hino-town-docs": {"sha": "d" * 40, "files": ["data/sources.tsv"]},
     }
 
     def test_match(self):
@@ -524,7 +525,8 @@ class TestLock(unittest.TestCase):
             p = os.path.join(d, "inputs.lock.json")
             for lock in [self.LOCK,
                          {**self.LOCK, "council-dashboard": {"sha": "a" * 39, "files": ["x"]}},
-                         {k: v for k, v in self.LOCK.items() if k != "shiga-hino-plans"}]:
+                         {k: v for k, v in self.LOCK.items() if k != "shiga-hino-plans"},
+                         {k: v for k, v in self.LOCK.items() if k != "hino-town-docs"}]:
                 with open(p, "w", encoding="utf-8") as f:
                     json.dump(lock, f)
                 if lock is self.LOCK:
@@ -570,7 +572,8 @@ class TestDeterministic(GenTestCase):
         return gm.Inputs(
             lock={"council-dashboard": {"sha": "a" * 40, "files": []},
                   "hino-council-search": {"sha": "b" * 40, "files": []},
-                  "shiga-hino-plans": {"sha": "c" * 40, "files": []}},
+                  "shiga-hino-plans": {"sha": "c" * 40, "files": []},
+                  "hino-town-docs": {"sha": "d" * 40, "files": []}},
             questions=[question(35, "中西 佳子", 1, "総合計画", question_text="第3期子ども・子育て支援事業計画「の」",
                                 answers=[{"label": "町長", "text": "教育振興基本計画"}]),
                        question(36, "日野 一郎", 1, "地域防災計画")],

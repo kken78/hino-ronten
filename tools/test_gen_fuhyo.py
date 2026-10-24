@@ -71,7 +71,8 @@ MANIFEST = {"schema": 1, "plans": [{"id": PID, "name": "第6次日野町総合�
 LOCK = {"council-dashboard": {"sha": "a" * 40, "files": []},
         "hino-council-search": {"sha": "b" * 40, "files": []},
         "shiga-hino-plans": {"sha": "c" * 40, "files": ["data/manifest.json", "data/plans/*.json",
-                                                        "data/sources_index.tsv", FUHYO_FILE]}}
+                                                        "data/sources_index.tsv", FUHYO_FILE]},
+        "hino-town-docs": {"sha": "d" * 40, "files": []}}
 
 
 def fh(key):

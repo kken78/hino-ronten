@@ -52,8 +52,8 @@ INPUTS_ROOT = os.environ.get("HINO_RONTEN_INPUTS", "/home/kken78/GitHub")
 LINEAGE = os.environ.get("HINO_RONTEN_LINEAGE", os.path.join(ROOT, "ref", "lineage.tsv"))
 ALIASES = os.environ.get("HINO_RONTEN_ALIASES", os.path.join(ROOT, "ref", "aliases.tsv"))
 
-CD, HS, SP = "council-dashboard", "hino-council-search", "shiga-hino-plans"
-REPOS = (CD, HS, SP)
+CD, HS, SP, TD = "council-dashboard", "hino-council-search", "shiga-hino-plans", "hino-town-docs"
+REPOS = (CD, HS, SP, TD)   # TD は町の公開資料（DESIGN.md ADR-14）。台帳の候補と照合には使わない（LINK_SCHEMA §10）
 
 CANDIDATE_COLUMNS = ["from", "to", "method", "evidence", "where", "context", "to_label",
                      "status", "reviewer", "date", "note", "speech_date", "scene"]
@@ -85,7 +85,7 @@ def _fail(title, items):
 # ---- 入力の固定（§10） ----
 
 def load_lock(path):
-    """inputs.lock.json を読み、3つのリポジトリ・40桁の sha・files の形を確かめる。"""
+    """inputs.lock.json を読み、4つのリポジトリ・40桁の sha・files の形を確かめる。"""
     with open(path, encoding="utf-8") as f:
         lock = json.load(f)
     if not isinstance(lock, dict) or sorted(lock) != sorted(REPOS):
