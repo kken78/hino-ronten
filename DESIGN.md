@@ -24,6 +24,7 @@
 | council-dashboard | e1507bf | 議会だより第24〜36号の一般質問 326問。主テーマ11 | `docs/data/questions.json`、`data/minutes_links.json` |
 | hino-council-search | 1af9baa | 会議録 66会議・31,263発言（2017〜2026年）。議案と結果（gian.json、66会議） | `public/data/index-manifest.json`＋`index/<年>.json`、`proceedings.json`、`meetings.json`、`gian.json` |
 | shiga-hino-plans | 30bfb26 | 計画 43本（manifest。計画の JSON があるのは41本）。事業一覧（programs）のある計画20本・1,304事業。当初予算の附表（令和8年度）181事業 | `data/manifest.json`、`data/plans/<id>.json`、`data/sources_index.tsv`、附表 `data/fuhyo/fuhyo-r8.json`（77292c2 で足した） |
+| hino-town-docs | a1b91ab | 町の公開資料 56本・755ページ（予算・決算・財政・交付金。2026-10-21 取得）。原典の文字（pdftotext）と OCR の下書き（NDLOCR-Lite） | `data/sources.tsv`、`data/text/*.txt`、`data/ocr/*.txt`（試作1の U2 で足した。テーマのノートの語の当たりにだけ使う。ADR-14） |
 
 確認した事実は次のとおり。2026-10-10 時点の値は git の履歴にある。
 
