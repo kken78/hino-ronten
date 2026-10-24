@@ -25,11 +25,13 @@
 | node | 計画の事業 | `node:<id>/<key>` | `node:jisshi/e001` | `data/plans/<id>.json` の programs（`items[].key`） |
 | fh | 当初予算の附表の事業 | `fh:<附表id>/<key>` | `fh:fuhyo-r8/b001` | shiga-hino-plans `data/fuhyo/<附表id>.json` の `pillars[].items[].key` |
 | none | 計画に当たる事業が無いこと（記載なし） | `none:<id>` | `none:jisshi` | shiga-hino-plans `data/manifest.json` の id |
+| gi | 議案 | `gi:<会議id>/<議案番号>` | `gi:0000008942/議第115号` | hino-council-search `public/data/gian.json` の会議の id と `agenda[].no` |
 
 - bq の議員名は、member を NFKC 正規化し、空白を除いたもの。この形で326問すべてが一意であることを確認済み（2026-10-10）
 - sp は発言の位置に依存し、node の key は元のデータの管理に依存するため、単独では信頼しない。必ず §5 の照合を通す
 - node は programs を持つ計画の事業にだけ定義する。key は shiga-hino-plans が事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の CLAUDE.md・PLAN_SCHEMA）。key の無い事業は指さない
 - node は、2026-10-19 に番号（`groups[].no`・`subgroups[].no`・`items[].no`）による形から key による形に替えた。番号の無い事業（jisshi など6計画）を指せないため（issue #1）。替えた時点で、台帳に node の行は無かった
+- gi は、テーマの定義（§12）とテーマのノートのデータ（§13）だけで使う。議案番号は gian.json の表記のまま（例「議第115号」「決議案第2号」）。同じ会議に同じ番号の議案が2つ以上あれば、その会議の gi は作らずに止める
 - fh と none は、附表の台帳（`links/fuhyo.tsv`）だけで使う（§7 fuhyo）。fh の key は shiga-hino-plans が附表の事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の PLAN_SCHEMA §9）。none は、附表の事業が `<id>` の計画のどの事業にも当たらないこと（記載なし）を表す決まったキーで、事業を指さない
 
 ---
@@ -227,12 +229,17 @@ semantic：使う時点で、この節と §3 に規則を追加する。
   "shiga-hino-plans": {
     "sha": "<40桁のコミットSHA>",
     "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r8.json"]
+  },
+  "hino-town-docs": {
+    "sha": "<40桁のコミットSHA>",
+    "files": ["data/sources.tsv", "data/text/*.txt", "data/ocr/*.txt"]
   }
 }
 ```
 
 - ビルドは、ここに書いた SHA の、ここに書いたファイルだけを読む
 - `public/data/gian.json`（会議ごとの議案と結果）は、経緯の検証やテーマの議案の候補に使う（DESIGN.md §5）。いまの台帳の候補と照合には使わない
+- hino-town-docs（町の公開資料。DESIGN.md ADR-14）は、テーマのノートのデータ（§13）の語の当たりにだけ使う。台帳の候補と照合には使わない。data/text/ は原典の文字、data/ocr/ は OCR の下書きで、§13 の決まりで使い分ける
 - 附表は年度ごとのファイルを名指しする（`data/fuhyo/*.json` とは書かない。見本の `_fuhyotest.json` を読まないため）
 - lock の更新は1コミットにまとめ、追加・変更・削除された質問と発言の件数をコミットメッセージに書く
 
@@ -255,6 +262,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 付け替えの重なり | relink の confirmed の行と同じ (from, to) を持つ mention の行が candidate か confirmed なら、一覧（relink_conflict.tsv）に出して終了コード1。人が、どちらかを却下するか、付け替えを取り消す |
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
 | 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する。fuhyo の台帳では、to の種類（node・none）と status ごとに表示する（CLAUDE.md 不変の制約11） |
+| テーマの定義 | `ref/themes.tsv` が §1 と §12 の形に合う（列名と列の順、行が theme → kind → value の文字コード順、(theme, kind, value) の重複が0件）。theme ごとに 名前 が1行だけある。kind が §12 の7つのどれか。value が kind ごとの形に合い、lock の版の入力にある（系列は系譜表の series、施策と事業は計画の programs の key、議案は gian.json の議案）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
 | 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の行の note に §7 fuhyo の区分（「メモ：区分：<区分>」）が無いか、node の行の区分が一致・一致（柱違い）・表記の違い・名称の変更のどれでもないか、none の行の区分が一部・年度の事業・中身の違いのどれでもなければ終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート）。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo`。台帳を書かない）でも確かめ（`tools/check_links.py`）でも止め、誤りの事業を表示する |
 
 一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
@@ -269,3 +277,73 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | note_changed.tsv | 更新で note が変わった candidate | from・to・method・old_note・new_note |
 | relink_conflict.tsv | 付け替えの重なりになった relink の行と mention の行 | from・to・relink_status・mention_status・context |
 | update.md・check.md | 更新・確かめの件数の報告 | — |
+
+---
+
+## 12. テーマの定義 `ref/themes.tsv`
+
+試作のテーマ（DESIGN.md ADR-13）ごとに、含める計画・施策・事業・議案と、語の当たりに使う語を、人が根拠つきで決めて書く表。台帳ではなく、系譜表・別名辞書と同じ参照表である。
+
+| 列 | 内容 | 例 |
+| --- | --- | --- |
+| theme | テーマの id（英小文字） | `hoiku` |
+| kind | 名前・系列・施策・事業・議案・語・除外の語のどれか | `系列` |
+| value | kind ごとの値（下の表） | `youho` |
+| source | 根拠（入力のどこを見て決めたか） | `shiga-hino-plans data/plans/jisshi.json 分野① e008` |
+| reviewer | 決めた人の GitHub ユーザー名 | `kken78` |
+| date | 決めた日（YYYY-MM-DD） | `2026-10-24` |
+| note | 注記 | |
+
+| kind | value | 使い道 |
+| --- | --- | --- |
+| 名前 | テーマの名前（画面に出す表記） | 1テーマに1行だけ |
+| 系列 | 系譜表（§8）の series | その series の全期の計画（plan と lin）を、テーマの計画とする。計画への確定の言及（mention・relink の confirmed）を、議会での経緯に使う |
+| 施策 | 総合計画の施策の node キー（例 `node:sogo6/e011` 分野、`node:sogo6/e047` 基本施策） | テーマの位置づけ（共通の軸。DESIGN.md 判断事項3）に使う |
+| 事業 | 計画の事業の node キー（例 `node:jisshi/e008`） | テーマの事業とする。附表の台帳でこの事業に確定した附表の事業を、予算として引く |
+| 議案 | §2 の gi キー | テーマの議案とする。議案は名前で選べないため（docs/review-2026-10-21.md §7.3）、人が1件ずつ選ぶ |
+| 語 | §4 の正規化を通した語 | 語の当たり（§13）を探す。語が当たっても、台帳の行にはしない（ADR-3） |
+| 除外の語 | §4 の正規化を通した語 | この語の中で当たった語は、語の当たりにしない（例 テーマ hoiku で「学童保育」の中の「保育」） |
+
+- 行は人が決める。エージェントが自分の判断で行を足したり変えたりしない（CLAUDE.md 不変の制約11 と同じ扱い。依頼者が会話で行を特定して認めた行は書いてよい）
+- source には、決めた根拠の入力と場所を書く（計画の programs の分野・事業の key、議案の会議と番号など）。語は、どの資料のどの表記によるかを書く
+- 行を変えたら、テーマのノートのデータ（§13）を作り直す
+
+## 13. テーマのノートのデータ `build/theme/<theme>.json`
+
+テーマのノートの画面（DESIGN.md §5 試作の工程 U4）と、生成AIに渡す MCP の道具（U3）が読むデータ。`tools/` が、lock の版の入力・台帳・`ref/themes.tsv` から作る。手で直さない（CLAUDE.md 不変の制約8）。git に入れない。
+
+全体の形：
+
+```json
+{
+  "theme": "hoiku",
+  "name": "幼児教育・保育施設の再編",
+  "lock": {"<入力のリポジトリ>": "<コミットSHA>"},
+  "ledgers": {"links/mention.tsv": "<sha256>", "links/relink.tsv": "<sha256>", "links/fuhyo.tsv": "<sha256>", "ref/themes.tsv": "<sha256>"},
+  "plans": [], "policies": [], "programs": [], "budget": [], "council": [], "exchanges": [], "bills": [],
+  "hits": {"council": [], "docs": []}
+}
+```
+
+- 各項目に `layer` を付ける。値は「確定」（確定した台帳の行と、入力の構造データ）、「語の当たり（未確認）」、「OCR の下書き」のどれか。画面と MCP の道具は、layer の違う項目をまぜずに示す
+- 各項目に、出典の `url` を付ける（下の表）。出典の無い項目は作らない
+- 抜粋（`excerpt`）は、照合の語や当たった語を中心に前後あわせて200字までとする（不変の制約9）。会議録の発言は、台帳の context か、入力の発言の本文から切り出す
+- 日付は YYYY-MM-DD。並びは、council・exchanges・bills・hits は日付の順（同じ日付は from のキーの文字コード順）、ほかはキーの文字コード順
+- 序列化しない（不変の制約6）：議員ごとの件数や順位を作らない
+
+| 項目 | 中身 | layer | 出典の url |
+| --- | --- | --- | --- |
+| plans | 系列の計画（キー・名前・計画期間） | 確定 | plan は `https://kken78.github.io/shiga-hino-plans/plans/<id>.html`。lin は系譜表の source の原典 |
+| policies | 施策（キー・番号・名前・説明） | 確定 | sogo6 の計画のページ |
+| programs | 事業（キー・名前・説明・実施年度・概算事業費） | 確定 | 事業の計画のページ |
+| budget | テーマの事業に確定した附表の事業（附表のキー・名前・予算額・区分・どの事業に当たるか） | 確定 | 附表の原典の PDF（`#page=<n>`） |
+| council | 系列の計画への確定の言及（発言日・from・役職の区分・場面・抜粋） | 確定 | 会議録の発言は `https://kken78.github.io/hino-council-search/#thread=<やりとりの最初の sid>&focus=<sid>`（やりとりに入らない発言は会議録の原本 PDF）。議会だよりの問いは questions.json の minutes_exchange か議会だよりの PDF |
+| exchanges | council の言及を含む一般質問の問いごとの、問い（議員）と答え（当局）の並び（発言日・問いの番号・発言ごとの役職の区分・抜粋） | 確定 | council と同じ |
+| bills | テーマの議案（gi キー・会議・日付・番号・件名・結果・採決の方法） | 確定 | 会議の掲載ページ（meetings.json の url） |
+| hits.council | テーマの語が当たった会議録の発言と議会だよりの問いのうち、council に無いもの（発言日・from・当たった語・抜粋） | 語の当たり（未確認） | council と同じ |
+| hits.docs | テーマの語が当たった町の公開資料のページ（資料の id・名前・年度・ページ・当たった語・抜粋・どの層で当たったか・想定外の字のあるページか） | 語の当たり（未確認） | 原典の PDF の URL に `#page=<n>` |
+
+- 役職の区分は、会議録の発言の role から「議員」「当局」「議長」「その他」に分ける（docs/review-2026-10-21.md §5.3 e）
+- hits.docs の語は、原典の文字（data/text/）で探し、当たらないページは OCR の下書き（data/ocr/）でも探す。抜粋は、原典の文字で当たったページは原典の文字から、OCR の下書きでだけ当たったページは OCR の下書きから切り出し、layer を「OCR の下書き」とする（ADR-14）
+- 台帳の note に「想定外の字のあるページ」とある資料のそのページは、`unexpected` を true にする。画面と MCP の道具は、そのページの数字を出典に使えないことを示す（ADR-14）
+- 数字（予算額・概算事業費）は、入力の構造データ（附表・計画の programs）の値をそのまま使う。町の公開資料の文字から数字を取り出さない
