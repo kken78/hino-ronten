@@ -1,0 +1,24 @@
+theme	kind	value	source	reviewer	date	note
+hoiku	事業	node:jisshi/e006	shiga-hino-plans data/plans/jisshi.json 分野① 公立保育所運営事業	kken78	2026-10-24	
+hoiku	事業	node:jisshi/e007	shiga-hino-plans data/plans/jisshi.json 分野① 認定こども園運営事業	kken78	2026-10-24	
+hoiku	事業	node:jisshi/e008	shiga-hino-plans data/plans/jisshi.json 分野① 認定こども園整備事業	kken78	2026-10-24	
+hoiku	事業	node:jisshi/e009	shiga-hino-plans data/plans/jisshi.json 分野① 私立保育園運営事業	kken78	2026-10-24	
+hoiku	事業	node:jisshi/e016	shiga-hino-plans data/plans/jisshi.json 幼稚園管理運営事業	kken78	2026-10-24	
+hoiku	事業	node:jisshi/e017	shiga-hino-plans data/plans/jisshi.json 幼稚園教育振興事業	kken78	2026-10-24	
+hoiku	名前	幼児教育・保育施設の再編	docs/review-2026-10-21.md §4.5・§7.2	kken78	2026-10-24	
+hoiku	施策	node:sogo6/e011	shiga-hino-plans data/plans/sogo6.json 分野① 子ども・子育て	kken78	2026-10-24	
+hoiku	施策	node:sogo6/e047	shiga-hino-plans data/plans/sogo6.json 分野①の基本施策(3) 幼児教育・保育の充実	kken78	2026-10-24	
+hoiku	系列	kodomo	ref/lineage.tsv kodomo（第2期・第3期 子ども・子育て支援事業計画）	kken78	2026-10-24	
+hoiku	系列	youho	ref/lineage.tsv youho（幼児教育保育施設再編整備計画）	kken78	2026-10-24	
+hoiku	語	こども園	youho の計画名と本文、jisshi e007・e008 の事業名	kken78	2026-10-24	
+hoiku	語	保育園	jisshi e009 の事業名	kken78	2026-10-24	
+hoiku	語	保育所	jisshi e006 の事業名、議第11号の件名	kken78	2026-10-24	
+hoiku	語	保育施設	youho の計画名	kken78	2026-10-24	
+hoiku	語	再編整備	youho の計画名	kken78	2026-10-24	
+hoiku	語	幼児教育	youho の計画名、sogo6 e047 の名前	kken78	2026-10-24	
+hoiku	語	幼稚園	jisshi e016・e017 の事業名	kken78	2026-10-24	
+hoiku	語	待機児童	jisshi e017 の説明	kken78	2026-10-24	
+hoiku	議案	gi:0000008397/議第11号	hino-council-search public/data/gian.json 会議 0000008397 日野町保育所設置条例の一部を改正する条例の制定について	kken78	2026-10-24	
+hoiku	議案	gi:0000008397/議第25号	hino-council-search public/data/gian.json 会議 0000008397 令和７年度日野町一般会計予算	kken78	2026-10-24	
+hoiku	議案	gi:0000008942/議第115号	hino-council-search public/data/gian.json 会議 0000008942 令和８年度日野町一般会計予算	kken78	2026-10-24	
+hoiku	除外の語	学童保育	学童保育所（放課後児童クラブ）は就学後の子どもの施設で、このテーマに含めない	kken78	2026-10-24	
