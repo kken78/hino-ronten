@@ -7,7 +7,7 @@
 | `mention_page.html` | 言及（links/mention.tsv）の確認ページ。1行ずつ確定・却下し、却下には理由を書く。却下の行には付け替え先を付けられる（LINK_SCHEMA §6） |
 | `mention_seed.py` | 言及の確認ページに入れる候補の束を作る |
 | `mention_export.py` | 言及の確認ページの判定を、判定の一覧と判定した範囲の TSV に書き出す |
-| `fuhyo_page.html` | 附表（links/fuhyo.tsv）の確認ページ。附表の事業を突き合わせの区分に仕分け、区分ごとに確かめる（LINK_SCHEMA §7 fuhyo） |
+| `fuhyo_page.html` | 附表（links/fuhyo.tsv）の確認ページ。附表の事業を突き合わせの区分に仕分け、区分ごとに判定する（LINK_SCHEMA §7 fuhyo） |
 | `fuhyo_seed.py` | 附表の確認ページに入れる事業の一覧を作る。区分の案と、事業概要の違う箇所を付ける |
 | `fuhyo_export.py` | 附表の確認ページの判定を、判定の一覧と判定した範囲の TSV に書き出す |
 
@@ -46,13 +46,13 @@ python3 -B tools/review/fuhyo_seed.py items.json --suggest suggest.json --docs d
 python3 -B tools/review/fuhyo_export.py items.json dump/decisions decisions.tsv decisions.keys.tsv
 ```
 
-- `--ledger` で、台帳の代わりに別の TSV を読める（過去の回の再現を確かめるとき）
+- `--ledger` で、台帳の代わりに別の TSV を読める（過去の回の再現を確認するとき）
 - `fuhyo_seed.py --suggest` は、区分の案の上書き（`{"b049": ["ichibu", null], "b131": ["meisho", "e124"]}`）。区分の id は icchi（一致）・icchi-hashira（一致（柱違い））・hyoki（表記の違い）・meisho（名称の変更）・ichibu（一部）・nendo（年度の事業）・nakami（中身の違い）
 - 区分の案の理由の文（`meta/reasons`）は、回ごとに Claude が書いてデータベースに入れる。ここには置かない
 
-## 置いたときの確かめ（2026-10-21）
+## 置いたときの確認（2026-10-21）
 
-作業場所で使っていた道具をここに移したとき、次の4つで、当時の出力と1字も違わないことを確かめた。
+作業場所で使っていた道具をここに移したとき、次の4つで、当時の出力と1字も違わないことを確認した。
 
 - `fuhyo_seed.py`：c1dc8fb の links/fuhyo.tsv と当時の上書きから、附表の一覧（181事業・213候補）
 - `fuhyo_export.py`：上の一覧と当時の判定から、判定の一覧（sha256 3e0150e1…）と範囲（d5f113d0…）。28099c3 で書き写したもの
