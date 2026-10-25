@@ -10,7 +10,8 @@
 - セルの中にタブ・改行を入れない
 - evidence・context は §4 の正規化を通した値を書く。名称（to_label・name など）は正規化せず、元のデータの表記のまま書く（どのデータの表記を使うかは §3 と §8 による）
 - 空欄は空文字とする。推定で埋めない
-- 行は from → to → method の文字コード順に並べる。並び順に意味を持たせない
+- 行は、ファイルごとの行のキーの文字コード順に並べる（リンク台帳は from → to → method、テーマの定義は theme → kind → value（§11）、記録の台帳は §15 の各台帳の行のキー。系譜表と別名辞書は、並び順を決めていない）。並び順に意味を持たせない
+- 引用（記録の台帳の quote）は原文の表記のまま書き、照合のときに §4 の正規化をかける
 
 ---
 
@@ -27,15 +28,17 @@
 | none | 計画に当たる事業が無いこと（記載なし） | `none:<id>` | `none:jisshi` | shiga-hino-plans `data/manifest.json` の id |
 | gi | 議案 | `gi:<会議id>/<議案番号>` | `gi:0000008942/議第115号` | hino-council-search `public/data/gian.json` の会議の id と `agenda[].no` |
 | iq | 一般質問の問い | `iq:<sid>` | `iq:0000008397_20250310_0285` | hino-council-search `public/data/proceedings.json` の一般質問（kind が ippan）の turns で、問い（q）の最初の発言の sid |
-| doc | 町の公開資料のページ | `doc:<id>/<ページ>` | `doc:koho-no792-04/1` | hino-town-docs `data/sources.tsv` の id と、PDF のページ（1から） |
+| doc | 町の公開資料（1本、またはそのページ） | `doc:<id>` または `doc:<id>/<ページ>` | `doc:koho-no792-04`、`doc:koho-no792-04/1` | hino-town-docs `data/sources.tsv` の id と、PDF のページ（1から） |
+| mb | 議員 | `mb:<名前>` | `mb:松田洋子` | hino-council-search の proceedings.json の一般質問の member と index の name、council-dashboard の questions.json の member。名前のそろえ方は bq と同じ |
 
 - bq の議員名は、member を NFKC 正規化し、空白を除いたもの。この形で326問すべてが一意であることを確認済み（2026-10-10）
-- sp は発言の位置に依存し、node の key は元のデータの管理に依存するため、単独では信頼しない。必ず §5 の照合を通す
+- sp は発言の位置に依存し、node の key は元のデータの管理に依存するため、単独では信頼しない。リンク台帳では §5 の照合を、記録の台帳では §15.1 の引用の照合を通す
 - node は programs を持つ計画の事業にだけ定義する。key は shiga-hino-plans が事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の CLAUDE.md・PLAN_SCHEMA）。key の無い事業は指さない
 - node は、2026-10-19 に番号（`groups[].no`・`subgroups[].no`・`items[].no`）による形から key による形に替えた。番号の無い事業（jisshi など6計画）を指せないため（issue #1）。替えた時点で、台帳に node の行は無かった
-- gi は、テーマの定義（§12）とテーマのノートのデータ（§13）だけで使う。議案番号は gian.json の表記のまま（例「議第115号」「決議案第2号」）。同じ会議に同じ番号の議案が2つ以上あれば、その会議の gi は作らずに止める
+- gi は、テーマの定義（§12）、テーマのノートのデータ（§13）、記録の台帳（§15）で使う。議案番号は gian.json の表記のまま（例「議第115号」「決議案第2号」）。同じ会議に同じ番号の議案が2つ以上あれば、その会議の gi は作らずに止める
 - fh と none は、附表の台帳（`links/fuhyo.tsv`）だけで使う（§7 fuhyo）。fh の key は shiga-hino-plans が附表の事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の PLAN_SCHEMA §9）。none は、附表の事業が `<id>` の計画のどの事業にも当たらないこと（記載なし）を表す決まったキーで、事業を指さない
 - iq と doc は、記録の台帳（§15）とテーマの定義（§12）とテーマのノートのデータ（§13）だけで使う。iq は sid と同じく位置に依存するため、記録の引用（quote）が発言の本文にあることで照合する。doc は、引用がそのページの原典の文字にあることで照合する（§15.1）
+- mb も、記録の台帳・テーマの定義・テーマのノートのデータで使う。3つの入力で、この形の名前が一致することを確かめた（2026-10-25。審議の記録25人・発言25人・議会だより13人）。表記の揺れが出たら、別名辞書に足す方法を決めてから使う
 
 ---
 
@@ -242,7 +245,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 
 - ビルドは、ここに書いた SHA の、ここに書いたファイルだけを読む
 - `public/data/gian.json`（会議ごとの議案と結果）は、経緯の検証やテーマの議案の候補に使う（DESIGN.md §5）。いまの台帳の候補と照合には使わない
-- hino-town-docs（町の公開資料。DESIGN.md ADR-14）は、テーマのノートのデータ（§13）の語の当たりにだけ使う。台帳の候補と照合には使わない。data/text/ は原典の文字、data/ocr/ は OCR の下書きで、§13 の決まりで使い分ける
+- hino-town-docs（町の公開資料。DESIGN.md ADR-14）は、テーマのノートのデータ（§13）の語の当たり・資料の一覧、記録の台帳（§15）の引用の照合、MCP の道具（§14）の get_doc_page に使う。リンク台帳の候補と照合には使わない。data/text/ は原典の文字、data/ocr/ は OCR の下書きで、§13 と §15.1 の決まりで使い分ける
 - 附表は年度ごとのファイルを名指しする（`data/fuhyo/*.json` とは書かない。見本の `_fuhyotest.json` を読まないため）
 - lock の更新は1コミットにまとめ、追加・変更・削除された質問と発言の件数をコミットメッセージに書く
 
@@ -265,9 +268,9 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 付け替えの重なり | relink の confirmed の行と同じ (from, to) を持つ mention の行が candidate か confirmed なら、一覧（relink_conflict.tsv）に出して終了コード1。人が、どちらかを却下するか、付け替えを取り消す |
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
 | 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する。fuhyo の台帳では、to の種類（node・none）と status ごとに表示する（CLAUDE.md 不変の制約11） |
-| テーマの定義 | `ref/themes.tsv` が §1 と §12 の形に合う（列名と列の順、行が theme → kind → value の文字コード順、(theme, kind, value) の重複が0件）。theme ごとに 名前 が1行だけある。kind が §12 の9つのどれか。value が kind ごとの形に合い、lock の版の入力にある（系列は系譜表の series、施策と事業は計画の programs の key、議案は gian.json の議案、問いは proceedings.json の一般質問の問い、資料は hino-town-docs の data/sources.tsv の id）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
+| テーマの定義 | `ref/themes.tsv` が §1 と §12 の形に合う（列名と列の順、行が theme → kind → value の文字コード順、(theme, kind, value) の重複が0件）。theme ごとに 名前 が1行だけある。kind が §12 の11のどれか。value が kind ごとの形に合い、lock の版の入力にある（系列は系譜表の series、施策と事業は計画の programs の key、議案は gian.json の議案、問いは proceedings.json の一般質問の問い、資料は hino-town-docs の data/sources.tsv の id）。問いの行の source に書いた議員の名前（§2 の mb のそろえ方で）が、審議の記録のその問いの member と同じ。資料の行の value が doc:<id> の形（ページ無し）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
 | 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の行の note に §7 fuhyo の区分（「メモ：区分：<区分>」）が無いか、node の行の区分が一致・一致（柱違い）・表記の違い・名称の変更のどれでもないか、none の行の区分が一部・年度の事業・中身の違いのどれでもなければ終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート）。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo`。台帳を書かない）でも確かめ（`tools/check_links.py`）でも止め、誤りの事業を表示する |
-| 記録の台帳 | `records/` の5つの台帳が §1 と §15 の形に合う。行の同一性（§15 の各台帳）の重複が0件。status・種類などの値が §15 の決まりのどれか。引用（quote）が、§15.1 のとおり資料の本文にある。参照（answers・yaritori・upper_ref・lower_ref・sources など）が、指す先の行や資料にある。round が turns から求めた値と同じ。合わなければ、テーマのノートのデータを作らずに終了コード1。引用が本文に無い行は、一覧（build/records/quote_mismatch.tsv）に出す |
+| 記録の台帳 | `records/` の5つの台帳が §1 と §15 の形に合う。行の同一性（§15 の各台帳）の重複が0件。status・種類などの値が §15 の決まりのどれか。引用（quote）が、§15.1 のとおり資料の本文にある。参照（answers・yaritori・upper_ref・lower_ref・sources など）が、指す先の行や資料にある。round が turns から求めた値と同じ。point が、その行のテーマ（やりとりの記録は、その問いを持つテーマ）の kind 事柄の値のどれか。同じテーマ・同じ point の事柄の記録の行で、program が同じ（空を除く）。つながりの記録の upper・lower が、そのテーマの kind 記載の値のどれか。やりとりの記録の bq が §2 の bq の形で、議会だよりにある。合わなければ、テーマのノートのデータを作らずに終了コード1。引用が本文に無い行は、一覧（build/records/quote_mismatch.tsv）に出す |
 
 一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
 
@@ -308,10 +311,13 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 語 | §4 の正規化を通した語 | 語の当たり（§13）を探す。語が当たっても、台帳の行にはしない（ADR-3） |
 | 除外の語 | §4 の正規化を通した語 | この語の中で当たった語は、語の当たりにしない（例 テーマ hoiku で「学童保育」の中の「保育」） |
 | 問い | §2 の iq キー | テーマの一般質問の問いとする。やりとりの記録（§15.2）を、この問いについて作る。問いは名前や語で選ばず、人が1件ずつ選ぶ |
-| 資料 | hino-town-docs の id（例 `shingi-youho-teigen`、`koho-no792-04`） | テーマの資料とする。過程・事柄・つながりの記録の下書きは、この資料と、テーマの計画・問いから作る。語の当たり（hits.docs）とは別に、人が選んだものとして示す |
+| 資料 | §2 の doc キー（ページ無し。例 `doc:shingi-youho-teigen`、`doc:koho-no792-04`） | テーマの資料とする。過程・事柄・つながりの記録の下書きは、この資料と、テーマの計画・問いから作る。語の当たり（hits.docs）とは別に、人が選んだものとして示す |
+| 事柄 | 事柄の名前（人が決めた表記。例「新こども園の開園時期」） | 事柄の記録（§15.3）とやりとりの記録（§15.2）の point に使う名前を決める。source に、かかわる事業の node キーと、その事柄を書いた主な資料を書く |
+| 記載 | 記載の見出し（人が決めた表記。例「子育て環境の未来に向けての提言」「再編整備方針」） | つながりの記録（§15.4）の upper・lower に使う名前を決める。source に、その記載がある資料のキーか計画の記載の参照を書く |
 
 - 行は人が決める。エージェントが自分の判断で行を足したり変えたりしない（CLAUDE.md 不変の制約11 と同じ扱い。依頼者が会話で行を特定して認めた行は書いてよい）
 - source には、決めた根拠の入力と場所を書く（計画の programs の分野・事業の key、議案の会議と番号など）。語は、どの資料のどの表記によるかを書く
+- 問いの行の source には、会議・日付・議席・議員の名前（会議録の表記のまま）・問いの番号・題を書く
 - 行を変えたら、テーマのノートのデータ（§13）を作り直す
 
 ## 13. テーマのノートのデータ `build/theme/<theme>.json`
@@ -408,15 +414,15 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 | 項目 | 欄 |
 | --- | --- |
-| plans | key（plan・lin のキー）・series・edition・name・start_fy・end_fy・url |
+| plans | key（plan・lin のキー）・series・edition・name・start_fy・end_fy・posted（計画の meta の posted を原文のまま。例「令和7年3月策定・令和8年6月一部改正」。計画の策定・改正の日はこの文でしか分からないため）・url |
 | policies | key・kind（「分野」か「基本施策」）・no・name・desc・source（原典のページ）・url |
 | programs | key・plan・field_no・field_name・name・desc・years・cost（label・amount・unit）・source・url |
 | budget | key（fh のキー）・program（当たる事業の node キー）・category（附表の台帳の区分）・name・desc・kan・kubun・amount・unit（千円）・dept・page・url |
 | council | from・to・to_label・method・date・kind（sp か bq）・speaker（議員・当局・議長・その他）・role・scene・excerpt・url |
-| exchanges | meeting_id・meeting・date・n（問いの番号）・question（iq のキー）・titles（議会だよりの題名とテーマ）・turns（sid・side（問い・答え）・speaker・role・excerpt・url の並び）・mentions（この問いの中の council の from） |
+| exchanges | meeting_id・meeting・date・n（問いの番号）・question（iq のキー）・member（mb のキー・名前・議席）・titles（議会だよりの題名とテーマ）・turns（sid・side（問い・答え）・speaker・role・excerpt・url の並び）・mentions（この問いの中の council の from） |
 | bills | key・meeting_id・meeting・date・no・kind・title・committee・result・method・url |
 | docs | id・category・title・fiscal_year・date・pages・check・text_layers（原典の文字・OCR の下書きのどれがあるか）・url |
-| records | yaritori・katei・kotogara・tsunagari・kisai の5つ。それぞれ §15 の行の列と、資料の url・layer |
+| records | yaritori・katei・kotogara・tsunagari・kisai の5つ。それぞれ §15 の行の列と、資料の url・layer。yaritori は問いの単位にまとめ、問いに member（mb のキー・名前・議席）を持たせる |
 | hits.council | meeting_id・meeting・date・n・question・titles・words（当たった語と回数）・from（語が最初に当たった発言の sp のキー。題名だけで当たったときは問いの最初の発言）・excerpt（その発言から）・first_sid・url |
 | hits.docs | doc・title・category・fiscal_year・page・words・text_layer（「原典の文字」か「OCR の下書き」）・excerpt・unexpected・url |
 | sheets | program・kadai（課題の記載）・cost（事業費と予算）・desc（事業の説明）・vision（めざす姿）・tsunagari・kotogara・katei・asked（やりとりの記録への参照と、段ごとの数）。どれも、項目への参照（ref）・text か value・source・url・layer の並び |
@@ -424,7 +430,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 - hits.council は一般質問の問いの単位とし、題名か本文にテーマの語が当たった問いのうち、exchanges に無いものとする
 - excerpt は、テーマの語か照合の語が当たった所を中心に切り出す。どの語も当たらない発言（問いの中の当局の答えなど）は、発言の頭から切り出す
-- 議員の名前は、records と sheets には入れない（speaker は「議員」と書く）。名前は発言の url から辿れる
+- 議員は、問いの単位で member（キー・名前・議席）として持つ。行ごとに名前を繰り返さない。画面と出力での見せ方は DESIGN.md ADR-12 の決まりによる
 
 ## 14. MCP の道具 `tools/mcp_ronten.py`
 
@@ -462,7 +468,9 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - 資料（source）は、§2 の sp・bq・doc・gi のキーか、計画の記載の参照（§13.1）で書く
 - 引用（quote）は、資料の本文から原文のまま、200字まで（不変の制約9）。照合のしかた：sp は lock の版の発言の本文、bq は議会だよりの問いと答えの本文、doc はそのページの原典の文字（hino-town-docs data/text/ の、そのページの部分）、計画の記載はその項目の文。どれも §4 の正規化を通して、引用が本文にあること。原典の文字の無いページ（check が image か、そのページの文字が無いもの）からは、確かめた読みができるまで引用しない（その行は candidate のまま置けるが、confirmed にしない）
 - 資料の日付（source_date）は YYYY-MM-DD か YYYY-MM。DESIGN.md ADR-19 の時点の取り方による。広報ひのは発行月（YYYY-MM）
-- 議員の名前、議員ごとの件数は書かない（不変の制約6）。評価や良し悪しは書かない
+- 台帳の行には、議員の名前の列を置かない。問いのキー（iq）から、入力の審議の記録で議員が引けるため（同じことを2か所に写さない）。評価や良し悪しは書かない。議員ごとの件数は作らない（DESIGN.md ADR-12 の画面と出力の決まり）
+- 計画の記載を引く行は、lock の版の計画（最後の改正のあとの記載）を引く。前の版の記載との違いは示せない（DESIGN.md 判断事項19）。資料の日付は、計画の posted の文から人が決め、note に根拠を書く
+- 広報ひのの引用に数字（日付・年度を含む）があるときは、確かめるときに原典の PDF のページの画像と見比べる（ADR-14）
 - 行の並びは、台帳ごとの行のキーの文字コード順
 
 ### 15.2 やりとりの記録 `records/yaritori.tsv`
@@ -479,9 +487,10 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | speaker | 問いは「議員」。答えは発言の役職のまま（例 町長・教育長・子ども支援課長） | `議員` |
 | round | 問いの段。turns から機械で求める：最初の問い（q）、再質問1・再質問2…（rq の順） | `再質問1` |
 | stage | 問いの行だけ：課題・投入・活動・手続き・結果・成果・めざす姿 のどれか。答えの行は空 | `結果` |
-| kind | 問いの行：事実の確認・数字・見込み・方針・考え・提案への考え・住民意見・要望。答えの行：事実・数字・方針・考え・留保・考えていない・時期・手順・その他 | `方針・考え` |
+| kind | 問いの行：「事実の確認」「数字・見込み」「方針・考え」「提案への考え」「住民意見・手続き」「時期・手順」「要望」「その他」のどれか。答えの行：「事実・数字」「方針・考え」「留保」「考えていない」「時期・手順」「その他」のどれか。「その他」のときは、補いを note に書く | `方針・考え` |
 | answers | 答えの行だけ：答えている問いの行の row（2つ以上は「,」で区切る） | |
-| point | 点の名前。事柄の記録（§15.3）の事柄の名前と同じ表記を使う | `新こども園の定員` |
+| point | 点の名前。テーマの定義の kind 事柄の値のどれか（事柄の記録と同じ名前を使う） | `新こども園の定員` |
+| bq | 問いの行だけ：この問いが議会だよりに載っているとき、その問いの bq キー（人が決める。council-dashboard の minutes_links.json の問いごとのリンクは候補として使う。同じ号・同じ議員の問1と問2が同じ発言を指すものがあり（2026-10-25 に、問1と問2の両方がある104まとまりのうち6）、問いごとのリンクが審議の記録の正しい問いに当たるかも確かめていないため） | `bq:36/中西佳子/2` |
 | bulletin | 議会だよりとの違い：載っている・載っていない・言い回しが違う のどれか。議会だよりが無い問いは空 | `載っていない` |
 | status・reviewer・date・note | §15.1 | |
 
@@ -495,7 +504,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | 列 | 内容 | 例 |
 | --- | --- | --- |
 | theme | テーマの id | `hoiku` |
-| point | 事柄の名前（人が決めた表記。やりとりの記録の point と同じもの） | `新こども園の開園時期` |
+| point | 事柄の名前。テーマの定義の kind 事柄の値のどれか | `新こども園の開園時期` |
 | program | かかわる事業の node キー（無ければ空） | `node:jisshi/e008` |
 | source | 資料 | `doc:koho-no792-04/1` |
 | source_date | 資料の日付 | `2026-07` |
@@ -517,9 +526,9 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | --- | --- | --- |
 | theme | テーマの id | `hoiku` |
 | link | 目的と手段・もとにした のどちらか | `もとにした` |
-| upper | 目的の側、またはもとにした側の記載（見出しを人が決めた表記で） | `子育て環境の未来に向けての提言` |
+| upper | 目的の側、またはもとにした側の記載。テーマの定義の kind 記載の値のどれか | `子育て環境の未来に向けての提言` |
 | upper_ref | その記載の参照（資料のキーか計画の記載の参照。無ければ空） | `doc:shingi-youho-teigen/1` |
-| lower | 手段の側、またはもとにされた側の記載 | `再編整備方針` |
+| lower | 手段の側、またはもとにされた側の記載。テーマの定義の kind 記載の値のどれか | `再編整備方針` |
 | lower_ref | その記載の参照 | `doc:koho-no792-04/1` |
 | source | つながりを書いた文のある資料 | `doc:koho-no792-04/1` |
 | source_date | 資料の日付 | `2026-07` |
