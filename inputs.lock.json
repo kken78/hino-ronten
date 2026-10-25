@@ -8,11 +8,11 @@
     "files": ["public/data/index-manifest.json", "public/data/index/*.json", "public/data/proceedings.json", "public/data/meetings.json", "public/data/gian.json"]
   },
   "shiga-hino-plans": {
-    "sha": "30bfb26f1e743b787759da3268f3b8e108f1a645",
-    "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r8.json"]
+    "sha": "807b168fe8d4ba1724c827a67257c35161d0faa7",
+    "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r8.json", "data/text/*/*.txt", "data/text_raw/*/*.txt"]
   },
   "hino-town-docs": {
-    "sha": "48c2baf459cd6c32654832cb87b563901f4221cf",
-    "files": ["data/sources.tsv", "data/text/*.txt", "data/ocr/*.txt"]
+    "sha": "397cd3e2fcaf8a8cfdbea4d72d55debbd222e4bd",
+    "files": ["data/sources.tsv", "data/text/*.txt", "data/text_raw/*.txt", "data/ocr/*.txt"]
   }
 }
