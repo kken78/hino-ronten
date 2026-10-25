@@ -295,7 +295,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 列 | 内容 | 例 |
 | --- | --- | --- |
 | theme | テーマの id（英小文字） | `hoiku` |
-| kind | 名前・系列・施策・事業・議案・語・除外の語のどれか | `系列` |
+| kind | 名前・系列・施策・事業・議案・語・除外の語・問い・資料・質疑・事柄・記載のどれか | `系列` |
 | value | kind ごとの値（下の表） | `youho` |
 | source | 根拠（入力のどこを見て決めたか） | `shiga-hino-plans data/plans/jisshi.json 分野① e008` |
 | reviewer | 決めた人の GitHub ユーザー名 | `kken78` |
@@ -356,7 +356,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | budget | テーマの事業に確定した附表の事業（附表のキー・名前・予算額・区分・どの事業に当たるか） | 確定 | 附表の原典の PDF（`#page=<n>`） |
 | council | 系列の計画への確定の言及（発言日・from・役職の区分・場面・抜粋） | 確定 | 会議録の発言は `https://kken78.github.io/hino-council-search/#thread=<やりとりの最初の sid>&focus=<sid>`（やりとりに入らない発言は会議録の原本 PDF）。議会だよりの問いは questions.json の minutes_exchange か議会だよりの PDF |
 | exchanges | council の言及を含む一般質問の問いごとの、問い（議員）と答え（当局）の並び（発言日・問いの番号・発言ごとの役職の区分・抜粋） | 確定 | council と同じ |
-| bills | テーマの議案（gi キー・会議・日付・番号・件名・結果・採決の方法） | 確定 | 会議の掲載ページ（meetings.json の url） |
+| bills | テーマの議案（gi キー・会議・日付・番号・件名・結果・採決の方法・討論の並び（日付・議員・賛否・発言の sid）） | 確定 | 会議の掲載ページ（meetings.json の url） |
 | docs | テーマの資料（§12 の kind 資料。hino-town-docs の id・区分・名前・年度・日付・ページ数・check） | 確定 | 原典の PDF の URL |
 | records | テーマの記録（§15 の6つの台帳のうち、テーマの行と、テーマの問いのやりとりの記録と、テーマの質疑の記録。rejected は入れない） | 確定か記録（未確認） | 行ごとの資料の出典 |
 | hits.council | テーマの語が一致した会議録の発言と議会だよりの問いのうち、council に無いもの（発言日・from・一致した語・抜粋） | 語の一致（未確認） | council と同じ |
@@ -423,12 +423,12 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | budget | key（fh のキー）・program（当たる事業の node キー）・category（附表の台帳の区分）・name・desc・kan・kubun・amount・unit（千円）・dept・page・url |
 | council | from・to・to_label・method・date・kind（sp か bq）・speaker（議員・当局・議長・その他）・role・scene・excerpt・url |
 | exchanges | meeting_id・meeting・date・n（問いの番号）・question（iq のキー）・member（mb のキー・名前・議席）・titles（議会だよりの題名とテーマ）・turns（sid・side（問い・答え）・speaker・role・excerpt・url の並び）・mentions（この問いの中の council の from） |
-| bills | key・meeting_id・meeting・date・no・kind・title・committee・result・method・url |
+| bills | key・meeting_id・meeting・date・no・kind・title・committee・result・method・debates（date・member（mb のキー・名前・議席）・stance・sid・url の並び。審議の記録の討論（kind が debate）のうち、bills にこの議案を含むもの）・url |
 | docs | id・category・title・fiscal_year・date・pages・check・text_layers（原典の文字・OCR の下書きのどれがあるか）・url |
 | records | yaritori・shitsugi・katei・kotogara・tsunagari・kisai の6つ。それぞれ §15 の行の列と、資料の url・layer。yaritori は問いの単位、shitsugi は質疑の単位にまとめ、問いと質疑に member（mb のキー・名前・議席）を持たせる |
 | hits.council | meeting_id・meeting・date・n・question・titles・words（一致した語と回数）・from（語が最初に一致した発言の sp のキー。題名だけで一致したときは問いの最初の発言）・excerpt（その発言から）・first_sid・url |
 | hits.docs | doc・title・category・fiscal_year・page・words・text_layer（「原典の文字」か「OCR の下書き」）・excerpt・unexpected・url |
-| sheets | program・kadai（課題の記載）・cost（事業費と予算）・desc（事業の説明）・vision（めざす姿）・tsunagari・kotogara・katei・asked（やりとりの記録への参照と、区分ごとの数）。どれも、項目への参照（ref）・text か value・source・url・layer の並び |
+| sheets | program・kadai（課題の記載）・cost（事業費と予算）・desc（事業の説明）・vision（めざす姿）・tsunagari・kotogara・katei・asked（やりとりの記録と質疑の記録への参照と、問いの行の区分ごとの数）。どれも、項目への参照（ref）・text か value・source・url・layer の並び |
 | issues | type（13.2 の比べ方）・scope（「事業」か「テーマ」）・program（scope が事業のときの node キー）・statement・refs（比べた項目への参照・text か value・url・layer の並び）・layer |
 
 - hits.council は一般質問の問いの単位とし、題名か本文にテーマの語が一致した問いのうち、exchanges に無いものとする
@@ -599,4 +599,4 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - 行のキーは (question, row)
 - テーマの定義の kind 質疑で選んだまとまりだけを記録する。1つのまとまりがいくつもの事業や議案にまたがるときは、テーマにかかわる部分だけを記録し、note にそう書く
 - 議会だよりとの対応（bq・bulletin）は置かない。議会だよりが質疑をどう載せているかを、まだ確認していないため
-- 討論と採決は記録しない。審議の記録の討論（kind が debate の stance）と採決（kind が vote の result・method）を、テーマのノートのデータでそのまま示す
+- 討論と採決は記録しない。審議の記録の討論（kind が debate の stance）と採決（kind が vote の result・method）を、テーマのノートのデータの bills（§13 の debates・result・method）でそのまま示す
