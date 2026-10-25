@@ -102,12 +102,12 @@ def load_lock(path):
 
 
 def match_lock(pattern, path):
-    """lock の files のパターンにパスが当たるか。「*」はそのディレクトリの直下のファイル名だけに当たる。"""
+    """lock の files のパターンにパスが当たるか。「*」は「/」をまたがず、1つの階層の中だけに当たる。
+    ディレクトリの部分にも使える（例 data/text/*/*.txt は data/text/youho/honpen.txt に当たり、data/text/a/b/c.txt には当たらない）。"""
     if "*" not in pattern:
         return path == pattern
-    pdir, _, pbase = pattern.rpartition("/")
-    fdir, _, fbase = path.rpartition("/")
-    return pdir == fdir and fnmatchcase(fbase, pbase)
+    pp, fp = pattern.split("/"), path.split("/")
+    return len(pp) == len(fp) and all(fnmatchcase(f, p) for p, f in zip(pp, fp))
 
 
 class GitInputs:
@@ -138,8 +138,13 @@ class GitInputs:
         """lock のパターンを、その版にあるファイルのパスに展開する。1件も無ければ止める。"""
         if repo not in self.lock or pattern not in self.lock[repo]["files"]:
             raise GenError(f"lock に無いパターン（{repo}: {pattern}）")
-        pdir = pattern.rpartition("/")[0]
-        out = self._git(repo, "ls-tree", self.lock[repo]["sha"], "--", (pdir + "/") if pdir else ".")
+        fixed = []
+        for part in pattern.split("/")[:-1]:   # 「*」を含まない先頭のディレクトリまでを ls-tree に渡す
+            if "*" in part:
+                break
+            fixed.append(part)
+        base = "/".join(fixed)
+        out = self._git(repo, "ls-tree", "-r", self.lock[repo]["sha"], "--", (base + "/") if base else ".")
         paths = []
         for line in out.decode("utf-8").splitlines():
             meta, _, path = line.partition("\t")

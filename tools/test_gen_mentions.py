@@ -511,6 +511,36 @@ class TestLock(unittest.TestCase):
         self.assertFalse(gm.match_lock("public/data/index/*.json", "public/data/index/2025.txt"))
         self.assertTrue(gm.match_lock("data/manifest.json", "data/manifest.json"))
         self.assertFalse(gm.match_lock("data/manifest.json", "data/manifest.json.bak"))
+        # ディレクトリの部分の「*」（原典の文字。LINK_SCHEMA §2 の pt）
+        self.assertTrue(gm.match_lock("data/text/*/*.txt", "data/text/youho/honpen.txt"))
+        self.assertTrue(gm.match_lock("data/text_raw/*/*.txt", "data/text_raw/youho/honpen-202503.txt"))
+        self.assertFalse(gm.match_lock("data/text/*/*.txt", "data/text/youho.txt"))
+        self.assertFalse(gm.match_lock("data/text/*/*.txt", "data/text/youho/sub/honpen.txt"))
+        self.assertFalse(gm.match_lock("data/text/*/*.txt", "data/text_raw/youho/honpen.txt"))
+
+    def test_expand_directory_wildcard(self):
+        # 「*」のあるディレクトリのパターンを、その版のファイルに展開する（git の一時リポジトリで確かめる）
+        import shutil
+        import subprocess
+        if not shutil.which("git"):
+            self.skipTest("git が無い")
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, "shiga-hino-plans")
+            files = ["data/text/youho/honpen.txt", "data/text/youho/honpen-202503.txt", "data/text/kodomo/honpen.txt",
+                     "data/text/youho/sub/x.txt", "data/text/readme.txt", "data/text_raw/youho/honpen.txt"]
+            for f in files:
+                os.makedirs(os.path.dirname(os.path.join(repo, f)), exist_ok=True)
+                with open(os.path.join(repo, f), "w", encoding="utf-8") as fh:
+                    fh.write(f)
+            run = lambda *a: subprocess.run(["git", "-C", repo, *a], check=True, capture_output=True, text=True).stdout
+            run("init", "-q")
+            run("add", ".")
+            run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "t")
+            sha = run("rev-parse", "HEAD").strip()
+            lock = {**self.LOCK, "shiga-hino-plans": {"sha": sha, "files": ["data/text/*/*.txt"]}}
+            got = gm.GitInputs(d, lock).expand("shiga-hino-plans", "data/text/*/*.txt")
+            self.assertEqual(got, ["data/text/kodomo/honpen.txt", "data/text/youho/honpen-202503.txt",
+                                   "data/text/youho/honpen.txt"])
 
     def test_read_outside_lock_stops_before_git(self):
         inputs = gm.GitInputs("/nonexistent", self.LOCK)
