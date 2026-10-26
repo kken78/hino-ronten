@@ -10,7 +10,7 @@
 - セルの中にタブ・改行を入れない
 - evidence・context は §4 の正規化を通した値を書く。名称（to_label・name など）は正規化せず、元のデータの表記のまま書く（どのデータの表記を使うかは §3 と §8 による）
 - 空欄は空文字とする。推定で埋めない
-- 行は、ファイルごとの行のキーの文字コード順に並べる（リンク台帳は from → to → method、テーマの定義は theme → kind → value（§11）、記録の台帳は §15 の各台帳の行のキー。系譜表と別名辞書は、並び順を決めていない）。並び順に意味を持たせない
+- 行は、ファイルごとの行のキーの文字コード順に並べる（リンク台帳は from → to → method、テーマの定義は theme → kind → value（§11）、記録の台帳は §15 の各台帳の行のキー、施設の参照表は key（§15.8）。系譜表と別名辞書は、並び順を決めていない）。並び順に意味を持たせない
 - 引用（記録の台帳の quote）は原文の表記のまま書き、照合のときに §4 の正規化をかける
 
 ---
@@ -31,6 +31,7 @@
 | sq | 議案の質疑のまとまり | `sq:<sid>` | `sq:0000008942_20260305_0013` | hino-council-search `public/data/proceedings.json` の質疑（kind が shitsugi）のまとまりの、最初の発言の sid（from） |
 | doc | 町の公開資料（1本、またはそのページ） | `doc:<id>` または `doc:<id>/<ページ>` | `doc:koho-no792-04`、`doc:koho-no792-04/1` | hino-town-docs `data/sources.tsv` の id と、PDF のページ（1から） |
 | pt | 計画の原典の文字（1本、またはそのページ） | `pt:<id>/<名前>` または `pt:<id>/<名前>/<ページ>` | `pt:youho/honpen`、`pt:youho/honpen-202503/25` | shiga-hino-plans `data/sources_index.tsv` の id と file（拡張子を除いた名前）と、PDF のページ（1から）。原典の文字は `data/text/<id>/<名前>.txt` と `data/text_raw/<id>/<名前>.txt`（shiga-hino-plans PLAN_SCHEMA §10） |
+| fa | 施設（建物・場所） | `fa:<英字>` | `fa:nishioji-yo` | `ref/shisetsu.tsv` の key（§15.8） |
 | mb | 議員 | `mb:<名前>` | `mb:松田洋子` | hino-council-search の proceedings.json の一般質問の member と index の name、council-dashboard の questions.json の member。名前のそろえ方は bq と同じ |
 
 - bq の議員名は、member を NFKC 正規化し、空白を除いたもの。この形で326問すべてが一意であることを確認済み（2026-10-10）
@@ -41,6 +42,7 @@
 - fh と none は、附表の台帳（`links/fuhyo.tsv`）だけで使う（§7 fuhyo）。fh の key は shiga-hino-plans が附表の事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の PLAN_SCHEMA §9）。none は、附表の事業が `<id>` の計画のどの事業にも当たらないこと（記載なし）を表す決まったキーで、事業を指さない
 - iq・sq と doc・pt は、記録の台帳（§15）とテーマの定義（§12）とテーマのノートのデータ（§13）だけで使う。iq・sq は sid と同じく位置に依存するため、記録の引用（quote）が発言の本文にあることで照合する。doc・pt は、引用がそのページの原典の文字にあることで照合する（§15.1）
 - pt は計画の版ごとの原典の文字を指す。改正の前の版は、file の名前の末尾に策定か改正の年月6桁が付く（例 `honpen-202503`。shiga-hino-plans PLAN_SCHEMA §10.3）。計画の JSON の項目を指す参照（`plan:<id>/<tab>/<type>/<n>/<item>`、§13.1）とは別のもので、引用の照らし先には pt を使う（DESIGN.md ADR-22）
+- fa は、施設の記録（§15.8）・テーマの定義（§12）・テーマのノートのデータ（§13）で使う。名前や所在地では施設を決められないので、参照表で決めた英字のキーとする（DESIGN.md ADR-23）
 - mb も、記録の台帳・テーマの定義・テーマのノートのデータで使う。3つの入力で、この形の名前が一致することを確認した（2026-10-25。審議の記録25人・発言25人・議会だより13人）。表記の揺れが出たら、別名辞書に足す方法を決めてから使う
 
 ---
@@ -271,9 +273,10 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 付け替えの重なり | relink の confirmed の行と同じ (from, to) を持つ mention の行が candidate か confirmed なら、一覧（relink_conflict.tsv）に出して終了コード1。人が、どちらかを却下するか、付け替えを取り消す |
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ |
 | 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する。fuhyo の台帳では、to の種類（node・none）と status ごとに表示する（CLAUDE.md 不変の制約11） |
-| テーマの定義 | `ref/themes.tsv` が §1 と §12 の形に合う（列名と列の順、行が theme → kind → value の文字コード順、(theme, kind, value) の重複が0件）。theme ごとに 名前 が1行だけある。kind が §12 の11のどれか。value が kind ごとの形に合い、lock の版の入力にある（系列は系譜表の series、施策と事業は計画の programs の key、議案は gian.json の議案、問いは proceedings.json の一般質問の問い、資料は hino-town-docs の data/sources.tsv の id）。問いの行の source に書いた議員の名前（§2 の mb のそろえ方で）が、審議の記録のその問いの member と同じ。資料の行の value が doc:<id> の形（ページ無し）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
+| テーマの定義 | `ref/themes.tsv` が §1 と §12 の形に合う（列名と列の順、行が theme → kind → value の文字コード順、(theme, kind, value) の重複が0件）。theme ごとに 名前 が1行だけある。kind が §12 の13のどれか。value が kind ごとの形に合い、lock の版の入力にある（系列は系譜表の series、施策と事業は計画の programs の key、議案は gian.json の議案、問いは proceedings.json の一般質問の問い、資料は hino-town-docs の data/sources.tsv の id、施設は ref/shisetsu.tsv の key）。問いの行の source に書いた議員の名前（§2 の mb のそろえ方で）が、審議の記録のその問いの member と同じ。資料の行の value が doc:<id> の形（ページ無し）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
+| 施設の参照表 | `ref/shisetsu.tsv` が §1 と §15.8 の形に合う（列名と列の順、行が key の文字コード順、key の重複が0件、key が §2 の fa の形）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
 | 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の行の note に §7 fuhyo の区分（「メモ：区分：<区分>」）が無いか、node の行の区分が一致・一致（柱違い）・表記の違い・名称の変更のどれでもないか、none の行の区分が一部・年度の事業・中身の違いのどれでもなければ終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート）。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo`。台帳を書かない）でも検査（`tools/check_links.py`）でも止め、誤りの事業を表示する |
-| 記録の台帳 | `records/` の6つの台帳が §1 と §15 の形に合う。行の同一性（§15 の各台帳）の重複が0件。status・種類などの値が §15 の決まりのどれか。引用（quote）が、§15.1 のとおり資料の本文にある。参照（answers・yaritori・upper_ref・lower_ref・sources など）が、指す先の行や資料にある。やりとりの記録と質疑の記録で、n が1からの整数で、round が「最初の問い」か「再質問」と1からの整数を続けたもので、答えの行の n が answers の指す問いの行の n と同じ。round が turns から求めた値と違う行は、件数を表示して一覧（build/records/round_diff.tsv）に出すが、終了コードは変えない（round は人が決め、turns から求めた値は候補のため。§15.2）。事柄の記録の point が、その行のテーマの kind 事柄の値のどれか。やりとりの記録と質疑の記録の point が、その問いかそのまとまりを持つテーマの kind 事柄か記載の値のどれか。構造にしていない記載の about が、空か、そのテーマの kind 事柄か記載の値のどれか。同じテーマ・同じ point の事柄の記録の行で、program が同じ（空を除く）。つながりの記録の upper・lower が、そのテーマの kind 記載の値のどれか。やりとりの記録の bq が §2 の bq の形で、議会だよりにある。合わなければ、テーマのノートのデータを作らずに終了コード1。引用が本文に無い行は、一覧（build/records/quote_mismatch.tsv）に出す |
+| 記録の台帳 | `records/` の7つの台帳が §1 と §15 の形に合う。行の同一性（§15 の各台帳）の重複が0件。status・種類などの値が §15 の決まりのどれか。引用（quote）が、§15.1 のとおり資料の本文にある。参照（answers・yaritori・upper_ref・lower_ref・sources など）が、指す先の行や資料にある。やりとりの記録と質疑の記録で、n が1からの整数で、round が「最初の問い」か「再質問」と1からの整数を続けたもので、答えの行の n が answers の指す問いの行の n と同じ。round が turns から求めた値と違う行は、件数を表示して一覧（build/records/round_diff.tsv）に出すが、終了コードは変えない（round は人が決め、turns から求めた値は候補のため。§15.2）。事柄の記録の point が、その行のテーマの kind 事柄の値のどれか。やりとりの記録と質疑の記録の point が、その問いかそのまとまりを持つテーマの kind 事柄か記載の値のどれか。構造にしていない記載の about が、空か、そのテーマの kind 事柄か記載の値のどれか。同じテーマ・同じ point の事柄の記録の行で、program が同じ（空を除く）。つながりの記録の upper・lower が、そのテーマの kind 記載の値のどれか。施設の記録の facility が ref/shisetsu.tsv にあり、aspect が §15.8 の4つのどれか。やりとりの記録の bq が §2 の bq の形で、議会だよりにある。合わなければ、テーマのノートのデータを作らずに終了コード1。引用が本文に無い行は、一覧（build/records/quote_mismatch.tsv）に出す |
 
 一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
 
@@ -297,7 +300,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 列 | 内容 | 例 |
 | --- | --- | --- |
 | theme | テーマの id（英小文字） | `hoiku` |
-| kind | 名前・系列・施策・事業・議案・語・除外の語・問い・資料・質疑・事柄・記載のどれか | `系列` |
+| kind | 名前・系列・施策・事業・議案・語・除外の語・問い・資料・質疑・事柄・記載・施設のどれか | `系列` |
 | value | kind ごとの値（下の表） | `youho` |
 | source | 根拠（入力のどこを見て決めたか） | `shiga-hino-plans data/plans/jisshi.json 分野① e008` |
 | reviewer | 決めた人の GitHub ユーザー名 | `kken78` |
@@ -318,6 +321,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 質疑 | §2 の sq キー | テーマの議案の質疑のうち、テーマにかかわるものとする。質疑の記録（§15.7）を、この質疑について作る。1つの質疑がいくつもの事業や議案にまたがるため、人が1件ずつ選ぶ |
 | 事柄 | 事柄の名前（人が決めた表記。例「新こども園の開園時期」） | 事柄の記録（§15.3）の point と、やりとりの記録（§15.2）・質疑の記録（§15.7）の point・構造にしていない記載（§15.6）の about に使う名前を決める。source に、かかわる事業の node キーと、その事柄を書いた主な資料を書く |
 | 記載 | 記載の見出し（人が決めた表記。例「子育て環境の未来に向けての提言」「再編整備方針」） | つながりの記録（§15.4）の upper・lower と、やりとりの記録・質疑の記録の point・構造にしていない記載の about に使う名前を決める。source に、その記載がある資料のキーか計画の記載の参照を書く |
+| 施設 | §2 の fa キー | テーマの施設とする。施設の記録（§15.8）を、この施設について作る。人が1件ずつ選ぶ |
 
 - 行は人が決める。エージェントが自分の判断で行を足したり変えたりしない（CLAUDE.md 不変の制約11 と同じ扱い。依頼者が会話で行を特定して認めた行は書いてよい）
 - source には、決めた根拠の入力と場所を書く（計画の programs の分野・事業の key、議案の会議と番号など）。語は、どの資料のどの表記によるかを書く
@@ -336,9 +340,9 @@ semantic：使う時点で、この節と §3 に規則を追加する。
   "theme": "hoiku",
   "name": "幼児教育・保育施設の再編",
   "lock": {"<入力のリポジトリ>": "<コミットSHA>"},
-  "ledgers": {"links/mention.tsv": "<sha256>", "links/relink.tsv": "<sha256>", "links/fuhyo.tsv": "<sha256>", "ref/themes.tsv": "<sha256>", "records/yaritori.tsv": "<sha256>", "records/katei.tsv": "<sha256>", "records/kotogara.tsv": "<sha256>", "records/tsunagari.tsv": "<sha256>", "records/kisai.tsv": "<sha256>"},
+  "ledgers": {"links/mention.tsv": "<sha256>", "links/relink.tsv": "<sha256>", "links/fuhyo.tsv": "<sha256>", "ref/themes.tsv": "<sha256>", "records/yaritori.tsv": "<sha256>", "records/katei.tsv": "<sha256>", "records/kotogara.tsv": "<sha256>", "records/tsunagari.tsv": "<sha256>", "records/kisai.tsv": "<sha256>", "records/shitsugi.tsv": "<sha256>", "records/shisetsu.tsv": "<sha256>", "ref/shisetsu.tsv": "<sha256>"},
   "plans": [], "policies": [], "programs": [], "budget": [], "council": [], "exchanges": [], "bills": [],
-  "docs": [], "records": {"yaritori": [], "katei": [], "kotogara": [], "tsunagari": [], "kisai": []},
+  "docs": [], "records": {"yaritori": [], "katei": [], "kotogara": [], "tsunagari": [], "kisai": [], "shitsugi": [], "shisetsu": []},
   "hits": {"council": [], "docs": []},
   "sheets": [], "issues": []
 }
@@ -360,7 +364,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | exchanges | council の言及を含む一般質問の問いごとの、問い（議員）と答え（当局）の並び（発言日・問いの番号・発言ごとの役職の区分・抜粋） | 確定 | council と同じ |
 | bills | テーマの議案（gi キー・会議・日付・番号・件名・結果・採決の方法・討論の並び（日付・議員・賛否・発言の sid）） | 確定 | 会議の掲載ページ（meetings.json の url） |
 | docs | テーマの資料（§12 の kind 資料。hino-town-docs の id・区分・名前・年度・日付・ページ数・check） | 確定 | 原典の PDF の URL |
-| records | テーマの記録（§15 の6つの台帳のうち、テーマの行と、テーマの問いのやりとりの記録と、テーマの質疑の記録。rejected は入れない） | 確定か記録（未確認） | 行ごとの資料の出典 |
+| records | テーマの記録（§15 の7つの台帳のうち、テーマの行と、テーマの問いのやりとりの記録と、テーマの質疑の記録と、テーマの施設についての施設の記録。rejected は入れない） | 確定か記録（未確認） | 行ごとの資料の出典 |
 | hits.council | テーマの語が一致した会議録の発言と議会だよりの問いのうち、council に無いもの（発言日・from・一致した語・抜粋） | 語の一致（未確認） | council と同じ |
 | hits.docs | テーマの語が一致した町の公開資料のページ（資料の id・名前・年度・ページ・一致した語・抜粋・どの層で一致したか・想定外の字のあるページか） | 語の一致（未確認） | 原典の PDF の URL に `#page=<n>` |
 | sheets | テーマの事業ごとの整理シート（DESIGN.md ADR-19。資料の種類から機械で置ける記載と、その事業にかかわる記録への参照） | 項目ごとに、もとの項目の layer | 項目ごとの出典 |
@@ -396,11 +400,12 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 | 比べ方 | 比べるもの | 候補にする条件 |
 | --- | --- | --- |
-| 予定の変更 | 事柄の記録の、同じ事柄の行 | 種類が変更の行がある。または、種類が予定の行の対象の時期が、資料の日付のあとの予定の行と違う |
+| 予定の変更 | 事柄の記録の、同じ事柄の行。施設の記録の、同じ施設・同じ面の行 | 種類が変更の行がある。または、種類が予定の行の対象の時期が、資料の日付のあとの予定の行と違う |
 | 留保のその後 | やりとりの記録の答えのうち種類が留保の行と、同じ点（point）の、そのあとの記録 | 留保の答えがある。そのあとの日付に同じ点のやりとりの記録か事柄の記録があれば並べ、無ければ「記録に無い」とする。中身が合っているかは比べない |
 | 繰り返し問われている点 | やりとりの記録の問いの行の点 | 同じ点の問いが、2つ以上の会議にある。議員ごとには数えない（不変の制約6） |
 | 問われていない区分 | やりとりの記録の問いの行のロジックモデルの区分 | テーマの問いの行を区分ごとに数え、すべての区分の数を並べる。0件の区分があれば、その区分を示す |
 | つながりの記録に無い目的 | つながりの記録 | 目的と手段の行で、手段の側にだけ現れ、目的の側に現れない記載がある（その記載を手段とする、さらに上の目的の記録が無い）。「資料に無い」ではなく「つながりの記録に無い」と書く |
+| 役割のその後 | 施設の記録の、役割の行と状態の行 | 役割の行（例 指定避難所）がある施設に、そのあとの日付の状態の行（休園・閉園・移行など）がある。その役割について、状態の行のあとの日付の記録（同じ施設の役割の行、同じ地区の施設の同じ役割の行）があれば並べ、無ければ「記録に無い」とする |
 | 計画と予算 | 実施計画の事業と附表 | 附表の事業に当たる実施計画の事業が無い（記載なし）、実施計画の事業に当たる附表の事業が無い、または実施年度にその年度があるのに附表に無い |
 
 - 候補の refs には、比べた項目の layer を付ける。記録（未確認）の行から作った候補は、statement の頭に「記録（未確認）による」と書く
@@ -410,6 +415,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
   - 繰り返し問われている点「「<点>」は、<会議の一覧>の問いで問われた」
   - 問われていない区分「テーマの問いの行を区分ごとに数えると、課題N件、…、手続きN件（全N件）」
   - つながりの記録に無い目的「「<記載の見出し>」を手段とする目的の記載は、つながりの記録に無い」
+  - 役割のその後「<施設>は、<資料の日付>の<資料>で<役割>。<資料の日付>の<資料>では<状態>（<種類>）。そのあと、<日付>の<資料>がある」。無ければ「そのあとの記録は無い」
   - 計画と予算「<附表の事業>は実施計画に当たる事業が無い（記載なし）」「<実施計画の事業>は実施年度に令和N年度があるが、令和N年度の附表に当たる事業が無い」
 - scope：計画と予算の実施計画の側と、整理シートの事業にかかわる事柄の候補は「事業」、ほかは「テーマ」
 
@@ -427,7 +433,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | exchanges | meeting_id・meeting・date・n（問いの番号）・question（iq のキー）・member（mb のキー・名前・議席）・titles（議会だよりの題名とテーマ）・turns（sid・side（問い・答え）・speaker・role・excerpt・url の並び）・mentions（この問いの中の council の from） |
 | bills | key・meeting_id・meeting・date・no・kind・title・committee・result・method・debates（date・member（mb のキー・名前・議席）・stance・sid・url の並び。審議の記録の討論（kind が debate）のうち、bills にこの議案を含むもの）・url |
 | docs | id・category・title・fiscal_year・date・pages・check・text_layers（原典の文字・OCR の下書きのどれがあるか）・url |
-| records | yaritori・shitsugi・katei・kotogara・tsunagari・kisai の6つ。それぞれ §15 の行の列と、資料の url・layer。yaritori は問いの単位、shitsugi は質疑の単位にまとめ、問いと質疑に member（mb のキー・名前・議席）を持たせる |
+| records | yaritori・shitsugi・katei・kotogara・tsunagari・kisai・shisetsu の7つ。それぞれ §15 の行の列と、資料の url・layer。yaritori は問いの単位、shitsugi は質疑の単位にまとめ、問いと質疑に member（mb のキー・名前・議席）を持たせる |
 | hits.council | meeting_id・meeting・date・n・question・titles・words（一致した語と回数）・from（語が最初に一致した発言の sp のキー。題名だけで一致したときは問いの最初の発言）・excerpt（その発言から）・first_sid・url |
 | hits.docs | doc・title・category・fiscal_year・page・words・text_layer（「原典の文字」か「OCR の下書き」）・excerpt・unexpected・url |
 | sheets | program・kadai（課題の記載）・cost（事業費と予算）・desc（事業の説明）・vision（めざす姿）・tsunagari・kotogara・katei・asked（やりとりの記録と質疑の記録への参照と、問いの行の区分ごとの数）。どれも、項目への参照（ref）・text か value・source・url・layer の並び |
@@ -451,7 +457,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | list_themes | なし | テーマの id・名前・項目ごとの件数 |
 | get_theme | theme・part（plans・policies・programs・budget・bills・docs のどれか） | その項目の全件 |
 | get_council | theme・layer（「確定」か「語の一致（未確認）」）・from_date・to_date（どちらも省ける） | 確定なら council と exchanges、語の一致（未確認）なら hits.council。日付の範囲で絞る |
-| get_records | theme・kind（yaritori・katei・kotogara・tsunagari・kisai のどれか）・key（省ける） | key を渡したときは、その行（yaritori は問い、kotogara は事柄の名前を key にして、その全行を資料の日付の順に）。省いたときは、そのテーマのその台帳の一覧（行のキー・見出し・資料の日付・判定したかどうか） |
+| get_records | theme・kind（yaritori・shitsugi・katei・kotogara・tsunagari・kisai・shisetsu のどれか）・key（省ける） | key を渡したときは、その行（yaritori は問い、shitsugi は質疑のまとまり、kotogara は事柄の名前、shisetsu は施設（fa）を key にして、その全行を資料の日付の順に）。省いたときは、そのテーマのその台帳の一覧（行のキー・見出し・資料の日付・判定したかどうか） |
 | get_sheet | theme・program（node キー） | その事業の整理シート（sheets の1件） |
 | list_issues | theme・program（省ける） | 論点の候補。program を渡したときは、その事業の候補と、scope がテーマの候補 |
 | search_docs | theme・word（省ける。テーマの語のどれか） | 町の公開資料の語の一致（hits.docs） |
@@ -463,7 +469,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 ## 15. 記録の台帳 `records/`
 
-資料の文を引いて、議会でのやりとり（一般質問と議案の質疑）、政策の過程、事柄の時点、記載どうしのつながり、構造にしていない記載を記録する台帳（DESIGN.md ADR-16・ADR-19・ADR-21）。
+資料の文を引いて、議会でのやりとり（一般質問と議案の質疑）、政策の過程、事柄の時点、記載どうしのつながり、構造にしていない記載、施設の役割と状態を記録する台帳（DESIGN.md ADR-16・ADR-19・ADR-21・ADR-23）。
 
 ### 15.1 共通の決まり
 
@@ -525,6 +531,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | status・reviewer・date・note | §15.1 | |
 
 - 行のキーは (theme, point, source, quote)
+- 施設の状態（開設・休園・閉園・移行など）は、この台帳ではなく施設の記録（§15.8）に記録する（DESIGN.md ADR-23）
 - 会議録の答えは、やりとりの記録にあっても、事柄にかかわるものはこの台帳にも1行置く（yaritori の列でつなぐ）。議会と広報と計画の記載を、同じ表で資料の日付の順に見るため
 - kind の決め方は、資料の書き方による（「〜しました」は済んだこと、「〜しています」はいまのこと、「〜します」「（予定）」「〜をめどに」は予定、「当初〜」「見直しました」「延期」など前の予定を変えたと書いてあるものは変更）。書き方から決められないときは、note に書いて人が決める
 
@@ -606,3 +613,42 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - テーマの定義の kind 質疑で選んだまとまりだけを記録する。1つのまとまりがいくつもの事業や議案にまたがるときは、テーマにかかわる部分だけを記録し、note にそう書く
 - 議会だよりとの対応（bq・bulletin）は置かない。議会だよりが質疑をどう載せているかを、まだ確認していないため
 - 討論と採決は記録しない。審議の記録の討論（kind が debate の stance）と採決（kind が vote の result・method）を、テーマのノートのデータの bills（§13 の debates・result・method）でそのまま示す
+
+### 15.8 施設の記録 `records/shisetsu.tsv`
+
+施設ごとに、種類・運営・役割・状態について、資料が何と書いたかを記録する（DESIGN.md ADR-23）。
+
+| 列 | 内容 | 例 |
+| --- | --- | --- |
+| facility | 施設（§2 の fa。ref/shisetsu.tsv にあるもの） | `fa:nishioji-yo` |
+| aspect | 種類・運営・役割・状態 のどれか | `状態` |
+| value | 資料の表記のまま（短く。引用の中の語） | `休園` |
+| source | 資料（§2 の sp・bq・doc・pt・gi） | `doc:koho-no788-05/1` |
+| source_date | 資料の日付（§15.1） | `2026-03` |
+| quote | 引用（§15.1） | `【休園する幼稚園】日野町立西大路幼稚園日野町立南比都佐幼稚園` |
+| target | 対象の時期（資料の表記のまま。無ければ空） | `令和８年４月１日（水）～令和９年３月31日（水）` |
+| kind | 済んだこと・いまのこと・予定・変更 のどれか（§15.3 と同じ決め方） | `予定` |
+| prev | 変更のとき、前の値（資料の表記のまま） | |
+| status・reviewer・date・note | §15.1 | |
+
+- 行のキーは (facility, aspect, source, quote)
+- 種類は、幼稚園・保育所・認定こども園・小規模保育施設など、資料の表記による。運営は、直営・民営など、資料の表記による
+- 役割は、資料に書かれたものだけを記録する（例 指定避難所）。推定で足さない
+- 状態は、開設・休園・閉園・移行・跡地の使い方など、施設の状態の変わり方を書いた資料の文を記録する
+- 1つの引用が2つ以上の施設を書いているときは、施設ごとに行を分ける（引用は同じ）
+- 議員の発言（sp）も資料にしてよい。町の資料と議員の発言の区別は、source のキーと、審議の記録の役職で分かる
+- テーマの定義の kind 施設で選んだ施設について記録する
+
+参照表 `ref/shisetsu.tsv`（系譜表・別名辞書と同じ参照表。人が根拠つきで決める。エージェントが自分の判断で行を足したり変えたりしない）：
+
+| 列 | 内容 | 例 |
+| --- | --- | --- |
+| key | `fa:<英小文字・数字・ハイフン>` | `fa:kaneka` |
+| name | いまの名前（資料の表記） | `みらいしゃくなげ保育園` |
+| aliases | 前の名前と、その時期（「名前（時期）」を「;」で区切る。時期は資料の表記） | `日野幼稚園鎌掛分園（平成10年〜）;保育所あおぞら園鎌掛分園（平成28年〜）` |
+| district | 地区（日野・東桜谷・西桜谷・西大路・鎌掛・南比都佐・必佐。資料の表記） | `鎌掛` |
+| source | 根拠（入力のどこを見て決めたか） | `doc:jigyo-shinkodomoen-kousou/14 の施設概況の表` |
+| reviewer・date・note | 決めた人の GitHub ユーザー名・決めた日・注記 | |
+
+- 行は key の文字コード順
+- 1つの建物（場所）を1つの施設とする。名前や運営が変わっても key は変えず、使い回さない
