@@ -1,5 +1,8 @@
 theme	kind	value	source	reviewer	date	note
+hoiku	事柄	再編整備計画の計画期間	pt:youho/honpen/4「本計画の計画期間は、令和6年から令和11年までの6年間とします。」、pt:youho/honpen-202503/4	kken78	2026-10-27	v2 で足した（再編整備計画の版の違いの調べ）。策定の版は令和6〜10年の5年間
 hoiku	事柄	新こども園の定員	node:jisshi/e008。sp:0000008211_20241213_0099（令和6年12月の答弁、基本構想策定の中で決める）、sp:0000008691_20251212_0235（令和7年12月の答弁「最終のこの285」）	kken78	2026-10-25	
+hoiku	事柄	新こども園の整備費用と財源	node:jisshi/e008。sp:0000008691_20251212_0231（就学前教育・保育施設整備交付金や公共施設等適正管理推進事業債などの活用を予定）、sp:0000008489_20250613_0066（起債と交付金を活用しての整備を検討）	kken78	2026-10-27	シート1の「合う点の名前が無かった行」で足すと決めたもの
+hoiku	事柄	新こども園の用地	node:jisshi/e008。doc:jigyo-shinkodomoen-kousou/46（候補地①を整備予定地として選定）、sp:0000008211_20241213_0156（場所は選定中）	kken78	2026-10-27	同上
 hoiku	事柄	新こども園の開園時期	node:jisshi/e008。sp:0000008489_20250613_0066（令和7年6月定例会議の答弁「令和10年度の開園をめどに」）、doc:koho-no792-04（開園時期の見直し）	kken78	2026-10-25	
 hoiku	事柄	新こども園の面積	node:jisshi/e008。sp:0000008211_20241213_0156（令和6年12月の答弁「2,800平方メートル」）、plan:youho/summary/kpi_grid/3/3（約3,000㎡（予定））	kken78	2026-10-25	
 hoiku	事業	node:jisshi/e006	shiga-hino-plans data/plans/jisshi.json 分野① 公立保育所運営事業	kken78	2026-10-24	
@@ -27,23 +30,56 @@ hoiku	問い	iq:0000008691_20251212_0229	令和7年12月定例会議 2025-12-12 
 hoiku	問い	iq:0000008942_20260309_0195	令和8年3月定例会議 2026-03-09 8番 山本秀喜 問2「子育て支援施設の個別施設計画の内容と進捗」	kken78	2026-10-25	子育て支援施設にかかわる部分だけを記録する
 hoiku	施策	node:sogo6/e011	shiga-hino-plans data/plans/sogo6.json 分野① 子ども・子育て	kken78	2026-10-24	
 hoiku	施策	node:sogo6/e047	shiga-hino-plans data/plans/sogo6.json 分野①の基本施策(3) 幼児教育・保育の充実	kken78	2026-10-24	
+hoiku	施設	fa:aozora	保育所あおぞら園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:hino-yo	日野幼稚園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:hinona	みらいひのな保育園。doc:koho-no795-05/1「みらいひのな保育園(新設)」	kken78	2026-10-27	v2 で足した
+hoiku	施設	fa:hisa-yo	必佐幼稚園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:kaneka	みらいしゃくなげ保育園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:kobato	保育所こばと園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:minamihizusa-yo	南比都佐幼稚園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:nishioji-yo	西大路幼稚園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:sakuradani-1	桜谷こども園第１園舎。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:sakuradani-2	桜谷こども園第２園舎。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:shin-kodomoen	新こども園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:warabe	わらべ保育園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+hoiku	施設	fa:warabe2	第二わらべ保育園。doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
 hoiku	系列	kodomo	ref/lineage.tsv kodomo（第2期・第3期 子ども・子育て支援事業計画）	kken78	2026-10-24	
 hoiku	系列	youho	ref/lineage.tsv youho（幼児教育保育施設再編整備計画）	kken78	2026-10-24	
+hoiku	記載	こども園の立地の条件（a〜g）	doc:shingi-youho-teigen/26「立地については、以下の項目を満たすことを前提とします」	kken78	2026-10-27	条件 a〜g は p.26–27
+hoiku	記載	どの選択肢でも満たすべき3点	doc:shingi-youho-teigen/39「どの選択肢を取るとしても、限られた財政の中で」	kken78	2026-10-27	１．少子化対策 ２．保育者の環境改善 ３．日野の特色を反映する園（p.39）
 hoiku	記載	より良い幼児教育保育環境を持続可能なものとしていく	doc:koho-no780-05「町の未来を担う子どもたちにとって、より良い幼児教育保育環境を持続可能なものとしていくために」	kken78	2026-10-25	
+hoiku	記載	先進地の現地調査の実施状況	doc:shingi-youho-teigen/17「先進地の現地調査の実施状況」	kken78	2026-10-27	提言の見出し（判定シート5）
 hoiku	記載	再編整備の基本方針（1）① 愛着形成と主体性を伸ばす力の養成	plan:youho/hoshin/bullets/3/1	kken78	2026-10-25	「再編整備の基本方針（1）」の①の文。②「①のために」のつながりを記録するために分ける
 hoiku	記載	再編整備の基本方針（1）子どもにとって最善の保育環境を整える	plan:youho/hoshin/bullets/3	kken78	2026-10-25	
 hoiku	記載	再編整備の基本方針（2）幼児教育保育環境の再編整備を図る	plan:youho/hoshin/bullets/4	kken78	2026-10-25	doc:koho-no780-05 の「幼児教育保育環境の再編整備を図ります」①〜③は、この記載とほぼ同じ文
 hoiku	記載	再編整備方針（広報ひの 2026年7月号）	doc:koho-no792-04「再編整備方針」①〜③	kken78	2026-10-25	計画の（1）（2）とは書き方と組み立てが違う（①②は（1）②に、③は（2）①と（1）④に近い）ため、別の記載にする
+hoiku	記載	効率的な施設管理	doc:jigyo-shinkodomoen-kousou/5「施設の再編と集約化を図ることにより、効率的な施設管理を実現し」	kken78	2026-10-27	基本構想の目的の文の一部（シート3の5.）
+hoiku	記載	各層のワークショップの実施状況	doc:shingi-youho-chukan-r4/9「３．各層のワークショップの実施状況について」、doc:shingi-youho-teigen/16「（９）各層のワークショップの実施状況」	kken78	2026-10-27	中間報告と提言の見出し（判定シート6）
+hoiku	記載	地域が主導する小規模保育施設等	doc:shingi-youho-teigen/29「地域の選択肢として、地域が主導する小規模保育施設等を提案します」	kken78	2026-10-27	
+hoiku	記載	地域で育てる	doc:shingi-youho-teigen/18「①．地域で育てる」	kken78	2026-10-27	提言 §7(1) の将来像の1つめ。中身は同じページ「居住している近くで子どもを園に通わせたいという想いのみならず、地域の子は地域の行事や他世代間交流を通じて地域で育てたいという想い」
 hoiku	記載	子育て環境の将来像の提案	doc:shingi-youho-teigen「７．（２）子育て環境の将来像の提案」	kken78	2026-10-25	計画（plan:youho/hoshin/bullets/2）「子育て環境の将来像の提案(幼児教育保育環境の将来において重要な5点)」
+hoiku	記載	子育て環境の将来像（住民の想いが重なるところ）	doc:shingi-youho-teigen/18「住民側の子育て環境の将来像について住民の想いが重なるところを把握したところ」	kken78	2026-10-27	提言 §7(1)。①地域で育てる ②子育てしようとする人が住みたくなる住環境 ③自然と触れ合える ④保育士の目指す保育の実現。いまある記載「子育て環境の将来像の提案」（§7(2)）とは別
 hoiku	記載	子育て環境の未来に向けての提言	doc:shingi-youho-teigen の表紙「子育て環境の未来に向けての提言（最終報告）」	kken78	2026-10-25	ほかの書き方：計画（plan:youho/hoshin/narrative/1/1）「懇話会の提言(最終報告)」、doc:koho-no780-05「「幼児教育保育の在り方検討懇話会」の提言」、会議録の答弁「懇話会の提言」
 hoiku	記載	幼保連携型認定こども園の新設	plan:youho/saihen/narrative/1/1「「幼保連携型認定こども園」を新たに整備する」、node:jisshi/e008	kken78	2026-10-25	「幼児教育保育施設の再編整備」のうちの、新しい園を建てること
 hoiku	記載	幼児教育保育施設の再編整備	doc:koho-no780-05「幼児教育保育施設の再編整備に取り組んでいきます」、doc:koho-no792-04「幼児教育保育施設の再編整備を進めています」	kken78	2026-10-25	計画そのものではなく、取り組みを指す
+hoiku	記載	想定1 全ての公立園をそのまま存続した場合	doc:shingi-youho-teigen/21「a.想定１全ての公立園をそのまま存続した場合」	kken78	2026-10-27	提言 p.20「各地域の園を存続するという案」から試算を始めている
+hoiku	記載	想定2 全ての園をこども園に転換して存続した場合	doc:shingi-youho-teigen/21「b.想定２ 全ての園をこども園に転換して存続した場合」	kken78	2026-10-27	
+hoiku	記載	想定3 こども園をつくり地域で主導する小規模保育施設等で補強した場合	doc:shingi-youho-teigen/39「こども園をつくり地域で主導する小規模保育施設等で補強した場合」	kken78	2026-10-27	提言 p.22 の試算の書き方は「町内の公立園をこども園として集約し、①が実現できるよう民間小規模保育施設等で補強する案」。名前は p.39 の表記による
 hoiku	記載	懇話会が提案する日野の未来	doc:shingi-youho-teigen「８．懇話会が提案する日野の未来」	kken78	2026-10-25	
+hoiku	記載	懇話会の基本的な考え方	doc:shingi-youho-teigen/14「懇話会の基本的な考え方」	kken78	2026-10-27	提言の見出し（判定シート5）
 hoiku	記載	懇話会の設置目的	doc:shingi-youho-teigen「６．（３）懇話会の設置目的」	kken78	2026-10-25	目次の書き方は「懇話会設置の目的」
+hoiku	記載	懇話会の進め方	doc:shingi-youho-teigen/15「懇話会の進め方」	kken78	2026-10-27	提言の見出し（判定シート5）
+hoiku	記載	新こども園の整備方針（5つの柱）	doc:jigyo-shinkodomoen-kousou/34「次の５つの柱を整備方針としてまとめました」	kken78	2026-10-27	柱Ⅰ〜Ⅴの見出しは同じページにある（シート3の5.）
+hoiku	記載	日野町における幼児教育・保育の質の向上	doc:shingi-youho-teigen/5「日野町における幼児教育・保育の質の向上」	kken78	2026-10-27	提言の見出し（判定シート5）
+hoiku	記載	日野町の子育て環境における課題	doc:shingi-youho-teigen/18「日野町の子育て環境における課題」	kken78	2026-10-27	提言の見出し（判定シート5）
+hoiku	記載	日野町の幼児教育・保育の変遷	doc:shingi-youho-teigen/12「（２）日野町の幼児教育‣保育の変遷」	kken78	2026-10-27	提言の見出し（判定シート5）。本文の見出しの表記は「幼児教育‣保育」。目次は「幼児教育・保育」
+hoiku	記載	日野町の幼児教育・保育の課題	doc:shingi-youho-teigen/7「（１）日野町の幼児教育・保育の課題」	kken78	2026-10-27	提言の見出し（判定シート5）
 hoiku	記載	日野町幼児教育保育施設再編整備計画	plan:youho（shiga-hino-plans data/plans/youho.json の計画名）	kken78	2026-10-25	「令和7年3月策定・令和8年6月一部改正」（計画の posted）。令和7年3月策定の版は doc:jigyo-youhosaihen-keikaku-202503。案は「日野町幼児教育保育施設再編整備計画（案）」に分ける
 hoiku	記載	日野町幼児教育保育施設再編整備計画（案）	sp:0000008211_20241213_0095（令和6年12月の町長の答弁「日野町幼児教育保育施設再編整備計画（案）における」）、問い iq:0000008211_20241213_0079・iq:0000008211_20241213_0154・iq:0000008397_20250310_0215・iq:0000008397_20250310_0285 の題	kken78	2026-10-25	案の本文は hino-town-docs に無い（パブリックコメントのときの資料は、まだ調べていない）
+hoiku	記載	日野町認定こども園整備基本構想	doc:jigyo-shinkodomoen-kousou/1	kken78	2026-10-27	ほかの書き方：「認定こども園整備基本構想」（doc:koho-no790-05）、「新こども園の基本構想」（会議録の答弁）（シート3の5.）
 hoiku	記載	町における幼児教育保育施設の課題の解決	doc:koho-no792-04「町における幼児教育保育施設の課題を解決するために、以下の方針で進めています。」	kken78	2026-10-25	
 hoiku	記載	第6次日野町総合計画	plan:sogo6。doc:shingi-youho-teigen「２．第６次日野町総合計画に基づく子ども子育て施策」「６．（１）第６次日野町総合計画に基づく検討課題の克服」、計画（plan:youho/hoshin/narrative/2/1）「町の最上位計画である「第6次日野町総合計画」」	kken78	2026-10-25	
+hoiku	記載	連続性のある保育・幼児教育	doc:jigyo-shinkodomoen-kousou/5「連続性のある保育・幼児教育を推進することを目的とします」	kken78	2026-10-27	計画の「「つながり」のある保育・幼児教育」とは書き方が違うので分ける（シート3の5.）
 hoiku	記載	適正な集団規模の確保	plan:youho/hoshin/bullets/3/2、plan:youho/saihen/narrative/1/1、sp:0000006505_20220311_0339、sp:0000008211_20241213_0095、doc:koho-no783-08	kken78	2026-10-25	懇話会の設置目的の「適正な集団規模に応じた保育の提供」と、提言の条件「一クラスの適正集団規模を２０人」は、中身が違うのでこの記載に入れない
 hoiku	語	こども園	youho の計画名と本文、jisshi e007・e008 の事業名	kken78	2026-10-24	
 hoiku	語	保育園	jisshi e009 の事業名	kken78	2026-10-24	
@@ -56,6 +92,7 @@ hoiku	語	待機児童	jisshi e017 の説明	kken78	2026-10-24
 hoiku	議案	gi:0000008397/議第11号	hino-council-search public/data/gian.json 会議 0000008397 日野町保育所設置条例の一部を改正する条例の制定について	kken78	2026-10-24	
 hoiku	議案	gi:0000008397/議第25号	hino-council-search public/data/gian.json 会議 0000008397 令和７年度日野町一般会計予算	kken78	2026-10-24	
 hoiku	議案	gi:0000008942/議第115号	hino-council-search public/data/gian.json 会議 0000008942 令和８年度日野町一般会計予算	kken78	2026-10-24	
+hoiku	資料	doc:bosai-h30-hinanjo	hino-town-docs data/sources.tsv（e00f5d6）	kken78	2026-10-27	施設の記録の指定避難所の行の出典（判定シート4 v2 の G）
 hoiku	資料	doc:jigyo-shinkodomoen-gaiyou	hino-town-docs data/sources.tsv jigyo-shinkodomoen-gaiyou 日野町認定こども園整備基本構想（概要版）、令和7年8月。基本構想の要点。本文は原典の文字に無く、OCR の下書きで読む	kken78	2026-10-25	
 hoiku	資料	doc:jigyo-shinkodomoen-kousou	hino-town-docs data/sources.tsv jigyo-shinkodomoen-kousou 日野町認定こども園整備基本構想、令和7年8月。新こども園の目的・定員の見通し・予定地・規模・整備スケジュール、策定委員会、上位計画と整合を図る計画	kken78	2026-10-25	
 hoiku	資料	doc:jigyo-shinkodomoen-pabu	hino-town-docs data/sources.tsv jigyo-shinkodomoen-pabu 日野町認定こども園整備基本構想（案）における住民意見募集の結果（令和7年7月11日〜8月8日、5名・18件）。過程の段階（構想の案と意見募集）	kken78	2026-10-25	
@@ -74,6 +111,7 @@ hoiku	資料	doc:koho-no790-02	hino-town-docs data/sources.tsv koho-no790-02 202
 hoiku	資料	doc:koho-no790-04	hino-town-docs data/sources.tsv koho-no790-04 2026-05 令和8年度一般会計予算のあらまし（歳入・歳出）「新こども園整備にかかる用地購入」。投入	kken78	2026-10-25	
 hoiku	資料	doc:koho-no790-05	hino-town-docs data/sources.tsv koho-no790-05 2026-05 令和8年度一般会計予算のあらまし（政策の柱）「こども園整備」。投入・活動	kken78	2026-10-25	
 hoiku	資料	doc:koho-no792-04	hino-town-docs data/sources.tsv koho-no792-04 2026-07「町の未来を担う子どもたちのために 幼児教育保育環境の再編整備を進めています」（開園時期の見直し）。事柄（開園時期）、つながり	kken78	2026-10-25	
+hoiku	資料	doc:koho-no795-05	hino-town-docs data/sources.tsv（e00f5d6）	kken78	2026-10-27	施設の記録の fa:hinona の行の出典（入園の案内、2026年10月号）
 hoiku	資料	doc:shingi-youho-chukan-r4	hino-town-docs data/sources.tsv shingi-youho-chukan-r4 令和4年度中間報告書。過程の段階	kken78	2026-10-25	
 hoiku	資料	doc:shingi-youho-gijiroku-01	hino-town-docs data/sources.tsv shingi-youho-gijiroku-01 第1回懇話会議事録、2022-07-12。過程の段階、提言までの議論	kken78	2026-10-25	
 hoiku	資料	doc:shingi-youho-gijiroku-02	hino-town-docs data/sources.tsv shingi-youho-gijiroku-02 第2回懇話会議事録、2022-10-24。過程の段階、提言までの議論	kken78	2026-10-25	
@@ -84,4 +122,7 @@ hoiku	資料	doc:shingi-youho-gijiroku-06	hino-town-docs data/sources.tsv shingi
 hoiku	資料	doc:shingi-youho-gijiroku-07	hino-town-docs data/sources.tsv shingi-youho-gijiroku-07 第7回懇話会議事録、2023-10-06。過程の段階、提言までの議論	kken78	2026-10-25	
 hoiku	資料	doc:shingi-youho-gijiroku-08	hino-town-docs data/sources.tsv shingi-youho-gijiroku-08 第8回懇話会議事録、2024-01-12。過程の段階、提言までの議論	kken78	2026-10-25	
 hoiku	資料	doc:shingi-youho-teigen	hino-town-docs data/sources.tsv shingi-youho-teigen 子育て環境の未来に向けての提言（最終報告）、令和6年2月。過程の段階、目的の記載	kken78	2026-10-25	
+hoiku	質疑	sq:0000008397_20250307_0076	令和7年第2回（3月）定例会会議録 2025-03-07 8番 山本秀喜 議第3号・議第8号・議第19号・議第25号の質疑。テーマにかかわる部分：新こども園の用地（当初予算に用地買収が無いこと）	kken78	2026-10-27	質疑の記録の6行（判定シート2）のまとまり
+hoiku	質疑	sq:0000008942_20260305_0013	令和8年3月定例会議 2026-03-05 3番 谷口智哉 議第115号の質疑。テーマにかかわる部分：新こども園（町長の答えの中）、令和8年度から幼稚園として使われない建物	kken78	2026-10-27	質疑の記録の6行（判定シート2）のまとまり
+hoiku	質疑	sq:0000008942_20260305_0131	令和8年3月定例会議 2026-03-05 8番 山本秀喜 議第109号・議第115号の質疑。テーマにかかわる部分：新こども園の整備費用と財源（子育て未来基金の使い道）	kken78	2026-10-27	質疑の記録の6行（判定シート2）のまとまり
 hoiku	除外の語	学童保育	学童保育所（放課後児童クラブ）は就学後の子どもの施設で、このテーマに含めない	kken78	2026-10-24	

@@ -1,0 +1,14 @@
+key	name	aliases	district	source	reviewer	date	note
+fa:aozora	保育所あおぞら園		日野	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+fa:hino-yo	日野幼稚園		日野	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+fa:hinona	みらいひのな保育園		南比都佐	doc:koho-no795-05/1「みらいひのな保育園(新設)」、所在地「深山口431番地」。南比都佐幼稚園の所在地も「深山口431番地」（doc:koho-no783-08/2）	kken78	2026-10-27	v2 で足した（再編整備計画の版の違いの調べ）。南比都佐幼稚園の園庭に新設する小規模保育施設（doc:koho-no792-04/1 ※１）。建物が南比都佐幼稚園と別なので、別の施設とした（ADR-23）。名前は 2026年10月号の入園の案内の表記
+fa:hisa-yo	必佐幼稚園		必佐	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+fa:kaneka	みらいしゃくなげ保育園	鎌掛幼稚園（開設から）;日野幼稚園鎌掛分園（平成１０年度から）;保育所あおぞら園鎌掛分園（平成２８年度から）	鎌掛	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表。別名は pt:youho/honpen/30「当初は鎌掛幼稚園として開設され、平成１０年度に日野幼稚園の分園化、平成２８年度に保育所あおぞら園の分園としてこれまで活用され」	kken78	2026-10-27	みらいしゃくなげ保育園の名前は基本構想（2025-08）の表による。同じ表の延床面積 408㎡・建築年度 H3 は、計画 p.30 のあおぞら園鎌掛分園の「H3 年建築 408 ㎡」と同じ
+fa:kobato	保育所こばと園		必佐	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+fa:minamihizusa-yo	南比都佐幼稚園		南比都佐	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	計画（いまの版）p.31 は、小規模保育事業の施設を「園庭に」民間事業者が開設・運営するとしている。同じ建物を使うかは書かれていない。新しい建物になるときは、別の施設として参照表に足す
+fa:nishioji-yo	西大路幼稚園		西大路	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	
+fa:sakuradani-1	桜谷こども園第１園舎		西桜谷	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表。第１園舎・第２園舎の別は pt:youho/honpen/34 の表記	kken78	2026-10-27	基本構想 p.14 の表は「桜谷こども園」1行（延床面積 984㎡）で、園舎の別が無い。どちらの園舎の値かは資料で確かめていない
+fa:sakuradani-2	桜谷こども園第２園舎		西桜谷	pt:youho/honpen/34 の表記	kken78	2026-10-27	所在地は広報ひの 2026年3月号（doc:koho-no788-05/1）の「日野町大字北脇988番地」。日野町地域防災計画（shiga-hino-plans bosai）の西桜谷公民館の所在地と同じ
+fa:shin-kodomoen	新こども園			doc:jigyo-shinkodomoen-kousou/46（整備予定地の選定）	kken78	2026-10-27	建物はまだ無い。地区は、整備予定地の地区が資料で確かめられたら書く
+fa:warabe	わらべ保育園		日野	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	私立（運営は民営）。種類と運営の行だけを記録する（ADR-23）
+fa:warabe2	第二わらべ保育園		日野	doc:jigyo-shinkodomoen-kousou/14 の施設概況の表	kken78	2026-10-27	同上
