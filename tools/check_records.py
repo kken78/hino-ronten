@@ -108,6 +108,11 @@ def read_inputs(gi):
         plans=plan_ids, nodes=nodes, series=series)
 
 
+def _breakdown(counts):
+    """内訳の文（0件なら空）。例「（shitsugi 3・yaritori 244。」"""
+    return "・".join(f"{k} {v}" for k, v in sorted(counts.items()))
+
+
 def report_lines(rep):
     L = ["# 記録の台帳の確かめ（records/・ref/themes.tsv・ref/shisetsu.tsv）", ""]
     L.append("- 台帳の行の数：" + "・".join(f"{n} {c}" for n, c in rep.counts.items()))
@@ -117,13 +122,11 @@ def report_lines(rep):
     by = {}
     for r in rep.torikoboshi:
         by[r["ledger"]] = by.get(r["ledger"], 0) + 1
-    L.append(f"- 発言の取りこぼし：{len(rep.torikoboshi)}（" + "・".join(f"{k} {v}" for k, v in sorted(by.items()))
-             + "。torikoboshi.tsv）")
+    L.append(f"- 発言の取りこぼし：{len(rep.torikoboshi)}（" + (_breakdown(by) + "。" if by else "") + "torikoboshi.tsv）")
     by = {}
     for r in rep.quote_context:
         by[r["kind"]] = by.get(r["kind"], 0) + 1
-    L.append(f"- 引用の前後：{len(rep.quote_context)}（" + "・".join(f"{k} {v}" for k, v in sorted(by.items()))
-             + "。quote_context.tsv）")
+    L.append(f"- 引用の前後：{len(rep.quote_context)}（" + (_breakdown(by) + "。" if by else "") + "quote_context.tsv）")
     if rep.errors:
         L += ["", "## 誤り", ""] + [f"- {e}" for e in rep.errors]
     return L

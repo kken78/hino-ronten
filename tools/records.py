@@ -79,7 +79,9 @@ RE_INT = re.compile(r"[1-9][0-9]*")
 # 引用の前後（§11）：§4 の正規化のあとの頭の指示語。文の終わりの字
 DEMONSTRATIVES = ("その", "この", "これ", "それ", "あの", "こうした", "そうした", "こういった", "そういった", "上記", "前述",
                   "同様", "先ほど", "さきほど", "今申し上げ", "以上")
-SENTENCE_END = "。？！"
+# つなぎの言葉と、前の文を指さない時の語は、指示語として数えない（判定シート18 で、このまま とした語）
+NOT_DEMONSTRATIVE = ("それと", "それから", "それぞれ", "それでは", "これまで", "これから", "このあと")
+SENTENCE_END = "。？！?!"   # §4 の正規化（NFKC）のあとでは「？」「！」は「?」「!」になる
 
 # 一覧の列
 ROUND_DIFF_COLUMNS = ["ledger", "question", "n", "row", "sid", "round", "turns_round"]
@@ -720,7 +722,7 @@ def quote_context(inp, name, rows, rep):
         if not q:
             continue
         k = "/".join(r[c] for c in KEYS[name])
-        if q.startswith(DEMONSTRATIVES):
+        if q.startswith(DEMONSTRATIVES) and not q.startswith(NOT_DEMONSTRATIVE):
             rep.quote_context.append({"ledger": name, "key": k, "source": key, "kind": "指示語で始まる",
                                       "quote": r["quote"]})
         texts = source_texts(inp, key) or []
