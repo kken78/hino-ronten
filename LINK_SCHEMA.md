@@ -277,8 +277,8 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 施設の参照表 | `ref/shisetsu.tsv` が §1 と §15.8 の形に合う（列名と列の順、行が key の文字コード順、key の重複が0件、key が §2 の fa の形）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
 | 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の行の note に §7 fuhyo の区分（「メモ：区分：<区分>」）が無いか、node の行の区分が一致・一致（柱違い）・表記の違い・名称の変更のどれでもないか、none の行の区分が一部・年度の事業・中身の違いのどれでもなければ終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート）。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo`。台帳を書かない）でも検査（`tools/check_links.py`）でも止め、誤りの事業を表示する |
 | 記録の台帳 | `records/` の8つの台帳が §1 と §15 の形に合う。行の同一性（§15 の各台帳）の重複が0件。status・種類などの値が §15 の決まりのどれか。引用（quote）が、§15.1 のとおり資料の本文にある。参照（answers・yaritori・upper_ref・lower_ref・sources など）が、指す先の行や資料にある。やりとりの記録と質疑の記録で、n が1からの整数で、round が「最初の問い」か「再質問」と1からの整数を続けたもので、答えの行の n が answers の指す問いの行の n と同じ。round が turns から求めた値と違う行は、件数を表示して一覧（build/records/round_diff.tsv）に出すが、終了コードは変えない（round は人が決め、turns から求めた値は候補のため。§15.2）。事柄の記録の point が、その行のテーマの kind 事柄の値のどれか。やりとりの記録と質疑の記録の point が、空か、その問いかそのまとまりを持つテーマの kind 事柄か記載の値のどれか。構造にしていない記載の about が、空か、そのテーマの kind 事柄か記載の値のどれか。同じテーマ・同じ point の事柄の記録の行で、program が同じ（空を除く）。つながりの記録の upper・lower が、そのテーマの kind 記載の値のどれか。施設の記録の facility が ref/shisetsu.tsv にあり、aspect が §15.8 の4つのどれか。やりとりの記録の bq が §2 の bq の形で、議会だよりにある。記録しない文の question・n が、やりとりの記録か質疑の記録にある問いで、sid がその問いの発言で、quote がその発言の本文にある（§15.9）。合わなければ、テーマのノートのデータを作らずに終了コード1。引用が本文に無い行は、一覧（build/records/quote_mismatch.tsv）に出す |
-| 発言の取りこぼし | やりとりの記録の問い（question と n の組）ごとに、行のある発言のうち審議の記録の turns の順で最初のものから最後のものまでを見る。最後の行の発言が議員の発言でなければ、そのあとの議員の最初の発言（次の問いの頭。締めくくりの要望や意見が入る）も見る。質疑の記録は、まとまりの全部の発言を見て、テーマの語（§12 の kind 語）を含む文だけを残す。見る発言の本文を §4 の正規化にかけ、「。」「？」「！」のあとで文に分ける。同じ発言を引いた行の引用と1字も重ならず、記録しない文の台帳（§15.9）にも無い文を、件数を表示して一覧（build/records/torikoboshi.tsv）に出す。終了コードは変えない。人が、行を足すか、記録しない文の台帳に理由を書く（DESIGN.md ADR-24） |
-| 引用の前後 | 記録の台帳の引用のうち、§4 の正規化のあとの頭が指示語（その・この・これ・それ・あの・こうした・そうした・こういった・そういった・上記・前述・同様・先ほど・さきほど・今申し上げ・以上）で始まるものと、引用の終わりが本文の文の終わり（「。」「？」「！」の直前か、本文の終わり）でないものを、件数を表示して一覧（build/records/quote_context.tsv）に出す。終了コードは変えない。指す先や文の続きを引用に入れるか、行を分けるか、note に書くかは、人がそのつど決める（§15.1） |
+| 発言の取りこぼし | やりとりの記録の問い（question と n の組）ごとに、行のある発言のうち審議の記録の turns の順で最初のものから最後のものまでを見る。最後の行の発言が議員の発言でなければ、そのあとの議員の最初の発言（次の問いの頭。締めくくりの要望や意見が入る）も見る。質疑の記録は、まとまりの全部の発言を見て、テーマの語（§12 の kind 語）を含む文だけを残す。見る発言の本文を §4 の正規化にかけ、「。」「？」「！」（正規化のあとの「?」「!」を含む）のあとで文に分ける。同じ発言を引いた行の引用と1字も重ならず、記録しない文の台帳（§15.9）にも無い文を、件数を表示して一覧（build/records/torikoboshi.tsv）に出す。終了コードは変えない。人が、行を足すか、記録しない文の台帳に理由を書く（DESIGN.md ADR-24） |
+| 引用の前後 | 記録の台帳の引用のうち、§4 の正規化のあとの頭が指示語（その・この・これ・それ・あの・こうした・そうした・こういった・そういった・上記・前述・同様・先ほど・さきほど・今申し上げ・以上）で始まるもの（つなぎの言葉と時の語「それと」「それから」「それぞれ」「それでは」「これまで」「これから」「このあと」で始まるものは数えない）と、引用の終わりが本文の文の終わり（「。」「？」「！」の直前か、本文の終わり。§4 の正規化のあとの「?」「!」を含む）でないものを、件数を表示して一覧（build/records/quote_context.tsv）に出す。終了コードは変えない。指す先や文の続きを引用に入れるか、行を分けるか、note に書くかは、人がそのつど決める（§15.1） |
 
 テーマの定義・施設の参照表・記録の台帳・発言の取りこぼし・引用の前後は、`tools/check_records.py` で確かめる。報告と一覧は `build/records/` に出す（check.md・round_diff.tsv・quote_mismatch.tsv・torikoboshi.tsv・quote_context.tsv）。記録しない文の台帳（§15.9）が無ければ、0行として扱う。ほかの検査は、リンク台帳の道具（`tools/update_links.py`・`tools/check_links.py`）で行う。
 
@@ -344,7 +344,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
   "theme": "hoiku",
   "name": "幼児教育・保育施設の再編",
   "lock": {"<入力のリポジトリ>": "<コミットSHA>"},
-  "ledgers": {"links/mention.tsv": "<sha256>", "links/relink.tsv": "<sha256>", "links/fuhyo.tsv": "<sha256>", "ref/themes.tsv": "<sha256>", "records/yaritori.tsv": "<sha256>", "records/katei.tsv": "<sha256>", "records/kotogara.tsv": "<sha256>", "records/tsunagari.tsv": "<sha256>", "records/kisai.tsv": "<sha256>", "records/shitsugi.tsv": "<sha256>", "records/shisetsu.tsv": "<sha256>", "ref/shisetsu.tsv": "<sha256>"},
+  "ledgers": {"links/mention.tsv": "<sha256>", "links/relink.tsv": "<sha256>", "links/fuhyo.tsv": "<sha256>", "ref/themes.tsv": "<sha256>", "records/yaritori.tsv": "<sha256>", "records/katei.tsv": "<sha256>", "records/kotogara.tsv": "<sha256>", "records/tsunagari.tsv": "<sha256>", "records/kisai.tsv": "<sha256>", "records/shitsugi.tsv": "<sha256>", "records/shisetsu.tsv": "<sha256>", "records/nozoki.tsv": "<sha256>", "ref/shisetsu.tsv": "<sha256>", "ref/lineage.tsv": "<sha256>", "ref/aliases.tsv": "<sha256>"},
   "plans": [], "policies": [], "programs": [], "budget": [], "council": [], "exchanges": [], "bills": [],
   "docs": [], "records": {"yaritori": [], "katei": [], "kotogara": [], "tsunagari": [], "kisai": [], "shitsugi": [], "shisetsu": []},
   "hits": {"council": [], "docs": []},
@@ -365,7 +365,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | programs | 事業（キー・名前・説明・実施年度・概算事業費） | 確定 | 事業の計画のページ |
 | budget | テーマの事業に確定した附表の事業（附表のキー・名前・予算額・区分・どの事業に当たるか） | 確定 | 附表の原典の PDF（`#page=<n>`） |
 | council | 系列の計画への確定の言及（発言日・from・役職の区分・場面・抜粋） | 確定 | 会議録の発言は `https://kken78.github.io/hino-council-search/#thread=<やりとりの最初の sid>&focus=<sid>`（やりとりに入らない発言は会議録の原本 PDF）。議会だよりの問いは questions.json の minutes_exchange か議会だよりの PDF |
-| exchanges | council の言及を含む一般質問の問いごとの、問い（議員）と答え（当局）の並び（発言日・問いの番号・発言ごとの役職の区分・抜粋） | 確定 | council と同じ |
+| exchanges | council の会議録の言及を含む一般質問の問いと、テーマの問い（§12 の kind 問い）ごとの、問い（議員）と答え（当局）の並び（発言日・問いの番号・発言ごとの役職の区分・抜粋）（§13.4） | 確定 | council と同じ |
 | bills | テーマの議案（gi キー・会議・日付・番号・件名・結果・採決の方法・討論の並び（日付・議員・賛否・発言の sid）） | 確定 | 会議の掲載ページ（meetings.json の url） |
 | docs | テーマの資料（§12 の kind 資料。hino-town-docs の id・区分・名前・年度・日付・ページ数・check） | 確定 | 原典の PDF の URL |
 | records | テーマの記録（§15.2〜§15.8 の7つの台帳のうち、テーマの行と、テーマの問いのやりとりの記録と、テーマの質疑の記録と、テーマの施設についての施設の記録。rejected は入れない） | 確定か記録（未確認） | 行ごとの資料の出典 |
@@ -374,7 +374,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | sheets | テーマの事業ごとの整理シート（DESIGN.md ADR-19。資料の種類から機械で置ける記載と、その事業にかかわる記録への参照） | 項目ごとに、もとの項目の layer | 項目ごとの出典 |
 | issues | 論点の候補（比べ方・事業のキー・比べた事実・比べた項目への参照） | 論点の候補（未確認） | 比べた項目ごとの出典 |
 
-- 役職の区分は、会議録の発言の role から「議員」「当局」「議長」「その他」に分ける（docs/review-2026-10-21.md §5.3 e）
+- 役職の区分は、会議録の発言の role から「議員」「当局」「議長」「その他」に分ける（docs/review-2026-10-21.md §5.3 e）。role が議席（「4番」など）なら議員、議長・副議長・臨時議長・新議長・新副議長なら議長、空か、委員長（選挙管理委員長を除く）・事務局長・議会事務局長ならその他、ほかは当局。その他の分け方は暫定で、あとで決める（DESIGN.md 判断事項24）
 - hits.docs の語は、原典の文字（data/text/）で探し、当たらないページは OCR の下書き（data/ocr/）でも探す。抜粋は、原典の文字で当たったページは原典の文字から、OCR の下書きでだけ当たったページは OCR の下書きから切り出し、layer を「OCR の下書き」とする（ADR-14）
 - 台帳の note に「想定外の字のあるページ」とある資料のそのページは、`unexpected` を true にする。画面と MCP の道具は、そのページの数字を出典に使えないことを示す（ADR-14）
 - 数字（予算額・概算事業費）は、入力の構造データ（附表・計画の programs）の値をそのまま使う。町の公開資料の文字から数字を取り出さない
@@ -449,6 +449,20 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - hits.council は一般質問の問いの単位とし、題名か本文にテーマの語が一致した問いのうち、exchanges に無いものとする
 - excerpt は、テーマの語か照合の語が一致した箇所を中心に切り出す。どの語も一致しない発言（問いの中の当局の答えなど）は、発言の頭から切り出す
 - 議員は、問いの単位で member（キー・名前・議席）として持つ。行ごとに名前を繰り返さない。画面と出力での見せ方は DESIGN.md ADR-12 の決まりによる
+
+### 13.4 項目の作り方
+
+テーマのノートのデータは `tools/build_theme.py` が作る。先に記録の台帳の検査（§11 のテーマの定義・施設の参照表・記録の台帳）をかけ、誤りがあれば作らない。出典の url の無い項目が1つでもあれば作らない。
+
+- plans：系譜表（ref/lineage.tsv）のテーマの系列の行。plan のある行は、key を plan、url を計画のページ、posted を計画の meta の posted とする。plan の無い行（前の期）は、key を lin、url を系譜表の source の PDF のページとし、posted は空
+- policies・programs：計画の programs の事業（key がテーマの kind 施策・事業）。policies の kind は、desc に「めざす姿:」で始まる行があれば分野、無ければ基本施策（§13.1 のめざす姿と同じ見分け方）。source は計画の原典の PDF（計画の JSON の sources の1つめ）。事業ごとのページは計画の JSON に無いので付けない
+- budget：附表の台帳の confirmed の行のうち、to がテーマの事業のもの。category は note の「メモ：区分：<区分>」。url は附表の原典の PDF にページを付けたもの
+- council：言及の台帳（mention・relink）の confirmed の行のうち、to がテーマの plans の key のもの。会議録の言及の scene は審議の記録の場面（どの場面にも入らない発言は「範囲外」）。議会だよりの言及は、date を号の公表日（pub_date）、scene を「議会だより」とし、speaker は問いの欄（title・question_text）なら議員、答えの欄（answer_title・answers）なら当局
+- exchanges：問いの単位は、審議の記録の turns の問番号（機械の値。やりとりの記録の n とは違うことがある）。question は、その問番号の最初の q の発言。titles は、審議の記録の topics のうち議会だよりのもの。会議録の言及（sp）を含む問いと、テーマの問いから作る。議会だよりの言及（bq）からは作らない（議会だよりの問いと会議録の問いのつなぎを、問いごとに確かめていないため。暫定で、あとで決める。DESIGN.md 判断事項25）
+- bills：結果と採決の方法は gian.json（§15.7）。date は採決の日（審議の記録の採決。無ければ会議の日）。debates は、審議の記録の討論のうち bills にその議案を含むもの
+- docs：text_layers は、「原典の文字」（data/text か data/text_raw がある）と「OCR の下書き」（data/ocr がある）のある方
+- records：やりとりの記録と質疑の記録は、問い（question）の単位にまとめ、meeting_id・meeting・date（question の発言の日）・member と、行（rows）を持つ。ほかの台帳は行の並び。どの行にも資料の url と layer（confirmed は確定、candidate は記録（未確認））を付ける。rejected と、記録しない文の台帳（§15.9）は入れない
+- ledgers：§13 の台帳と参照表に、系譜表（plans を作るため）、別名辞書（言及の台帳を作ったときの参照表）、記録しない文の台帳（検査に使うため）を入れる
 
 ## 14. MCP の道具 `tools/mcp_ronten.py`
 
