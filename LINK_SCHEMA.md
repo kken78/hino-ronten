@@ -250,7 +250,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 
 - ビルドは、ここに書いた SHA の、ここに書いたファイルだけを読む
 - `public/data/gian.json`（会議ごとの議案と結果）は、経緯の検証やテーマの議案の候補に使う（DESIGN.md §5）。いまの台帳の候補と照合には使わない
-- hino-town-docs（町の公開資料。DESIGN.md ADR-14）は、テーマのノートのデータ（§13）の語の一致・資料の一覧、記録の台帳（§15）の引用の照合、MCP の道具（§14）の get_doc_page に使う。リンク台帳の候補と照合には使わない。data/text/ は原典の文字、data/ocr/ は OCR の下書きで、§13 と §15.1 の決まりで使い分ける
+- hino-town-docs（町の公開資料。DESIGN.md ADR-14）は、テーマのノートのデータ（§13）の語の一致・資料の一覧、記録の台帳（§15）の引用の照合に使う。リンク台帳の候補と照合には使わない。data/text/ は原典の文字、data/ocr/ は OCR の下書きで、§13 と §15.1 の決まりで使い分ける
 - 附表は年度ごとのファイルを名指しする（`data/fuhyo/*.json` とは書かない。見本の `_fuhyotest.json` を読まないため）
 - lock の更新は1コミットにまとめ、追加・変更・削除された質問と発言の件数をコミットメッセージに書く
 
@@ -484,27 +484,27 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 ## 14. MCP の道具 `tools/mcp_ronten.py`
 
-生成AIに、テーマのノートのデータ（§13）を読ませる道具（DESIGN.md ADR-13、§5 試作の工程 U3）。読むだけで、何も書かない（呼び出しの記録を除く）。
+生成AIに、テーマのノートのデータ（§13）を読ませる道具（DESIGN.md ADR-13・ADR-27）。読むだけで、何も書かない（呼び出しの記録を除く）。2026-10-30 に、試作で確かめた形（docs/eval-shisaku1.md §7）に改めた。
 
-- 形：MCP（Model Context Protocol）の stdio のサーバー。標準ライブラリだけで作る。JSON-RPC 2.0 で、`initialize`・`tools/list`・`tools/call` に答える
-- 読むもの：`build/theme/<theme>.json`（§13）と、lock の版の入力（§10）のうち、get_doc_page が読む hino-town-docs の `data/sources.tsv`・`data/text/<id>.txt`・`data/ocr/<id>.txt` と、get_speech が読む hino-council-search の `public/data/index/<年>.json`・`public/data/proceedings.json` だけ。ネットワークを使わない
-- 返すもの：どの道具も、項目ごとに layer と url を付けて返す。返す文の頭に、layer の意味（確定・語の一致（未確認）・OCR の下書き・記録（未確認）・論点の候補（未確認））を書く
-- 呼び出しの記録：呼び出しごとに、日時・道具の名前・引数・返した項目の数を `build/eval/mcp-log.jsonl` に1行ずつ書く（docs/eval-shisaku1.md）。返した中身は書かない
+- 形：MCP（Model Context Protocol）の stdio のサーバー。標準ライブラリだけで作る。JSON-RPC 2.0（1行に1つ）で、`initialize`・`tools/list`・`tools/call`・`ping` に答える
+- 起動：`python3 -B tools/mcp_ronten.py <theme> <node キー> [--log <jsonl>]`。1つのサーバーが1つの事業を扱う
+- 読むもの：`build/theme/<theme>.json`（§13）、`ref/themes.tsv`（テーマの語）、lock の版の hino-council-search の `public/data/index/<年>.json`（speeches が読む会議録の本文）だけ。ネットワークを使わない
+- 記載の書き方：持ち込み用の資料（§17.1）と同じ「［資料の日付］資料の名前：欄：値。「引用」（出典：url）」とし、記録（未確認）の行には【未確認】を付ける。どの記載にも id（`kotogara:3`・`yaritori:<問いのキー>/<行>`・`issue:2` など）を付け、fetch で取れるようにする
+- キーワード検索の結果（hits）は返さない（DESIGN.md ADR-26 と同じ理由）
+- 道具の説明（tools/list の description）と返す文は、決まった文とデータの項目だけで作る。評価で数える語の一覧（docs/eval-shisaku1.md §7）を道具に入れない
+- 呼び出しの記録：`--log` を渡したときは、呼び出しごとに、日時・道具の名前・引数・返した文の字数を1行ずつ書く。返した中身は書かない
+- 引数が決まりに合わないとき（無い id・名前・比べ方）は、その旨を返し、推定で近いものを返さない
 
 | 道具 | 引数 | 返すもの |
 | --- | --- | --- |
-| list_themes | なし | テーマの id・名前・項目ごとの件数 |
-| get_theme | theme・part（plans・policies・programs・budget・bills・docs のどれか） | その項目の全件 |
-| get_council | theme・layer（「確定」か「語の一致（未確認）」）・from_date・to_date（どちらも省ける） | 確定なら council と exchanges、語の一致（未確認）なら hits.council。日付の範囲で絞る |
-| get_records | theme・kind（yaritori・shitsugi・katei・kotogara・tsunagari・kisai・shisetsu のどれか）・key（省ける） | key を渡したときは、その行（yaritori は問い、shitsugi は質疑のまとまり、kotogara は事柄の名前、shisetsu は施設（fa）を key にして、その全行を資料の日付の順に）。省いたときは、そのテーマのその台帳の一覧（行のキー・見出し・資料の日付・判定したかどうか） |
-| get_sheet | theme・program（node キー） | その事業の整理シート（sheets の1件） |
-| list_issues | theme・program（省ける） | 論点の候補。program を渡したときは、その事業の候補と、scope がテーマの候補 |
-| search_docs | theme・word（省ける。テーマの語のどれか） | 町の公開資料の語の一致（hits.docs） |
-| get_doc_page | doc・page | 町の公開資料のそのページの文字。原典の文字があればそれを、無ければ OCR の下書きを返し、どちらかを text_layer で示す。unexpected が true のページと、区分が koho の資料のページは、数字を出典に使えないことを頭に書く |
-| get_speech | sid | 会議録の発言1件（本文・日付・役職・場面・url）。lock の版の入力から読む |
-
-- get_doc_page と get_speech が返すのは資料そのもので、layer は、原典の文字と会議録の発言は「確定」、OCR の下書きは「OCR の下書き」とする。「確定」は資料がその版にあることを示し、テーマとの対応を示すものではない（返す文の頭にそう書く）
-- 引数が決まりに合わないとき（無いテーマ・事業・問い・資料・ページ、決まりに無い part や kind など）は、エラーとして返し、推定で近いものを返さない
+| overview | なし | 頭に【未確認】と照合結果の意味、記載の書き方、取り込んだ資料のうちいちばん新しい記載の日付。事業の要点（§17.2 の1と同じ）。正式な名前（関連計画の名前と、つながりの記録の上位・下位の記載のうち計画・構想・提言で終わるもの）。目的（つながりの記録の「目的と手段」の上位の記載ごとに、資料の日付がいちばん新しい行の原文）。いまの段階（過程の記録の、期間の始まりが新しい3つ）。事項・施設・記載の見出し・照合結果の比べ方の一覧と件数。議会の件数 |
+| search | query（空白で区切った語）・kind（記載の種類。省ける）・limit（省くと20） | 記載の id・種類・抜粋（160字まで）。合う語の数の多い順、同じなら資料の日付順。語は NFKC にそろえ空白を除いて比べる |
+| fetch | ids | 記載の全文。`yaritori:<問いのキー>`・`shitsugi:<キー>` は記録した質問・質疑の全行、`issue:<番号>` は照合結果と比べた記載 |
+| topic | name（事項・施設・記載の見出しの名前） | 事項：町の資料の最新の記載（§16.2 と同じ選び方）、いまの町の説明（その記載の原文）、当局の答弁のうち新しい3つ（原文）、記載の推移（資料の日付順）、この事項についての質問・答弁。いまの町の説明が広報ひのの記載のときは、広報ひの以外でいちばん新しい町の資料の記載を並べ、数字や時期の出典にはそちらを使うことを書く。施設・記載の見出し：その記載を資料の日付順に |
+| council | from_date・to_date（YYYY-MM-DD。省ける） | 関連する一般質問（日付・会議・質問者・議会だよりの見出し）と関係議案（議決結果・採決方法・討論）、項目ごとに記録した質問・質疑の一覧 |
+| speeches | exchange（council が返す `exchange:<番号>`） | その一般質問の会議録の本文のうち、テーマの語（ref/themes.tsv の kind 語）のある発言の全文（質問か答弁か・発言者・url）。頭に、資料そのもので項目ごとの記録ではないことを書く |
+| issues | type（比べ方。省ける） | 省いたとき：照合結果の id と文の一覧。指定したとき：その比べ方の照合結果と比べた記載（§17.1 と同じ書き方。問われていない点は記録の節と件数） |
+| links | なし | つながりの記録の全行、過程の記録（期間の始まりの順）、総合計画のめざす姿と計画に掲げる課題 |
 
 ## 15. 記録の台帳 `records/`
 
