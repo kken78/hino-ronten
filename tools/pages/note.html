@@ -1,0 +1,340 @@
+<title>__TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 役所の綴りの紙面：上に見出しと出典の帯、タブで3枚を切り替え、各欄は表と時系列で並べる */
+:root{
+  --paper:#f7f8f6; --sheet:#ffffff; --ink:#1d2523; --muted:#5d6966; --rule:#d5dbd8;
+  --accent:#1f5f6b; --accent-soft:#e3eef0;
+  --l-kakutei:#1f5f6b; --l-mikakunin:#9a6a12; --l-mikakunin-bg:#fbf3e2; --l-hit:#6b6f7a; --l-hit-bg:#eef0f3;
+  --l-ronten:#6a4a8c; --l-ronten-bg:#f1ecf7;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic","Noto Sans JP",Meiryo,sans-serif;
+  --f-head:"BIZ UDPMincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  --f-num:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#141a19; --sheet:#1b2321; --ink:#e3e9e7; --muted:#9aa7a3; --rule:#33403d;
+  --accent:#7fc0cb; --accent-soft:#1f3337;
+  --l-kakutei:#7fc0cb; --l-mikakunin:#e0b45c; --l-mikakunin-bg:#2e2716; --l-hit:#a9aeb9; --l-hit-bg:#252a31;
+  --l-ronten:#c3a6e6; --l-ronten-bg:#2a2235; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#141a19; --sheet:#1b2321; --ink:#e3e9e7; --muted:#9aa7a3; --rule:#33403d;
+  --accent:#7fc0cb; --accent-soft:#1f3337;
+  --l-kakutei:#7fc0cb; --l-mikakunin:#e0b45c; --l-mikakunin-bg:#2e2716; --l-hit:#a9aeb9; --l-hit-bg:#252a31;
+  --l-ronten:#c3a6e6; --l-ronten-bg:#2a2235; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.7;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--sheet)}
+a{color:var(--accent)} a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto}
+header.top{padding-block:24px 8px;display:grid;gap:6px}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted)}
+h1{font-family:var(--f-head);font-weight:700;font-size:26px;line-height:1.35;margin:0;text-wrap:balance}
+.prov{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+footer.about{margin-top:32px;font-size:12.5px;color:var(--muted);display:grid;gap:6px;max-width:62em}
+.sub{font-size:14px;color:var(--muted);margin:0;max-width:62em}
+th .hint{display:block;font-weight:400;font-size:10.5px}
+.prov code{font-family:var(--f-num);font-size:11px}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);display:flex;gap:4px;border-bottom:2px solid var(--ink);padding-top:8px;overflow-x:auto}
+nav.tabs a{flex:0 0 auto;text-decoration:none;color:var(--muted);padding:8px 16px;border:1px solid var(--rule);border-bottom:none;background:var(--sheet);font-weight:700;border-radius:4px 4px 0 0}
+nav.tabs a[aria-current="page"]{color:var(--sheet);background:var(--ink);border-color:var(--ink)}
+nav.tabs small{font-weight:400;margin-left:6px;font-size:11px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted);padding-block:10px}
+.view{display:grid;gap:28px;padding-top:16px}
+section.blk{background:var(--sheet);border:1px solid var(--rule);padding:18px 20px;display:grid;gap:12px;min-width:0}
+section.blk>h2{font-family:var(--f-head);font-size:19px;margin:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+section.blk>h2 .count{font-family:var(--f-body);font-size:12px;color:var(--muted);font-weight:400}
+.src{font-size:12px;color:var(--muted)}
+h3{font-size:15px;margin:6px 0 0}
+.lead{color:var(--muted);font-size:13px;margin:0;max-width:62em}
+.tbl{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{border-bottom:1px solid var(--rule);padding:6px 8px;text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap;background:var(--paper)}
+td.num,th.num{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.date{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12.5px}
+.q{max-width:44em}
+.chip{display:inline-block;font-size:11px;line-height:1.5;padding:0 6px;border-radius:3px;border:1px solid var(--rule);color:var(--muted);white-space:nowrap}
+.L{display:inline-block;font-size:11px;line-height:1.5;padding:0 6px;border-radius:3px;white-space:nowrap}
+.L-確定{color:var(--l-kakutei);border:1px solid var(--l-kakutei)}
+.L-記録（未確認）{color:var(--l-mikakunin);background:var(--l-mikakunin-bg);border:1px dashed var(--l-mikakunin)}
+.L-語の一致（未確認）,.L-OCR{color:var(--l-hit);background:var(--l-hit-bg);border:1px dashed var(--l-hit)}
+.L-論点の候補（未確認）{color:var(--l-ronten);background:var(--l-ronten-bg);border:1px dashed var(--l-ronten)}
+.unconf{border-left:3px dashed var(--l-hit);padding-left:14px}
+.issues{display:grid;gap:10px}
+.issue{border:1px dashed var(--l-ronten);background:var(--l-ronten-bg);padding:10px 14px;display:grid;gap:6px;min-width:0}
+.issue p{margin:0}
+details>summary{cursor:pointer;color:var(--accent);font-size:13px}
+.refs{display:grid;gap:4px;font-size:12.5px;margin-top:6px}
+.refs div{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start}
+.ex{border-top:1px solid var(--rule);padding-top:12px;display:grid;gap:8px;min-width:0}
+.ex:first-of-type{border-top:none;padding-top:0}
+.exhead{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline}
+.exhead b{font-family:var(--f-head);font-size:15px}
+.turns{display:grid;gap:4px;font-size:13px}
+.turn{display:grid;grid-template-columns:5.5em 1fr;gap:8px}
+.turn .who{color:var(--muted);font-size:12px}
+.turn.a .who{color:var(--accent)}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:14px}
+.kv dt{color:var(--muted);font-size:12.5px}
+.kv dd{margin:0}
+.big{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:20px}
+ol.kadai{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.tl{overflow-x:auto;border:1px solid var(--rule);background:var(--paper)}
+.tl svg{display:block}
+.tl text{fill:var(--ink);font-family:var(--f-body)}
+.tl .axis{stroke:var(--rule)}
+.tl .yr{fill:var(--muted);font-size:11px}
+.tl .bar{fill:var(--accent-soft);stroke:var(--accent)}
+.tl .dot-q{fill:var(--accent)}
+.tl .dot-b{fill:var(--ink)}
+.tl .dot-p{fill:var(--l-mikakunin)}
+.tl .lane{fill:var(--muted);font-size:11px}
+.filters{display:flex;flex-wrap:wrap;gap:6px}
+.filters button{font:inherit;font-size:12px;padding:2px 10px;border:1px solid var(--rule);background:var(--sheet);color:var(--ink);border-radius:3px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+.note{font-size:12px;color:var(--muted)}
+@media (max-width:640px){h1{font-size:21px} section.blk{padding:14px 12px} .turn{grid-template-columns:4.5em 1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>
+/* 3つのメニュー（概要・論点整理・事業の運営）。各メニューは要点を先に置き、詳細は「選ぶ→全幅で開く」で見せる */
+.hero{display:grid;gap:8px;padding-block:20px 4px}
+.facts{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13.5px}
+.facts b{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:17px}
+.facts span{color:var(--muted)}
+nav.menu{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding-block:10px 0;border-bottom:2px solid var(--ink)}
+nav.menu a{display:grid;gap:2px;text-decoration:none;color:var(--ink);background:var(--sheet);border:1px solid var(--rule);border-bottom:none;padding:8px 12px;border-radius:4px 4px 0 0}
+nav.menu a b{font-size:14.5px}
+nav.menu a span{font-size:11.5px;color:var(--muted)}
+nav.menu a[aria-current="page"]{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+nav.menu a[aria-current="page"] span{color:var(--sheet);opacity:.8}
+.page{display:grid;gap:0}
+.intro{font-size:13.5px;color:var(--muted);margin:14px 0 0;max-width:62em}
+.sec{display:grid;gap:10px;padding-top:24px}
+.sec>h2{font-family:var(--f-head);font-size:19px;margin:0;padding-bottom:5px;border-bottom:1px solid var(--ink);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.sec>h2 small{font-family:var(--f-body);font-size:12px;color:var(--muted);font-weight:400}
+/* 選ぶ→全幅で開く */
+.picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.picker button{font:inherit;text-align:left;cursor:pointer;background:var(--sheet);border:1px solid var(--rule);padding:8px 10px;display:grid;gap:2px;align-content:start;color:var(--ink);min-width:0}
+/* 見出し（事項名・施設名）を太字、内容（値）をその下に普通の太さで */
+.picker button .t{font-size:13.5px;font-weight:700;line-height:1.4;color:var(--ink)}
+.picker button .v{font-size:13.5px;font-weight:400;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.picker button .v.none,.picker button .v.meta{color:var(--muted)}
+.picker button .v.meta{font-size:12px}
+.picker button[aria-selected="true"]{border:2px solid var(--accent);background:var(--accent-soft);padding:7px 9px}
+.panel{background:var(--sheet);border:1px solid var(--rule);border-top:3px solid var(--accent);padding:14px 16px;display:grid;gap:10px;min-width:0}
+.panel h3{margin:0;font-size:16px;font-family:var(--f-head)}
+.panel .now{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline}
+.panel .now .v{font-size:20px;font-weight:700}
+.was{font-size:12.5px;color:var(--l-mikakunin);font-weight:700}
+.rows{display:grid;gap:0;border-top:1px solid var(--rule)}
+.row{display:grid;grid-template-columns:8.5em 8.5em 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule);font-size:13.5px;align-items:start}
+.row .d{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted)}
+.row .who{font-size:12px}
+.row .src{font-size:11.5px;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;padding:0 5px;border:1px solid currentColor;border-radius:2px;white-space:nowrap}
+.t-q{color:var(--ink)} .t-a{color:var(--accent)} .t-doc{color:var(--muted)} .t-hold{color:var(--l-mikakunin);font-weight:700}
+.nen{display:grid;grid-template-columns:8.5em 1fr;background:var(--sheet);border:1px solid var(--rule)}
+.nen>div{padding:6px 10px;border-bottom:1px solid var(--rule);font-size:13.5px}
+.nen .d{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.nen .k-gikai{color:var(--accent)} .nen .k-change{color:var(--l-mikakunin);font-weight:700} .nen .cur{background:var(--accent-soft)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.box{background:var(--sheet);border:1px solid var(--rule);padding:12px 14px;display:grid;gap:8px;min-width:0;align-content:start}
+.box h3{margin:0;font-size:14.5px}
+.mk{font-size:11px;color:var(--l-ronten);border:1px dashed var(--l-ronten);background:var(--l-ronten-bg);padding:0 5px;border-radius:2px;white-space:nowrap;font-weight:400}
+ul.plain{margin:0;padding-left:1.1em;display:grid;gap:5px;font-size:13.5px}
+.chain{display:grid;gap:6px}
+.node{background:var(--sheet);border:1px solid var(--rule);padding:7px 12px;font-size:13.5px}
+.node.mine{border:2px solid var(--accent)}
+.node small{color:var(--accent);margin-left:8px}
+.arrow{color:var(--muted);font-size:12px;padding-left:18px}
+.lv1{margin-left:0}.lv2{margin-left:28px}.lv3{margin-left:56px}.lv4{margin-left:84px}
+.pair{display:grid;gap:4px;padding:8px 0;border-bottom:1px solid var(--rule)}
+.pair .q,.pair .a{display:grid;grid-template-columns:5.5em 1fr;gap:8px;font-size:13.5px}
+.pair .k{font-size:11px;color:var(--muted)}
+td.date,.date{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12.5px}
+@media (max-width:640px){nav.menu{grid-template-columns:1fr}nav.menu a{border-radius:0;border-bottom:1px solid var(--rule)}.row{grid-template-columns:1fr}.lv2{margin-left:14px}.lv3{margin-left:28px}.lv4{margin-left:42px}.nen{grid-template-columns:6.5em 1fr}}
+</style>
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">日野町　事業ノート（試作・非公開）</div>
+  <h1 id="h1"></h1>
+  <p class="sub" id="desc"></p>
+  <div class="facts" id="facts"></div>
+</header>
+<nav class="menu" aria-label="メニュー">
+  <a href="#gaiyo" data-v="gaiyo"><b>概要</b><span>事業の現状と経過を把握する</span></a>
+  <a href="#ronten" data-v="ronten"><b>論点整理</b><span>質問・答弁の作成の準備</span></a>
+  <a href="#unei" data-v="unei"><b>事業の運営</b><span>目的と手段、予算と議会の節目</span></a>
+</nav>
+<main>
+  <div class="page" id="p-gaiyo"></div>
+  <div class="page" id="p-ronten" hidden></div>
+  <div class="page" id="p-unei" hidden></div>
+</main>
+<footer class="about" id="about"></footer>
+</div>
+<script id="data" type="application/json">__DATA__</script>
+<script id="page" type="application/json">__PAGE__</script>
+<script>
+(function(){
+const RAW=document.getElementById('data').textContent.trim();
+if(RAW==='__DA'+'TA__'){document.querySelector('main').innerHTML='<p class="intro">このファイルは画面のひな形で、データが入っていません。</p>';return;}
+const D=JSON.parse(RAW), P=JSON.parse(document.getElementById('page').textContent), R=D.records;
+const PROG=D.programs.find(p=>p.key===P.program);
+const SHEET=D.sheets.find(s=>s.program===PROG.key);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const A=(url,t)=>url?`<a href="${esc(url)}" target="_blank" rel="noopener">${esc(t)}</a>`:esc(t);
+const lab=k=>(D.names.sources||{})[k]||k;
+const num=n=>Number(n).toLocaleString('ja-JP');
+const jd=s=>{if(!s)return '';const m=String(s).match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);return m?(m[3]?`${m[1]}年${+m[2]}月${+m[3]}日`:`${m[1]}年${+m[2]}月`):s};
+const short=(s,n)=>s.length>n?s.slice(0,n)+'…':s;
+const tbl=(head,rows)=>`<div class="tbl"><table><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+const sec=(title,sub,body)=>`<section class="sec"><h2>${esc(title)}${sub?`<small>${esc(sub)}</small>`:''}</h2>${body}</section>`;
+const KIND={'留保':'今後検討','考えていない':'予定なし','事実・数字':'事実・数値','方針・考え':'方針・考え方','時期・手順':'時期・手順','数字・見込み':'数値・見込み','事実の確認':'事実の確認','提案への考え':'提案への見解','住民意見・手続き':'住民意見・手続き','要望':'要望','その他':'その他'};
+const pickers=[];
+/* 選ぶ→全幅で開く：items=[{key,title,value,render}] */
+function picker(id,items){pickers.push({id,items});return `<div class="picker" role="tablist" id="${id}">${items.map((it,i)=>`<button role="tab" aria-selected="${i===0}" data-i="${i}"><span class="t">${esc(it.title)}</span><span class="v${it.none?' none':''}${it.meta?' meta':''}">${esc(it.value)}</span></button>`).join('')}</div><div class="panel" id="${id}-panel">${items[0]?items[0].render():''}</div>`}
+function bindPickers(){pickers.forEach(p=>{const el=document.getElementById(p.id);if(!el)return;el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-selected',x===b));document.getElementById(p.id+'-panel').innerHTML=p.items[+b.dataset.i].render()})})}
+
+/* 見出し */
+const bud=D.budget.find(b=>b.program===PROG.key);
+const budFy=bud?((bud.key.match(/^fh:fuhyo-r(\d+)\//)||[])[1]||''):'';
+const pol=D.policies.find(p=>p.kind==='基本施策');
+const yrs=(PROG.years||[]).map(y=>+String(y).replace(/^R/,'')).filter(n=>n);
+document.title=`${PROG.name}ノート`;
+document.getElementById('h1').textContent=PROG.name;
+document.getElementById('desc').textContent=PROG.desc||'';
+document.getElementById('facts').innerHTML=
+  (PROG.cost?`<div><span>${esc(PROG.cost.label)}（実施計画${yrs.length?` 令和${yrs[0]}〜${yrs[yrs.length-1]}年度`:''}）</span> <b>${num(PROG.cost.amount)}</b> ${esc(PROG.cost.unit)} ${A(PROG.source,'出典')}</div>`:'')+
+  (bud?`<div><span>令和${esc(budFy)}年度当初予算額</span> <b>${num(bud.amount)}</b> ${esc(bud.unit)} ${A(bud.url,'出典')}</div>`+
+  `<div><span>担当課</span> ${esc((bud.dept||[]).join('・'))}</div>`:'')+
+  `<div><span>総合計画</span> ${esc(PROG.field_no)} ${esc(PROG.field_name)}${pol?`／基本施策${esc(pol.no)} ${esc(pol.name)}`:''}</div>`;
+
+/* 共通：事項ごとの記載 */
+const kot={}; R.kotogara.filter(r=>r.program===PROG.key||!r.program).forEach(r=>(kot[r.point]=kot[r.point]||[]).push(r));
+Object.values(kot).forEach(a=>a.sort((x,y)=>(x.source_date+x.source).localeCompare(y.source_date+y.source)));
+/* 主な事項の並び（LINK_SCHEMA §16.2）：事業の事柄、テーマの単位の事柄の順。それぞれ町の資料の最新の記載の日付が新しい順、同じなら行の数が多い順、それも同じならテーマの定義の順。町の資料の記載が無い事柄は最後 */
+const docDate=p=>(kot[p]||[]).filter(r=>!r.source.startsWith('sp:')).map(r=>r.source_date).sort().pop()||'';
+const cmpPoint=(a,b)=>{const da=docDate(a),db=docDate(b);if(!da!==!db)return da?-1:1;if(da!==db)return da<db?1:-1;if(kot[a].length!==kot[b].length)return kot[b].length-kot[a].length;return a<b?-1:a>b?1:0};
+const pointsOf=f=>[...new Set(R.kotogara.filter(f).map(r=>r.point))].sort(cmpPoint);
+const ORDER=pointsOf(r=>r.program===PROG.key).concat(pointsOf(r=>!r.program));
+/* カードの値：町の資料の最新の記載の value（無ければ target）。町の資料の記載が無ければ null */
+function latest(p){const base=(kot[p]||[]).filter(r=>!r.source.startsWith('sp:'));if(!base.length)return null;const d=base[base.length-1].source_date;const last=base.filter(r=>r.source_date===d);return last.find(r=>(r.value||r.target)&&r.kind!=='変更')||last.find(r=>r.value||r.target)||last[last.length-1]}
+const NONE='町の資料に記載なし';
+const cv=c=>c?(c.value||c.target||''):'';
+const qa={}; ['yaritori','shitsugi'].forEach(n=>R[n].forEach(q=>q.rows.forEach(r=>{if(r.point)(qa[r.point]=qa[r.point]||[]).push({q,r,n})})));
+
+/* ===== 概要 ===== */
+function gaiyo(){
+  const o=[`<p class="intro">公開資料（計画・予算・会議録・議会だより・広報ひの等）から本事業に関する記載を抜き出し、出典付きで整理したものです。評価や判断は加えていません。</p>`];
+  const items=ORDER.filter(p=>kot[p]).map(p=>{const c=latest(p);const chg=kot[p].filter(r=>r.kind==='変更').pop();
+    const v=cv(c);
+    return {title:p,value:c?(v||`最新の記載：${jd(c.source_date)}`):NONE,none:!c,render:()=>{
+      const rows=kot[p];
+      if(!c)return `<h3>${esc(p)}</h3><div class="now"><span class="v">${NONE}</span></div><div class="note">会議録の発言を日付順に示します。</div>`+
+        `<div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.source_date))}</span><span><span class="tag t-a">会議録</span></span><span>${esc(r.quote)}<div class="src">${A(r.url,lab(r.source))}</div></span></div>`).join('')}</div>`;
+      return `<h3>${esc(p)}</h3><div class="now"><span class="v">${esc(v)}${v&&c.kind==='予定'?'（予定）':''}</span>${chg?`<span class="was">当初：${esc(chg.prev)}　→　${esc(jd(chg.source_date))}に変更</span>`:''}</div>`+
+      `<div class="q">${esc(c.quote)}</div>`+
+      `<div class="src">最新の記載（町の資料）：${esc(jd(c.source_date))}　${A(c.url,lab(c.source))}</div>`+
+      (chg&&chg.reason?`<div class="note">変更理由：${esc(chg.reason)}</div>`:'')+
+      `<div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.source_date))}</span><span><span class="tag ${r.source.startsWith('sp:')?'t-a':'t-doc'}">${r.source.startsWith('sp:')?'会議録':'町の資料'}</span></span><span>${esc(r.quote)}<div class="src">${A(r.url,lab(r.source))}${r.kind==='変更'?'　変更前：'+esc(r.prev):''}</div></span></div>`).join('')}</div>`}}});
+  o.push(sec('主な事項','項目を選ぶと、最新の記載と記載の推移を表示します',picker('pk-jiko',items)));
+  // 経過
+  const ev=[];
+  R.katei.forEach(k=>ev.push({d:k.from||'',c:'',h:`<b>${esc(k.name)}</b>${k.to&&k.to!==k.from?`<span class="note">（〜${esc(jd(k.to))}）</span>`:''}${!k.to&&k.from?'<span class="note">（継続中）</span>':''}　${A(k.url,'資料')}`,cur:!k.to&&k.from}));
+  D.bills.forEach(b=>ev.push({d:b.date,c:'k-gikai',h:`<span class="tag">議決</span> ${A(b.url,b.title)}　${esc(b.result)}`}));
+  const bym={}; D.exchanges.forEach(x=>{(bym[x.meeting_id]=bym[x.meeting_id]||{d:x.date,m:x.meeting,n:0}).n++});
+  Object.values(bym).forEach(g=>ev.push({d:g.d,c:'k-gikai',h:`<span class="tag">一般質問</span> ${esc(g.m)}　関連する質問 ${g.n}件`}));
+  R.kotogara.filter(r=>r.kind==='変更').forEach(r=>ev.push({d:r.source_date,c:'k-change',h:`<span class="tag">予定の変更</span> ${esc(r.point)}：${esc(r.prev)} → ${esc(r.target)}　${A(r.url,'資料')}`}));
+  const list=ev.filter(e=>e.d).sort((a,b)=>a.d.localeCompare(b.d)).concat(ev.filter(e=>!e.d));
+  o.push(sec('経過','検討の段階（太字）と、議決・一般質問・予定の変更を日付順に示します',`<div class="nen">${list.map(e=>`<div class="d">${esc(e.d?jd(e.d):'日付不明')}</div><div class="${e.c}${e.cur?' cur':''}">${e.h}</div>`).join('')}</div>`));
+  // 施設
+  const fs={}; R.shisetsu.forEach(r=>(fs[r.facility]=fs[r.facility]||[]).push(r));
+  const fitems=Object.keys(fs).sort((a,b)=>fs[b].length-fs[a].length).map(k=>{const f=(D.names.facilities||{})[k]||{};const rows=fs[k].slice().sort((a,b)=>(a.source_date+a.source).localeCompare(b.source_date+b.source));const st=rows.filter(r=>r.aspect==='状態');const last=st[st.length-1];
+    return {title:(f.name||k)+(f.district?`（${f.district}）`:''),value:last?short(last.value,14):'—',render:()=>`<h3>${esc(f.name||k)}${f.district?`<span class="note">　${esc(f.district)}地区</span>`:''}</h3><div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.source_date))}</span><span><span class="tag t-doc">${esc({'種類':'種別','状態':'状況'}[r.aspect]||r.aspect)}</span></span><span><b>${esc(r.value)}</b>${r.target?`（${esc(r.target)}）`:''}${r.kind==='予定'?'<span class="note">　予定</span>':''}<div>${esc(r.quote)}</div><div class="src">${A(r.url,lab(r.source))}</div></span></div>`).join('')}</div>`}});
+  o.push(sec('施設の再編','施設を選ぶと、種別・運営・役割・状況の記載を表示します',picker('pk-fac',fitems)));
+  const docs=D.docs.slice().sort((a,b)=>(b.date||b.fiscal_year).localeCompare(a.date||a.fiscal_year));
+  const CAT={koho:'広報ひの',shingi:'懇話会・審議会',jigyo:'事業資料',yosan:'予算',kessan:'決算',kofukin:'交付金',bosai:'防災'};
+  o.push(sec('資料','',`<details><summary>参照資料（${docs.length}件）</summary>${tbl(['日付','種別','資料名'],docs.map(x=>`<tr><td class="date">${esc(x.date?jd(x.date):x.fiscal_year+'年度')}</td><td>${esc(CAT[x.category]||x.category)}</td><td>${A(x.url,x.title)}</td></tr>`))}</details>`+
+    `<details><summary>関連計画（${D.plans.length}件）</summary>${tbl(['計画','計画期間','策定・改正'],D.plans.map(p=>`<tr><td>${A(p.url,p.name)}</td><td>${esc(p.start_fy)}〜${esc(p.end_fy)}年度</td><td>${esc(p.posted)}</td></tr>`))}</details>`));
+  return o.join('');
+}
+
+/* キーワード検索の結果の語：語の一致の回数の多い順に3つ（同じ回数は語の順） */
+function topWords(){const c={};D.hits.council.concat(D.hits.docs).forEach(h=>(h.words||[]).forEach(w=>c[w.word]=(c[w.word]||0)+w.count));
+  return Object.keys(c).sort((a,b)=>c[b]-c[a]||(a<b?-1:a>b?1:0)).slice(0,3).map(w=>`「${w}」`).join('')}
+/* ===== 論点整理 ===== */
+function ronten(){
+  const o=[`<p class="intro">一般質問や答弁を作成する際の準備に使います。事項ごとに、これまでの質問・答弁と町の資料の記載を日付順に並べ、過去の答弁との整合や、まだ取り上げられていない事項を確認できます。</p>`];
+  const pts=Object.keys(qa).sort((a,b)=>qa[b].length-qa[a].length);
+  const items=pts.map(p=>({title:p,value:`質問・答弁 ${qa[p].length}件`,meta:true,render:()=>{
+    const rows=qa[p].map(x=>({d:x.q.date,k:x.r.side==='問い'?'q':(x.r.kind==='留保'?'hold':'a'),who:x.r.side==='問い'?`${x.q.member.name} 議員`:x.r.speaker,text:x.r.quote,url:x.r.url,src:x.q.meeting+(x.n==='shitsugi'?'（議案質疑）':''),kind:KIND[x.r.kind]||x.r.kind}))
+      .concat((kot[p]||[]).filter(r=>!r.source.startsWith('sp:')).map(r=>({d:r.source_date,k:'doc',who:'',text:r.quote,url:r.url,src:lab(r.source),kind:''})))
+      .sort((a,b)=>a.d.localeCompare(b.d));
+    const TAG={q:['t-q','質問'],a:['t-a','答弁'],hold:['t-hold','答弁（今後検討）'],doc:['t-doc','町の資料']};
+    return `<h3>${esc(p)}</h3><div class="note">質問・答弁と町の資料を日付順に示します。「答弁（今後検討）」は、時期や内容を今後決めるとした答弁です。</div><div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.d))}</span><span><span class="tag ${TAG[r.k][0]}">${TAG[r.k][1]}</span><div class="who">${esc(r.who)}</div></span><span>${esc(r.text)}<div class="src">${A(r.url,r.src)}${r.kind?'　'+esc(r.kind):''}</div></span></div>`).join('')}</div>`}}));
+  o.push(sec('事項ごとの質問・答弁','事項を選ぶと、質問・答弁と町の資料の記載を日付順に表示します',picker('pk-qa',items)+`<div class="note">質問・答弁を項目ごとに記録したのは、関連する一般質問${D.theme_questions}問のうち${R.yaritori.length}問と、議案質疑${R.shitsugi.length}件です。</div>`));
+  const iss=t=>D.issues.filter(x=>x.type===t);
+  const li=xs=>`<ul class="plain">${xs.map(x=>`<li>${esc(x.statement)}</li>`).join('')}</ul>`;
+  const rep=iss('繰り返し問われている点'), hold=iss('留保のその後'), chg=iss('予定の変更'), not=iss('問われていない点'), kb=iss('問われていない区分')[0];
+  o.push(sec('照合結果（未確認）','資料を機械的に照合した結果で、職員による確認は済んでいません',
+    `<div class="two"><div class="box"><h3>複数の定例会議で質問された事項 <span class="mk">未確認</span></h3>${li(rep)}</div><div class="box"><h3>「今後検討」等と答弁された事項 <span class="mk">未確認</span></h3>${li(hold)}</div></div>`+
+    `<details><summary>予定時期が変わった事項（${chg.length}件）</summary>${li(chg)}</details>`+
+    `<details><summary>計画等に記載があり、記録した質問では取り上げられていない事項（${not.length}件）</summary><ul class="plain">${not.map(x=>`<li>${esc(x.statement.split('。')[0])}</li>`).join('')}</ul></details>`+
+    (kb?`<details><summary>質問内容の内訳</summary><p class="q">${esc(kb.statement)}</p></details>`:'')));
+  const ex=D.exchanges.slice().reverse().map(x=>`<tr><td class="date">${esc(jd(x.date))}</td><td>${esc(x.meeting)}</td><td>${esc(x.member.name)} 議員</td><td>${esc((x.titles[0]||{}).title||'')}</td><td>${A(x.turns[0]&&x.turns[0].url,'会議録')}</td></tr>`);
+  o.push(sec('一般質問と議案','',`<details><summary>関連する一般質問（${D.exchanges.length}件・新しい順）</summary>${tbl(['日付','定例会議','質問者','議会だよりの見出し','会議録'],ex)}</details>`+
+    `<details><summary>関係議案と議決結果（${D.bills.length}件）</summary>${tbl(['議決日','議案','議決結果','採決方法','討論'],D.bills.map(b=>`<tr><td class="date">${esc(jd(b.date))}</td><td>${A(b.url,b.no+' '+b.title)}</td><td>${esc(b.result)}</td><td>${esc(b.method)}</td><td>${b.debates.map(x=>esc(x.stance+'（'+x.member.name+' 議員）')).join('<br>')||'なし'}</td></tr>`))}</details>`+
+    `<details><summary>キーワード検索の結果（参考・${D.hits.council.length+D.hits.docs.length}件）</summary><p class="note">${esc(topWords())}等のキーワードが一致した会議録・議会だより・町の資料です。本事業に関するものとは限りません。</p>${tbl(['日付','種別','該当箇所','開く'],D.hits.council.slice().reverse().map(x=>`<tr><td class="date">${esc(jd(x.date))}</td><td>${esc(x.kind==='問い'?'一般質問':x.kind)}</td><td class="q">${esc(short(x.excerpt,90))}</td><td>${A(x.url,'開く')}</td></tr>`))}</details>`));
+  return o.join('');
+}
+
+/* ===== 事業の運営 ===== */
+function unei(){
+  const o=[`<p class="intro">事業担当課が、事業の目的と手段を整理し、予算要求や議会での説明に備えるために使います。</p>`];
+  // 目的と手段
+  const mt=R.tsunagari.filter(r=>r.link==='目的と手段');
+  const edges={}; mt.forEach(r=>{const k=r.upper+'\u0000'+r.lower;(edges[k]=edges[k]||{u:r.upper,l:r.lower,rows:[]}).rows.push(r)});
+  const E=Object.values(edges); const lowers=new Set(E.map(e=>e.l));
+  let mine=null; SHEET.tsunagari.forEach(x=>{const r=R.tsunagari.find(t=>['records/tsunagari',t.theme,t.link,t.upper,t.lower,t.source].join('/')===x.ref);if(r){const s=new Set([r.upper,r.lower]);mine=mine?new Set([...mine].filter(v=>s.has(v))):s}}); mine=mine||new Set();
+  let chain='';const seen=new Set();
+  function walk(n,lv,via){chain+=(via?`<div class="arrow lv${lv}">↓ 手段（記載：${A(via.rows[0].url,lab(via.rows[0].source))}${via.rows.length>1?` ほか${via.rows.length-1}件`:''}）</div>`:'')+`<div class="node lv${lv}${mine.has(n)?' mine':''}">${esc(n)}${mine.has(n)?'<small>本事業</small>':''}</div>`;if(seen.has(n))return;seen.add(n);E.filter(e=>e.u===n).forEach(e=>walk(e.l,Math.min(lv+1,4),e))}
+  [...new Set(E.map(e=>e.u))].filter(u=>!lowers.has(u)).sort().forEach(u=>{chain+='<div style="height:4px"></div>';walk(u,1,null)});
+  const kref=(SHEET.kadai[0]||{}).ref||'';const kplan=D.plans.find(p=>kref.startsWith(p.key+'/'));
+  const kadaiPlan=kplan?kplan.name:'計画';
+  const kpg=(((SHEET.kadai[0]||{}).source||'').match(/p\.(\d+)(?:-(\d+))?/)||[]);
+  const kadaiSrc=kadaiPlan+(kpg[1]?` ${kpg[1]}${kpg[2]?'〜'+kpg[2]:''}ページ`:'');
+  const vision=SHEET.vision.map(v=>`<p class="q" style="margin:0">${esc(v.text.replace(/^めざす姿:/,''))}</p><div class="note">${A(v.source,'総合計画')}</div>`).join('');
+  const kadai=`<ul class="plain">${SHEET.kadai.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul><div class="note">${A(SHEET.kadai[0].url,kadaiSrc)}</div>`;
+  const up=D.issues.filter(x=>x.type==='つながりの記録に無い目的');
+  o.push(sec('目的と手段','資料に記載された関係のみを示し、記載のない関係は加えていません',
+    `<div class="two"><div class="box"><h3>総合計画のめざす姿</h3>${vision}</div><div class="box"><h3>${esc(kadaiPlan)}に掲げる課題</h3>${kadai}</div></div>`+
+    `<div class="box"><h3>目的と手段の関係</h3><div class="chain">${chain}</div>${up.length?`<div class="note">上位の目的との関係が未記録の事項：${up.map(x=>esc((x.statement.match(/「(.+?)」/)||[])[1]||'')).join('、')}</div>`:''}</div>`+
+    `<p class="note">ロジックモデル（課題・投入・活動・結果・成果）への位置付けは、担当課が判断します。</p>`));
+  // 年度ごとの節目
+  const fy=s=>{const [y,m]=s.split('-').map(Number);return m>=4?y:y-1};
+  const years={}; const add=(d,col,h)=>{if(!d)return;const y=fy(d);(years[y]=years[y]||{step:[],gikai:[],plan:[]})[col].push(h)};
+  R.katei.forEach(k=>add(k.from,'step',`${esc(k.name)}`));
+  D.bills.forEach(b=>add(b.date,'gikai',`${esc(jd(b.date))} 議決：${A(b.url,b.title)}`));
+  const bym={}; D.exchanges.forEach(x=>{(bym[x.meeting_id]=bym[x.meeting_id]||{d:x.date,m:x.meeting,n:0}).n++}); Object.values(bym).forEach(g=>add(g.d,'gikai',`${esc(g.m)} 一般質問 ${g.n}件`));
+  R.shitsugi.forEach(q=>add(q.date,'gikai',`${esc(jd(q.date))} 議案質疑（${esc(q.member.name)} 議員）`));
+  R.kotogara.filter(r=>r.kind==='予定'||r.kind==='変更').forEach(r=>add(r.source_date,'plan',`${esc(r.point)}：${esc(r.target)}${r.kind==='変更'?'（変更）':''}`));
+  const wa=y=>y>=2019?`令和${y-2018}年度`:`${y}年度`;
+  o.push(sec('年度ごとの節目','検討の段階・議会・予定の記載を年度ごとにまとめます',tbl(['年度','検討の段階','議会','予定の記載'],Object.keys(years).sort().map(y=>`<tr><td class="date">${wa(+y)}</td><td>${years[y].step.join('<br>')}</td><td>${years[y].gikai.join('<br>')}</td><td>${[...new Set(years[y].plan)].join('<br>')}</td></tr>`))+
+    `${bud?`<p class="note">令和${esc(budFy)}年度の当初予算額は${num(bud.amount)}${esc(bud.unit)}（${A(bud.url,'予算の附表')}）。それより前の年度の予算額は、まだ取り込んでいません。</p>`:''}`));
+  return o.join('');
+}
+
+document.getElementById('p-gaiyo').innerHTML=gaiyo();
+document.getElementById('p-ronten').innerHTML=ronten();
+document.getElementById('p-unei').innerHTML=unei();
+bindPickers();
+document.getElementById('about').innerHTML=`<div>資料の文は原文のまま引用しています。「未確認」の表示がある項目は、機械による照合の結果で、職員による確認が済んでいません。議員ごとの件数や順位は示していません。</div><div>データの版：build/theme/${esc(D.theme)}.json（${esc(P.source_sha256.slice(0,12))}）、`+Object.entries(D.lock).map(([r,s])=>`${esc(r)} ${esc(s.slice(0,7))}`).join('、')+'</div>';
+const views=['gaiyo','ronten','unei'];
+function show(){const v=views.includes(location.hash.slice(1))?location.hash.slice(1):'gaiyo';views.forEach(n=>document.getElementById('p-'+n).hidden=(n!==v));document.querySelectorAll('nav.menu a').forEach(a=>{if(a.dataset.v===v)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
+window.addEventListener('hashchange',show);show();
+})();
+</script>
