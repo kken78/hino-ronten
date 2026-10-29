@@ -210,8 +210,8 @@ document.getElementById('desc').textContent=PROG.desc||'';
 document.getElementById('facts').innerHTML=
   (PROG.cost?`<div><span>${esc(PROG.cost.label)}（実施計画${yrs.length?` 令和${yrs[0]}〜${yrs[yrs.length-1]}年度`:''}）</span> <b>${num(PROG.cost.amount)}</b> ${esc(PROG.cost.unit)} ${A(PROG.source,'出典')}</div>`:'')+
   (bud?`<div><span>令和${esc(budFy)}年度当初予算額</span> <b>${num(bud.amount)}</b> ${esc(bud.unit)} ${A(bud.url,'出典')}</div>`+
-  `<div><span>担当課</span> ${esc((bud.dept||[]).join('・'))}</div>`:'')+
-  `<div><span>総合計画</span> ${esc(PROG.field_no)} ${esc(PROG.field_name)}${pol?`／基本施策${esc(pol.no)} ${esc(pol.name)}`:''}</div>`;
+  `<div><span>担当課</span> ${esc((bud.dept||[]).join('・'))} ${A(bud.url,'出典')}</div>`:'')+
+  `<div><span>総合計画</span> ${esc(PROG.field_no)} ${esc(PROG.field_name)}${pol?`／基本施策${esc(pol.no)} ${esc(pol.name)} ${A(pol.url,'出典')}`:''}</div>`;
 
 /* 共通：事項ごとの記載 */
 const kot={}; R.kotogara.filter(r=>r.program===PROG.key||!r.program).forEach(r=>(kot[r.point]=kot[r.point]||[]).push(r));
@@ -225,6 +225,9 @@ const ORDER=pointsOf(r=>r.program===PROG.key).concat(pointsOf(r=>!r.program));
 function latest(p){const base=(kot[p]||[]).filter(r=>!r.source.startsWith('sp:'));if(!base.length)return null;const d=base[base.length-1].source_date;const last=base.filter(r=>r.source_date===d);return last.find(r=>(r.value||r.target)&&r.kind!=='変更')||last.find(r=>r.value||r.target)||last[last.length-1]}
 const NONE='町の資料に記載なし';
 const cv=c=>c?(c.value||c.target||''):'';
+/* 会議ごとの一般質問：件数と、質問ごとの会議録へのリンク（議員名は出さない） */
+const exByMeeting=()=>{const g={};D.exchanges.forEach(x=>{(g[x.meeting_id]=g[x.meeting_id]||{d:x.date,m:x.meeting,urls:[]}).urls.push((x.turns[0]||{}).url||'')});return Object.values(g)};
+const exLinks=g=>`関連する質問 ${g.urls.length}件：会議録 ${g.urls.map((u,i)=>A(u,String(i+1))).join('・')}`;
 const qa={}; ['yaritori','shitsugi'].forEach(n=>R[n].forEach(q=>q.rows.forEach(r=>{if(r.point)(qa[r.point]=qa[r.point]||[]).push({q,r,n})})));
 
 /* ===== 概要 ===== */
@@ -246,8 +249,7 @@ function gaiyo(){
   const ev=[];
   R.katei.forEach(k=>ev.push({d:k.from||'',c:'',h:`<b>${esc(k.name)}</b>${k.to&&k.to!==k.from?`<span class="note">（〜${esc(jd(k.to))}）</span>`:''}${!k.to&&k.from?'<span class="note">（継続中）</span>':''}　${A(k.url,'資料')}`,cur:!k.to&&k.from}));
   D.bills.forEach(b=>ev.push({d:b.date,c:'k-gikai',h:`<span class="tag">議決</span> ${A(b.url,b.title)}　${esc(b.result)}`}));
-  const bym={}; D.exchanges.forEach(x=>{(bym[x.meeting_id]=bym[x.meeting_id]||{d:x.date,m:x.meeting,n:0}).n++});
-  Object.values(bym).forEach(g=>ev.push({d:g.d,c:'k-gikai',h:`<span class="tag">一般質問</span> ${esc(g.m)}　関連する質問 ${g.n}件`}));
+  exByMeeting().forEach(g=>ev.push({d:g.d,c:'k-gikai',h:`<span class="tag">一般質問</span> ${esc(g.m)}　${exLinks(g)}`}));
   R.kotogara.filter(r=>r.kind==='変更').forEach(r=>ev.push({d:r.source_date,c:'k-change',h:`<span class="tag">予定の変更</span> ${esc(r.point)}：${esc(r.prev)} → ${esc(r.target)}　${A(r.url,'資料')}`}));
   const list=ev.filter(e=>e.d).sort((a,b)=>a.d.localeCompare(b.d)).concat(ev.filter(e=>!e.d));
   o.push(sec('経過','検討の段階（太字）と、議決・一般質問・予定の変更を日付順に示します',`<div class="nen">${list.map(e=>`<div class="d">${esc(e.d?jd(e.d):'日付不明')}</div><div class="${e.c}${e.cur?' cur':''}">${e.h}</div>`).join('')}</div>`));
@@ -278,13 +280,15 @@ function ronten(){
     return `<h3>${esc(p)}</h3><div class="note">質問・答弁と町の資料を日付順に示します。「答弁（今後検討）」は、時期や内容を今後決めるとした答弁です。</div><div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.d))}</span><span><span class="tag ${TAG[r.k][0]}">${TAG[r.k][1]}</span><div class="who">${esc(r.who)}</div></span><span>${esc(r.text)}<div class="src">${A(r.url,r.src)}${r.kind?'　'+esc(r.kind):''}</div></span></div>`).join('')}</div>`}}));
   o.push(sec('事項ごとの質問・答弁','事項を選ぶと、質問・答弁と町の資料の記載を日付順に表示します',picker('pk-qa',items)+`<div class="note">質問・答弁を項目ごとに記録したのは、関連する一般質問${D.theme_questions}問のうち${R.yaritori.length}問と、議案質疑${R.shitsugi.length}件です。</div>`));
   const iss=t=>D.issues.filter(x=>x.type===t);
-  const li=xs=>`<ul class="plain">${xs.map(x=>`<li>${esc(x.statement)}</li>`).join('')}</ul>`;
+  /* 照合結果の文と、比べた記載（出典つき。閉じた欄） */
+  const refsOf=x=>x.refs&&x.refs.length?`<details><summary>比べた記載（${x.refs.length}件）</summary><ul class="plain">${x.refs.map(r=>`<li>${A(r.url,short(r.text||r.ref,70))}${r.layer!=='確定'?' <span class="mk">未確認</span>':''}</li>`).join('')}</ul></details>`:'';
+  const li=(xs,cut)=>`<ul class="plain">${xs.map(x=>`<li>${esc(cut?x.statement.split('。')[0]:x.statement)}${refsOf(x)}</li>`).join('')}</ul>`;
   const rep=iss('繰り返し問われている点'), hold=iss('留保のその後'), chg=iss('予定の変更'), not=iss('問われていない点'), kb=iss('問われていない区分')[0];
-  o.push(sec('照合結果（未確認）','資料を機械的に照合した結果で、職員による確認は済んでいません',
+  o.push(sec('照合結果（未確認）','資料を機械的に照合した結果で、人による確認は済んでいません',
     `<div class="two"><div class="box"><h3>複数の定例会議で質問された事項 <span class="mk">未確認</span></h3>${li(rep)}</div><div class="box"><h3>「今後検討」等と答弁された事項 <span class="mk">未確認</span></h3>${li(hold)}</div></div>`+
     `<details><summary>予定時期が変わった事項（${chg.length}件）</summary>${li(chg)}</details>`+
-    `<details><summary>計画等に記載があり、記録した質問では取り上げられていない事項（${not.length}件）</summary><ul class="plain">${not.map(x=>`<li>${esc(x.statement.split('。')[0])}</li>`).join('')}</ul></details>`+
-    (kb?`<details><summary>質問内容の内訳</summary><p class="q">${esc(kb.statement)}</p></details>`:'')));
+    `<details><summary>計画等に記載があり、記録した質問では取り上げられていない事項（${not.length}件）</summary>${li(not,true)}</details>`+
+    (kb?`<details><summary>質問内容の内訳</summary><p class="q">${esc(kb.statement)}</p>${refsOf(kb)}</details>`:'')));
   const ex=D.exchanges.slice().reverse().map(x=>`<tr><td class="date">${esc(jd(x.date))}</td><td>${esc(x.meeting)}</td><td>${esc(x.member.name)} 議員</td><td>${esc((x.titles[0]||{}).title||'')}</td><td>${A(x.turns[0]&&x.turns[0].url,'会議録')}</td></tr>`);
   o.push(sec('一般質問と議案','',`<details><summary>関連する一般質問（${D.exchanges.length}件・新しい順）</summary>${tbl(['日付','定例会議','質問者','議会だよりの見出し','会議録'],ex)}</details>`+
     `<details><summary>関係議案と議決結果（${D.bills.length}件）</summary>${tbl(['議決日','議案','議決結果','採決方法','討論'],D.bills.map(b=>`<tr><td class="date">${esc(jd(b.date))}</td><td>${A(b.url,b.no+' '+b.title)}</td><td>${esc(b.result)}</td><td>${esc(b.method)}</td><td>${b.debates.map(x=>esc(x.stance+'（'+x.member.name+' 議員）')).join('<br>')||'なし'}</td></tr>`))}</details>`+
@@ -317,12 +321,12 @@ function unei(){
   // 年度ごとの節目
   const fy=s=>{const [y,m]=s.split('-').map(Number);return m>=4?y:y-1};
   const years={}; const add=(d,col,h)=>{if(!d)return;const y=fy(d);(years[y]=years[y]||{step:[],gikai:[],plan:[]})[col].push(h)};
-  R.katei.forEach(k=>add(k.from,'step',`${esc(k.name)}`));
+  R.katei.forEach(k=>add(k.from,'step',`${esc(k.name)}　${A(k.url,'資料')}`));
   D.bills.forEach(b=>add(b.date,'gikai',`${esc(jd(b.date))} 議決：${A(b.url,b.title)}`));
-  const bym={}; D.exchanges.forEach(x=>{(bym[x.meeting_id]=bym[x.meeting_id]||{d:x.date,m:x.meeting,n:0}).n++}); Object.values(bym).forEach(g=>add(g.d,'gikai',`${esc(g.m)} 一般質問 ${g.n}件`));
-  R.shitsugi.forEach(q=>add(q.date,'gikai',`${esc(jd(q.date))} 議案質疑（${esc(q.member.name)} 議員）`));
-  R.kotogara.filter(r=>r.kind==='予定'||r.kind==='変更').forEach(r=>add(r.source_date,'plan',`${esc(r.point)}：${esc(r.target)}${r.kind==='変更'?'（変更）':''}`));
-  const wa=y=>y>=2019?`令和${y-2018}年度`:`${y}年度`;
+  exByMeeting().forEach(g=>add(g.d,'gikai',`${esc(g.m)} 一般質問　${exLinks(g)}`));
+  R.shitsugi.forEach(q=>add(q.date,'gikai',`${esc(jd(q.date))} 議案質疑（${esc(q.member.name)} 議員）　${A((q.rows[0]||{}).url,'会議録')}`));
+  R.kotogara.filter(r=>r.kind==='予定'||r.kind==='変更').forEach(r=>add(r.source_date,'plan',`${esc(r.point)}：${esc(r.target)}${r.kind==='変更'?'（変更）':''}　${A(r.url,'資料')}`));
+  const wa=y=>y>=2019?`令和${y===2019?'元':y-2018}年度`:`${y}年度`;
   o.push(sec('年度ごとの節目','検討の段階・議会・予定の記載を年度ごとにまとめます',tbl(['年度','検討の段階','議会','予定の記載'],Object.keys(years).sort().map(y=>`<tr><td class="date">${wa(+y)}</td><td>${years[y].step.join('<br>')}</td><td>${years[y].gikai.join('<br>')}</td><td>${[...new Set(years[y].plan)].join('<br>')}</td></tr>`))+
     `${bud?`<p class="note">令和${esc(budFy)}年度の当初予算額は${num(bud.amount)}${esc(bud.unit)}（${A(bud.url,'予算の附表')}）。それより前の年度の予算額は、まだ取り込んでいません。</p>`:''}`));
   return o.join('');
@@ -332,7 +336,7 @@ document.getElementById('p-gaiyo').innerHTML=gaiyo();
 document.getElementById('p-ronten').innerHTML=ronten();
 document.getElementById('p-unei').innerHTML=unei();
 bindPickers();
-document.getElementById('about').innerHTML=`<div>資料の文は原文のまま引用しています。「未確認」の表示がある項目は、機械による照合の結果で、職員による確認が済んでいません。議員ごとの件数や順位は示していません。</div><div>データの版：build/theme/${esc(D.theme)}.json（${esc(P.source_sha256.slice(0,12))}）、`+Object.entries(D.lock).map(([r,s])=>`${esc(r)} ${esc(s.slice(0,7))}`).join('、')+'</div>';
+document.getElementById('about').innerHTML=`<div>資料の文は原文のまま引用しています。「未確認」の表示がある項目は、機械による照合の結果で、人による確認が済んでいません。議員ごとの件数や順位は示していません。</div><div>データの版：build/theme/${esc(D.theme)}.json（${esc(P.source_sha256.slice(0,12))}）、`+Object.entries(D.lock).map(([r,s])=>`${esc(r)} ${esc(s.slice(0,7))}`).join('、')+'</div>';
 const views=['gaiyo','ronten','unei'];
 function show(){const v=views.includes(location.hash.slice(1))?location.hash.slice(1):'gaiyo';views.forEach(n=>document.getElementById('p-'+n).hidden=(n!==v));document.querySelectorAll('nav.menu a').forEach(a=>{if(a.dataset.v===v)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})}
 window.addEventListener('hashchange',show);show();
