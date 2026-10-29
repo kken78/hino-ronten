@@ -73,6 +73,25 @@ def mb_key(name):
     return "mb:" + re.sub(r"\s", "", unicodedata.normalize("NFKC", name or ""))
 
 
+RE_OLD_MEETING = re.compile(r"(令和|平成)(元|[0-9]+)年第[0-9]+回（([0-9]+)月(?:[0-9]+日)?）(定例会|臨時会)会議録")
+RE_DATE = re.compile(r"([0-9]{4})-([0-9]{2})(?:-([0-9]{2}))?")
+
+
+def meeting_name(d, mid):
+    """会議の名前（§13.4）。「令和7年第2回（3月）定例会会議録」は「令和7年3月定例会」とし、「令和7年6月定例会議」はそのまま。"""
+    name = (d.meetings.get(mid) or {}).get("name", "")
+    m = RE_OLD_MEETING.fullmatch(name)
+    return f"{m.group(1)}{m.group(2)}年{int(m.group(3))}月{m.group(4)}" if m else name
+
+
+def jdate(s):
+    """statement の日付（§13.2）：2025-03-10 は「2025年3月10日」、2025-03 は「2025年3月」。"""
+    m = RE_DATE.fullmatch(s or "")
+    if not m:
+        return s
+    return f"{m.group(1)}年{int(m.group(2))}月" + (f"{int(m.group(3))}日" if m.group(3) else "")
+
+
 def head(text, n=EXCERPT):
     return (text or "")[:n]
 
@@ -308,7 +327,7 @@ def build_exchanges(d, council, questions=()):
         mid = sg["meetingId"]
         titles = [dict(title=x.get("title", ""), theme=x.get("theme", ""), issue=x.get("issue", ""))
                   for x in sg.get("topics") or [] if x.get("n") == qn and x.get("src") == "bulletin"]
-        out.append(dict(meeting_id=mid, meeting=(d.meetings.get(mid) or {}).get("name", ""), date=d.index[first_q]["date"],
+        out.append(dict(meeting_id=mid, meeting=meeting_name(d, mid), date=d.index[first_q]["date"],
                         n=qn, question=f"iq:{first_q}", member=member_of(sg), titles=titles,
                         turns=[dict(sid=f"sp:{s}", side="答え" if t == "a" else "問い", speaker=speaker_class(d.index[s].get("role")),
                                     role=d.index[s].get("role") or "", excerpt=head(d.index[s].get("text")),
@@ -326,7 +345,7 @@ def build_bills(d, keys):
         date = votes[0]["date"] if votes else (d.meetings.get(mid) or {}).get("date", "")
         debates = [dict(date=sg.get("date", ""), member=member_of(sg), stance=sg.get("stance", ""), sid=f"sp:{sg['from']}",
                         url=d.sp_url(sg["from"])) for sg in d.debates.get((mid, no)) or []]
-        out.append(dict(key=key, meeting_id=mid, meeting=(d.meetings.get(mid) or {}).get("name", ""), date=date, no=no,
+        out.append(dict(key=key, meeting_id=mid, meeting=meeting_name(d, mid), date=date, no=no,
                         kind=a.get("kind", ""), title=a.get("title", ""), committee=a.get("committee", ""),
                         result=a.get("result", ""), method=a.get("method", ""),
                         debates=sorted(debates, key=lambda x: (x["date"], x["sid"])),
@@ -374,7 +393,7 @@ def build_records(d, ledgers, theme, tkeys):
         for q, rows in groups.items():
             seg = d.inp.segment_of(q)
             mid = seg["meetingId"]
-            items.append(dict(question=q, meeting_id=mid, meeting=(d.meetings.get(mid) or {}).get("name", ""),
+            items.append(dict(question=q, meeting_id=mid, meeting=meeting_name(d, mid),
                               date=d.index[q[3:]]["date"], member=member_of(seg), rows=rows))
         out[name] = sorted(items, key=lambda x: (x["date"], x["question"]))
     return out
@@ -452,7 +471,7 @@ def build_hits_council(d, words, council, exchanges, tk):
     council_bq = {c["from"] for c in council if c["kind"] == "bq"}
     for f, sg in sorted(d.inp.segments.items()):
         mid = sg["meetingId"]
-        meeting = (d.meetings.get(mid) or {}).get("name", "")
+        meeting = meeting_name(d, mid)
         if sg["kind"] == "ippan":
             for qn in sorted({t[2] for t in sg.get("turns") or [] if len(t) > 2}):
                 turns = question_turns(d, sg, qn)
@@ -658,7 +677,7 @@ class Labels:
             mid = key[3:].split("_")[0]
             role = e.get("role") or ""
             who = "議員" if speaker_class(role) == "議員" else (role or "役職の無い発言者")
-            return f"{(d.meetings.get(mid) or {}).get('name', '')}の{who}の発言"
+            return f"{meeting_name(d, mid)}の{who}の発言"
         if key.startswith("bq:"):
             return f"議会だより第{(d.questions.get(key) or {}).get('issue', '')}号"
         m = records.RE_DOC_PAGE.fullmatch(key) or records.RE_DOC.fullmatch(key)
@@ -669,7 +688,7 @@ class Labels:
             return (d.plans.get(m.group(1)) or {}).get("meta", {}).get("name", "")
         m = records.RE_GI.fullmatch(key)
         if m:
-            return f"{(d.meetings.get(m.group(1)) or {}).get('name', '')}の{m.group(2)}"
+            return f"{meeting_name(d, m.group(1))}の{m.group(2)}"
         return key
 
     def fac(self, key):
@@ -725,12 +744,12 @@ def issues_yotei(L, R):
         picked, considered = changed_rows(rows)
         if not picked:
             continue
-        parts = [f"{r['source_date']}の{L.source(r['source'])}では{r['target'] or '時期の記載なし'}（{r['kind']}）" for r in picked]
+        parts = [f"{jdate(r['source_date'])}の{L.source(r['source'])}では{r['target'] or '時期の記載なし'}（{r['kind']}）" for r in picked]
         subject = k if name == "kotogara" else f"{L.fac(k[0])}の「{k[2]}」"
         s = f"{subject}は、" + "、".join(parts)
         reasons = [r["reason"] for r in picked if r.get("reason")]
         if reasons:
-            s += "。理由として「" + "」「".join(reasons) + "」"
+            s += "。変更理由として「" + "」「".join(reasons) + "」"
         programs = {r.get("program") for r in rows} if name == "kotogara" else {""}
         program = programs.pop() if len(programs) == 1 else ""
         out.append(issue("予定の変更", s, [ref_of(name, r) for r in considered],
@@ -762,11 +781,11 @@ def issues_ryuho(L, R):
                 later.append((r["source_date"], L.source(r["source"]), ref_of("kotogara", r)))
         later.sort(key=lambda x: (x[0], x[2]["ref"]))
         roles = "・".join(dict.fromkeys(r["speaker"] for r in rows))
-        s = f"{date}の答え（{roles}）は、{point}について時期や中身を後に回した。"
+        s = f"{jdate(date)}の答弁（{roles}）では、{point}について、時期や内容を今後決めるとされた。"
         if later:
-            s += f"そのあと、{later[0][0]}の{later[0][1]}がある" + (f"（ほか{len(later) - 1}件）" if len(later) > 1 else "")
+            s += f"その後の記載として、{jdate(later[0][0])}の{later[0][1]}がある" + (f"（ほか{len(later) - 1}件）" if len(later) > 1 else "")
         else:
-            s += "そのあとの記録は無い"
+            s += "その後の記載は未記録"
         out.append(issue("留保のその後", s, [ref_of(name, r) for r in rows] + [x[2] for x in later]))
     return out
 
@@ -787,7 +806,7 @@ def issues_kurikaeshi(L, R):
             meetings.setdefault(q["meeting_id"], q["meeting"])
         if len(meetings) < 2:
             continue
-        out.append(issue("繰り返し問われている点", f"「{p}」は、{'・'.join(meetings.values())}の問いで問われた",
+        out.append(issue("繰り返し問われている点", f"「{p}」は、{'・'.join(meetings.values())}で質問されている",
                          [q_ref(L, name, q) for name, q in qs]))
     return out
 
@@ -795,9 +814,9 @@ def issues_kurikaeshi(L, R):
 def scope_text(R, tk):
     qs = asked_groups(R)
     if not qs:
-        return "記録したやりとりは無い", []
+        return "記録した質問（なし）", []
     qs.sort(key=lambda x: (x[1]["date"], x[1]["question"]))
-    s = (f"記録したやりとり（一般質問{len(R['yaritori'])}問・質疑{len(R['shitsugi'])}まとまり、"
+    s = (f"記録した質問（一般質問{len(R['yaritori'])}問・議案質疑{len(R['shitsugi'])}件、"
          f"{qs[0][1]['meeting']}〜{qs[-1][1]['meeting']}）")
     return s, qs
 
@@ -805,18 +824,28 @@ def scope_text(R, tk):
 def missing_text(R, tk):
     recorded = {q["question"] for q in R["yaritori"]}
     n = len(tk["問い"] - recorded)
-    return f"。テーマの問い{len(tk['問い'])}問のうち{n}問は、やりとりの記録が無い" if n else ""
+    name = next(iter(tk.get("名前") or [""]))
+    return f"。テーマ「{name}」の一般質問として選定した{len(tk['問い'])}問のうち、{n}問は未記録" if n else ""
+
+
+STAGE_NOTES = {"投入": "投入（予算・人員）", "結果": "結果（施設・定員等）"}
 
 
 def issues_kubun(L, R, tk):
     rng, qs = scope_text(R, tk)
     if not qs:
         return []
-    parts = []
-    for name, label in (("yaritori", "一般質問"), ("shitsugi", "質疑")):
+    parts, shown = [], set()
+
+    def stage(k):
+        if k in STAGE_NOTES and k not in shown:
+            shown.add(k)
+            return STAGE_NOTES[k]
+        return k
+    for name, label in (("yaritori", "一般質問"), ("shitsugi", "議案質疑")):
         c = stage_counts([r for q in R[name] for r in q["rows"]])
-        parts.append(f"{label}は" + "・".join(f"{k}{v}件" for k, v in c.items()) + f"（全{sum(c.values())}件）")
-    s = f"{rng}の問いの行を区分ごとに数えると、" + "、".join(parts) + missing_text(R, tk)
+        parts.append(f"{label}は" + "、".join(f"{stage(k)}{v}件" for k, v in c.items()) + f"（全{sum(c.values())}件）")
+    s = f"{rng}を内容により分類すると、" + "、".join(parts) + missing_text(R, tk)
     return [issue("問われていない区分", s, [q_ref(L, name, q) for name, q in qs])]
 
 
@@ -835,7 +864,7 @@ def issues_toware(L, R, tk, themes_rows, theme):
             [("tsunagari", r) for r in R["tsunagari"] if v in (r["upper"], r["lower"])]
         rows.sort(key=lambda x: (x[1]["source_date"], x[1]["source"]))
         srcs = list(dict.fromkeys(L.source(r["source"]) for _, r in rows))
-        s = f"「{v}」は、{rng}の問いの行の点に無い。この値の記載がある資料：" + ("・".join(srcs) if srcs else NOT_RECORDED)
+        s = f"「{v}」は、{rng}では取り上げられていない。この事項の記載がある資料：" + ("・".join(srcs) if srcs else NOT_RECORDED)
         s += missing_text(R, tk)
         out.append(issue("問われていない点", s, [ref_of(n, r) for n, r in rows]))
     return out
@@ -846,7 +875,7 @@ def issues_mokuteki(R):
     lower = {r["lower"] for r in rows}
     out = []
     for up in sorted({r["upper"] for r in rows} - lower):
-        out.append(issue("つながりの記録に無い目的", f"「{up}」を手段とする目的の記載は、つながりの記録に無い",
+        out.append(issue("つながりの記録に無い目的", f"「{up}」を手段とする上位の目的との関係は、未記録",
                          [ref_of("tsunagari", r) for r in rows if r["upper"] == up]))
     return out
 
@@ -870,14 +899,14 @@ def issues_yakuwari(L, R):
         later = sorted((r for r in rows if r["aspect"] == "役割" and r["value"] == value
                         and (r["facility"] == fa or district and (L.facility.get(r["facility"]) or {}).get("district") == district)
                         and is_after(r["source_date"], st["source_date"])), key=lambda r: (r["source_date"], r["source"]))
-        s = (f"{L.fac(fa)}は、{first['source_date']}の{L.source(first['source'])}で{value}。"
-             f"{st['source_date']}の{L.source(st['source'])}では{st['value']}（{st['kind']}）。")
+        s = (f"{L.fac(fa)}は、{jdate(first['source_date'])}の{L.source(first['source'])}で{value}。"
+             f"{jdate(st['source_date'])}の{L.source(st['source'])}では{st['value']}（{st['kind']}）。")
         if later:
             r0 = later[0]
-            s += f"そのあと、{r0['source_date']}の{L.source(r0['source'])}がある（{L.fac(r0['facility'])}の{value}）" + \
+            s += f"その後の記載として、{jdate(r0['source_date'])}の{L.source(r0['source'])}がある（{L.fac(r0['facility'])}の{value}）" + \
                 (f"（ほか{len(later) - 1}件）" if len(later) > 1 else "")
         else:
-            s += "そのあとの記録は無い"
+            s += "その後の記載は未記録"
         out.append(issue("役割のその後", s, [ref_of("shisetsu", r) for r in rr + states + later]))
     return out
 
@@ -961,7 +990,29 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
     }
     data["sheets"] = build_sheets(d, data, themes_rows, theme)
     data["issues"] = build_issues(d, data, tk, themes_rows, theme, shisetsu_rows)
+    data["names"] = build_names(d, data, shisetsu_rows)
+    data["theme_questions"] = len(tk["問い"])
     return data
+
+
+def build_names(d, data, shisetsu_rows):
+    """画面に要る名前（§13・§13.4）：records と council に出る資料のキーごとの資料の名前と、records.shisetsu の施設の名前と地区。
+    issues の refs は records の行を指すので、その資料は records から入る。"""
+    L = Labels(d, shisetsu_rows)
+    keys = {c["from"] for c in data["council"]}
+    for rows in data["records"].values():
+        for x in rows:
+            for r in (x["rows"] if "rows" in x else [x]):
+                for c in ("source", "sid", "upper_ref", "lower_ref"):
+                    if r.get(c):
+                        keys.add(r[c])
+                keys |= {s for s in (r.get("sources") or "").split(",") if s}
+    fac = {r["key"]: r for r in shisetsu_rows}
+    facilities = {}
+    for r in data["records"]["shisetsu"]:
+        f = fac.get(r["facility"]) or {}
+        facilities[r["facility"]] = dict(name=f.get("name", ""), district=f.get("district", ""))
+    return {"sources": {k: L.source(k) for k in sorted(keys)}, "facilities": dict(sorted(facilities.items()))}
 
 
 def check_no_empty_url(data):

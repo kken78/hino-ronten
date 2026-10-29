@@ -353,11 +353,12 @@ class IssuesTest(unittest.TestCase):
         got = issues()
         self.assertEqual([x["type"] for x in got], ["問われていない区分", "問われていない点", "問われていない点"])
         k = got[0]
-        self.assertIn("記録したやりとり（一般質問1問・質疑1まとまり、令和7年3月定例会議〜令和7年3月定例会議）", k["statement"])
-        self.assertIn("一般質問は課題0件・投入0件・活動0件・手続き0件・結果2件・成果0件・めざす姿0件（全2件）", k["statement"])
-        self.assertNotIn("やりとりの記録が無い", k["statement"])
+        self.assertIn("記録した質問（一般質問1問・議案質疑1件、令和7年3月定例会議〜令和7年3月定例会議）を内容により分類すると、", k["statement"])
+        self.assertIn("一般質問は課題0件、投入（予算・人員）0件、活動0件、手続き0件、結果（施設・定員等）2件、成果0件、めざす姿0件（全2件）、"
+                      "議案質疑は課題0件、投入1件、", k["statement"])
+        self.assertNotIn("未記録", k["statement"])
         self.assertEqual([x["statement"].split("」")[0] for x in got[1:]], ["「再編の方針", "「提言"])
-        self.assertIn("この値の記載がある資料：「提言」", got[1]["statement"])
+        self.assertIn("では取り上げられていない。この事項の記載がある資料：「提言」", got[1]["statement"])
         self.assertEqual({x["layer"] for x in got}, {"論点の候補（未確認）"})
 
     def test_era_years_and_after(self):
@@ -382,8 +383,8 @@ class IssuesTest(unittest.TestCase):
         y = [x for x in issues(led=led) if x["type"] == "予定の変更"]
         self.assertEqual(len(y), 1)
         self.assertEqual(y[0]["statement"],
-                         "新こども園の用地は、2025-03の「提言」では令和10年度（予定）、2026-06の「提言」では令和１１年度（予定）、"
-                         "2026-07の「提言」では令和11年4月（変更）。理由として「品質を優先して見直しました。」")
+                         "新こども園の用地は、2025年3月の「提言」では令和10年度（予定）、2026年6月の「提言」では令和１１年度（予定）、"
+                         "2026年7月の「提言」では令和11年4月（変更）。変更理由として「品質を優先して見直しました。」")
         self.assertEqual((y[0]["scope"], y[0]["program"], len(y[0]["refs"])), ("事業", "node:jisshi/e008", 4))
 
     def test_yotei_same_year_is_not_change(self):
@@ -400,27 +401,27 @@ class IssuesTest(unittest.TestCase):
         k = led["kotogara"][0]
         led["kotogara"].append(dict(k, source="doc:teigen/2", source_date="2025-02", quote="定員は決まった", yaritori=""))
         r = [x for x in issues(led=led) if x["type"] == "留保のその後"]
-        self.assertEqual(r[0]["statement"], "2025-01-01の答え（子ども支援課長）は、新こども園の定員について時期や中身を後に回した。"
-                                            "そのあと、2025-02の「提言」がある")
+        self.assertEqual(r[0]["statement"], "2025年1月1日の答弁（子ども支援課長）では、新こども園の定員について、時期や内容を今後決めるとされた。"
+                                            "その後の記載として、2025年2月の「提言」がある")
         led["kotogara"].pop()
         r = [x for x in issues(led=led) if x["type"] == "留保のその後"]
-        self.assertTrue(r[0]["statement"].endswith("そのあとの記録は無い"))
+        self.assertTrue(r[0]["statement"].endswith("その後の記載は未記録"))
 
     def test_mokuteki(self):
         led = tr.ledgers()
         led["tsunagari"][0]["link"] = "目的と手段"
         m = [x for x in issues(led=led) if x["type"] == "つながりの記録に無い目的"]
-        self.assertEqual([x["statement"] for x in m], ["「提言」を手段とする目的の記載は、つながりの記録に無い"])
+        self.assertEqual([x["statement"] for x in m], ["「提言」を手段とする上位の目的との関係は、未記録"])
 
     def test_yakuwari(self):
         led = tr.ledgers()
         base = led["shisetsu"][0]
         led["shisetsu"].append(dict(base, aspect="状態", value="休園", source_date="2026-03", quote="休園する", kind="予定"))
         y = [x for x in issues(led=led) if x["type"] == "役割のその後"]
-        self.assertEqual(y[0]["statement"], "見本園は、2018-04の「提言」で指定避難所。2026-03の「提言」では休園（予定）。そのあとの記録は無い")
+        self.assertEqual(y[0]["statement"], "見本園は、2018年4月の「提言」で指定避難所。2026年3月の「提言」では休園（予定）。その後の記載は未記録")
         led["shisetsu"].append(dict(base, source=f"sp:{sid(6)}", source_date="2026-05", quote="面積はどうか。"))
         y = [x for x in issues(led=led) if x["type"] == "役割のその後"]
-        self.assertTrue(y[0]["statement"].endswith("そのあと、2026-05の令和7年3月定例会議の議員の発言がある（見本園の指定避難所）"))
+        self.assertTrue(y[0]["statement"].endswith("その後の記載として、2026年5月の令和7年3月定例会議の議員の発言がある（見本園の指定避難所）"))
 
     def test_kurikaeshi(self):
         d = make_data()
@@ -431,7 +432,7 @@ class IssuesTest(unittest.TestCase):
                         rows=[dict(side="問い", point="新こども園の用地", stage="投入", layer="確定")])
         R = {"yaritori": [q(f"iq:{sid(2)}", "m1", "3月"), q(f"iq:{sid(10)}", "m2", "6月")], "shitsugi": []}
         k = bt.issues_kurikaeshi(L, R)
-        self.assertEqual([x["statement"] for x in k], ["「新こども園の用地」は、3月・6月の問いで問われた"])
+        self.assertEqual([x["statement"] for x in k], ["「新こども園の用地」は、3月・6月で質問されている"])
         R["yaritori"][1]["meeting_id"] = "m1"
         self.assertEqual(bt.issues_kurikaeshi(L, R), [])
 
@@ -452,7 +453,7 @@ class IssuesTest(unittest.TestCase):
         rows = theme_rows() + [dict(theme_rows()[0], kind="問い", value=f"iq:{sid(10)}")]
         k = [x for x in issues(themes=sorted(rows, key=lambda r: (r["theme"], r["kind"], r["value"])))
              if x["type"] == "問われていない区分"]
-        self.assertTrue(k[0]["statement"].endswith("。テーマの問い2問のうち1問は、やりとりの記録が無い"))
+        self.assertTrue(k[0]["statement"].endswith("。テーマ「幼児教育・保育施設の再編」の一般質問として選定した2問のうち、1問は未記録"))
 
     def test_labels(self):
         L = bt.Labels(make_data(), tr.shisetsu_ref())
@@ -463,6 +464,24 @@ class IssuesTest(unittest.TestCase):
         self.assertEqual(L.source("pt:youho/honpen/1"), "再編整備計画")
         self.assertEqual(L.source(f"gi:{M}/議第1号"), "令和7年3月定例会議の議第1号")
         self.assertEqual(L.fac("fa:a"), "見本園")
+
+    def test_meeting_name_and_jdate(self):
+        d = make_data()
+        d.meetings.update({"o1": {"name": "令和7年第2回（3月）定例会会議録"}, "o2": {"name": "令和7年第3回（5月14日）臨時会会議録"},
+                           "o3": {"name": "令和元年第5回（12月）定例会会議録"}, "o4": {"name": "平成30年第1回（2月5日）臨時会会議録"},
+                           "n1": {"name": "令和7年7月臨時会議"}})
+        self.assertEqual([bt.meeting_name(d, m) for m in ("o1", "o2", "o3", "o4", "n1", M, "x")],
+                         ["令和7年3月定例会", "令和7年5月臨時会", "令和元年12月定例会", "平成30年2月臨時会", "令和7年7月臨時会議",
+                          "令和7年3月定例会議", ""])
+        self.assertEqual([bt.jdate(s) for s in ("2025-03-10", "2025-03", "2025", "")], ["2025年3月10日", "2025年3月", "2025", ""])
+
+    def test_names(self):
+        d = build()
+        self.assertEqual(d["theme_questions"], 1)
+        self.assertEqual(d["names"]["sources"]["doc:teigen/2"], "「提言」")
+        self.assertEqual(d["names"]["sources"][f"sp:{sid(4)}"], "令和7年3月定例会議の子ども支援課長の発言")
+        self.assertEqual(d["names"]["facilities"], {"fa:a": {"name": "見本園", "district": "日野"}})
+        self.assertEqual(list(d["names"]["sources"]), sorted(d["names"]["sources"]))
 
     def test_empty_url(self):
         d = build()
