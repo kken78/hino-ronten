@@ -224,6 +224,7 @@ class BuildTest(unittest.TestCase):
                                                             "word/document.xml"]))
             for i in z.infolist():
                 self.assertEqual(i.date_time, br.ZIP_TIME)
+                self.assertEqual(i.compress_type, zipfile.ZIP_STORED)   # 圧縮しない（zlib の実装で変わらない）
             for n in z.namelist():
                 ElementTree.fromstring(z.read(n))      # XML として読める
             doc = z.read("word/document.xml").decode("utf-8")

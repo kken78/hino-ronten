@@ -2,7 +2,7 @@
 （LINK_SCHEMA.md §17、DESIGN.md ADR-26）。
 
 build/theme/<theme>.json（tools/build_theme.py が作る。§13）だけを読み、lock の版の入力は読まない。
-標準ライブラリだけで作る（DOCX は zipfile と XML で書く）。同じデータからは同じファイルができる。
+標準ライブラリだけで作る（DOCX は zipfile と XML で書く。圧縮しない）。同じデータからは、どの環境でも同じファイルができる。
 
 実行: python3 -B tools/build_rag.py <theme> <node キー>（例 hoiku node:jisshi/e008）
 終了コード：0 は作った。1 は止めた（理由を表示する）。
@@ -533,10 +533,11 @@ def document_xml(markdown):
 def write_docx(path, markdown):
     parts = [("[Content_Types].xml", CONTENT_TYPES), ("_rels/.rels", RELS), ("word/_rels/document.xml.rels", DOC_RELS),
              ("word/styles.xml", styles_xml()), ("word/document.xml", document_xml(markdown))]
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+    # 圧縮しない。圧縮したバイト列は zlib の実装で変わり、PC とクラウドで sha256 が合わなくなるため
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as z:
         for name, text in parts:
             info = zipfile.ZipInfo(name, date_time=ZIP_TIME)
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.compress_type = zipfile.ZIP_STORED
             info.external_attr = 0o644 << 16
             z.writestr(info, text.encode("utf-8"))
 
