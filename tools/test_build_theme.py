@@ -219,6 +219,12 @@ class ItemsTest(unittest.TestCase):
         self.assertEqual(r["kisai"][0]["url"], "https://example.jp/youho.pdf#page=1")
         self.assertEqual(r["tsunagari"][0]["url"], "https://example.jp/teigen.pdf#page=2")
 
+    def test_records_kotogara_value(self):
+        led = tr.ledgers()
+        led["kotogara"][0]["value"] = "285人"
+        r = build(led=led)["records"]["kotogara"][0]
+        self.assertEqual((r["value"], r["target"]), ("285人", ""))
+
     def test_records_status(self):
         led = tr.ledgers()
         led["kisai"][0].update(status="candidate", reviewer="", date="")

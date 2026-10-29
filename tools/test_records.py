@@ -313,6 +313,13 @@ class ThemeTest(RecordsTestCase):
 
 
 class OtherLedgersTest(RecordsTestCase):
+    def test_kotogara_value(self):
+        led = ledgers()
+        led["kotogara"][0]["value"] = "２８５人"   # 全角の数字も §4 の正規化で引用（定員は285人です。）と照らす
+        self.assertEqual(run(led).errors, [])
+        led["kotogara"][0]["value"] = "300人"
+        self.assertErr(run(led), "value が引用の中に無い")
+
     def test_kotogara(self):
         led = ledgers()
         led["kotogara"][0]["prev"] = "250人"

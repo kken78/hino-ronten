@@ -20,7 +20,7 @@ COLUMNS = {
                  "point", "bq", "bulletin"] + COMMON,
     "shitsugi": ["question", "n", "row", "bills", "side", "sid", "quote", "speaker", "round", "stage", "kind",
                  "answers", "point"] + COMMON,
-    "kotogara": ["theme", "point", "program", "source", "source_date", "quote", "target", "kind", "prev", "reason",
+    "kotogara": ["theme", "point", "program", "source", "source_date", "quote", "value", "target", "kind", "prev", "reason",
                  "yaritori"] + COMMON,
     "tsunagari": ["theme", "link", "upper", "upper_ref", "lower", "lower_ref", "source", "source_date", "quote"] + COMMON,
     "katei": ["theme", "step", "name", "from", "to", "sources", "quote"] + COMMON,
@@ -511,6 +511,8 @@ def check_kotogara(rows, inp, theme, yaritori_keys, rep):
             rep.err(w, f"kind が {TIME_KINDS} のどれでもない")
         if r["kind"] != "変更" and (r["prev"] or r["reason"]):
             rep.err(w, "変更でない行に prev か reason がある")
+        if r["value"] and mention.normalize(r["value"]) not in mention.normalize(r["quote"]):
+            rep.err(w, f"value が引用の中に無い（{r['value']}）")
         if r["yaritori"] and r["yaritori"] not in yaritori_keys:
             rep.err(w, f"yaritori の参照がやりとりの記録に無い（{r['yaritori']}）")
         check_source(name, r, inp, rep)
