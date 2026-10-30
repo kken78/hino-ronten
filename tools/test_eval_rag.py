@@ -1,4 +1,6 @@
 """tools/eval_rag.py の検査（docs/eval-shisaku1.md §6）。"""
+import contextlib
+import io
 import os
 import sys
 import tempfile
@@ -135,9 +137,10 @@ class CheckTest(unittest.TestCase):
         old = ev.OUT_DIR
         ev.OUT_DIR = tmp
         try:
-            self.assertEqual(ev.main(["x", paths[2], paths[0], paths[1]]), 0)
-            self.assertTrue(os.path.exists(os.path.join(tmp, "20261029-rag-S1-haiku-check.md")))
-            self.assertEqual(ev.main(["x", os.path.join(tmp, "無い.md"), paths[0], paths[1]]), 1)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(ev.main(["x", paths[2], paths[0], paths[1]]), 0)
+                self.assertTrue(os.path.exists(os.path.join(tmp, "20261029-rag-S1-haiku-check.md")))
+                self.assertEqual(ev.main(["x", os.path.join(tmp, "無い.md"), paths[0], paths[1]]), 1)
         finally:
             ev.OUT_DIR = old
 
