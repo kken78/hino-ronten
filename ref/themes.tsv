@@ -1,10 +1,12 @@
 theme	kind	value	source	reviewer	date	note
 hoiku	事柄	再編整備計画の計画期間	pt:youho/honpen/4「本計画の計画期間は、令和6年から令和11年までの6年間とします。」、pt:youho/honpen-202503/4	kken78	2026-10-27	v2 で足した（再編整備計画の版の違いの調べ）。策定の版は令和6〜10年の5年間
+hoiku	事柄	待機児童数	pt:youho/honpen/21「令和６年度の国基準による「待機児童数」は８人」、pt:youho/honpen/11（待機児童数の推移の表）	kken78	2026-10-30	判定シート S7-7 の W（S7-6 の F8）
 hoiku	事柄	新こども園の定員	node:jisshi/e008。sp:0000008211_20241213_0099（令和6年12月の答弁、基本構想策定の中で決める）、sp:0000008691_20251212_0235（令和7年12月の答弁「最終のこの285」）	kken78	2026-10-25	
 hoiku	事柄	新こども園の整備費用と財源	node:jisshi/e008。sp:0000008691_20251212_0231（就学前教育・保育施設整備交付金や公共施設等適正管理推進事業債などの活用を予定）、sp:0000008489_20250613_0066（起債と交付金を活用しての整備を検討）	kken78	2026-10-27	シート1の「合う点の名前が無かった行」で足すと決めたもの
 hoiku	事柄	新こども園の用地	node:jisshi/e008。doc:jigyo-shinkodomoen-kousou/46（候補地①を整備予定地として選定）、sp:0000008211_20241213_0156（場所は選定中）	kken78	2026-10-27	同上
 hoiku	事柄	新こども園の開園時期	node:jisshi/e008。sp:0000008489_20250613_0066（令和7年6月定例会議の答弁「令和10年度の開園をめどに」）、doc:koho-no792-04（開園時期の見直し）	kken78	2026-10-25	
 hoiku	事柄	新こども園の面積	node:jisshi/e008。sp:0000008211_20241213_0156（令和6年12月の答弁「2,800平方メートル」）、plan:youho/summary/kpi_grid/3/3（約3,000㎡（予定））	kken78	2026-10-25	
+hoiku	事柄	認定こども園3園への再編整備の時期	pt:youho/honpen/27「令和１１年度を目途に「認定こども園 3 園」に再編整備を行う」、pt:youho/honpen-202503/27	kken78	2026-10-30	判定シート S7-7 の R（S7-6 の F1）
 hoiku	事業	node:jisshi/e006	shiga-hino-plans data/plans/jisshi.json 分野① 公立保育所運営事業	kken78	2026-10-24	
 hoiku	事業	node:jisshi/e007	shiga-hino-plans data/plans/jisshi.json 分野① 認定こども園運営事業	kken78	2026-10-24	
 hoiku	事業	node:jisshi/e008	shiga-hino-plans data/plans/jisshi.json 分野① 認定こども園整備事業	kken78	2026-10-24	
