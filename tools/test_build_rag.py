@@ -94,7 +94,8 @@ def data(**kw):
                        "date": "2026-10-28"}],
         },
         "names": {"sources": {"doc:a/1": "再編整備計画", "doc:b/1": "「広報ひの」", "sp:1": "令和7年6月定例会議の課長の発言",
-                              "doc:a/2": "再編整備計画", "doc:a/3": "再編整備計画", "doc:c/2": "懇話会の資料"},
+                              "doc:a/2": "再編整備計画", "doc:a/3": "再編整備計画", "doc:c/2": "懇話会の資料",
+                              "doc:c/1": "懇話会の資料（第1回）"},
                   "facilities": {"f1": {"name": "日野幼稚園", "district": "日野"}}},
         "theme_questions": 16,
         "hits": {"council": [{"excerpt": "キーワードの一致"}], "docs": []},
@@ -177,7 +178,9 @@ class BuildTest(unittest.TestCase):
     def test_issues(self):
         honpen = built()[0]
         self.assertIn("## 認定こども園整備事業：照合結果（未確認）", honpen)
-        self.assertIn("【未確認】開園時期は、令和10年度から令和11年度", honpen)
+        # 文の後ろに、比べた記載の出典を資料の日付の順に付ける。日付の分からないもの（記録の行に当たらない）は最後（§17.1）
+        self.assertIn("【未確認】開園時期は、令和10年度から令和11年度（比べた記載の出典：https://example.jp/a.pdf#page=1、"
+                      "https://example.jp/q2、https://example.jp/z）\n", honpen)
         # 比べた記載は、記録の行が分かれば資料の日付と名前を添える
         self.assertIn("- 比べた記載：［2025年3月］再編整備計画：資料の種類：町の資料。対象の時期：令和10年度。", honpen)
         self.assertIn("- 比べた記載：［2025年3月10日］令和7年3月定例会の一般質問：発言：答弁。", honpen)
@@ -188,6 +191,27 @@ class BuildTest(unittest.TestCase):
         self.assertIn("【未確認】「懇話会の設置目的」は、取り上げられていない\n\n比べた記載：記録編の「構造にしていない記載：懇話会の設置目的」に1件、"
                       "「事柄：開園時期」に2件、「つながり」に1件\n\n- 比べた記載：w（出典：https://example.jp/w）\n", s)
         self.assertNotIn("在り方を検討する。", s)
+
+    def test_katei_form(self):
+        honpen, kiroku = built()
+        # 過程の記録は資料の日付が無いので［ ］を付けず、期間と1つめの資料の名前を書く（§17.1）
+        line = ("- 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。"
+                "「令和４年７月１２日」（出典：https://example.jp/c1）")
+        self.assertIn(line + "\n", kiroku)
+        self.assertIn(line + "\n", honpen)        # 経過
+        self.assertIn("- 検討の段階：懇話会。期間：2022年7月12日〜2024年1月12日（出典：https://example.jp/c1）", honpen)   # 年度ごとの節目
+        for md in (honpen, kiroku):
+            self.assertNotIn("］検討の段階", md)
+        span = br.Rag.katei_span
+        self.assertEqual(span({"from": "2026-04", "to": ""}), "2026年4月〜（継続中）")
+        self.assertEqual(span({"from": "2026-01-14", "to": "2026-01-14"}), "2026年1月14日")
+        self.assertEqual(span({"from": "", "to": ""}), br.jd(""))
+
+    def test_none_text(self):
+        d = json.loads(data())
+        d["records"]["kotogara"] = [r for r in d["records"]["kotogara"] if r["source"].startswith("sp:")]
+        honpen = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)[0]
+        self.assertIn("町の資料に記載なし（会議録の発言 1 件）。会議録の発言を日付順に示します。", honpen)
 
     def test_no_hits(self):
         for md in built():

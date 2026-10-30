@@ -26,7 +26,8 @@ HS = "hino-council-search"
 INDEX = "public/data/index/{}.json"
 KOHO = "doc:koho-"
 NOTE = ("記載の頭に【未確認】がある行と、照合結果は、人による確認が済んでいない。"
-        "記載の形は「［資料の日付］資料の名前：欄：値。「引用」（出典：url）」。引用は資料の原文のまま。")
+        "記載の形は「［資料の日付］資料の名前：欄：値。「引用」（出典：url）」。検討の段階（政策の過程）の記載は、資料の日付ではなく期間を書くため［ ］が無い。"
+        "引用は資料の原文のまま。")
 SPEECH_NOTE = ("会議録の本文（資料そのもの。項目ごとに記録したものではない。テーマの語のある発言だけ）。"
                "引用するときは、この本文から原文のまま引く。")
 SEARCH_LIMIT = 20
@@ -71,7 +72,7 @@ class Server:
         for n, x in enumerate(R.get("tsunagari") or [], 1):
             self._add(f"tsunagari:{n}", "つながり", x["source_date"], r.tsunagari_entry(x), f"{x['upper']} {x['lower']}")
         for n, k in enumerate(R.get("katei") or [], 1):
-            self._add(f"katei:{n}", "過程", k.get("from"), self.katei_entry(k), k.get("name"))
+            self._add(f"katei:{n}", "過程", k.get("from"), r.katei_entry(k), k.get("name"))
         for n, x in enumerate(R.get("kisai") or [], 1):
             self._add(f"kisai:{n}", f"記載：{x.get('about') or ''}", x["source_date"],
                       r.entry(x["source_date"], r.name(x["source"]), x["quote"], x.get("url"), [("見出し", x.get("title"))], x.get("layer")),
@@ -100,15 +101,10 @@ class Server:
             self._add(f"bill:{n}", "議案", b["date"], f"［{br.jd(b['date'])}］{b.get('meeting')}の{b.get('no')} {b.get('title')}。"
                       f"議決結果：{b.get('result')}。採決方法：{b.get('method')}。討論：{deb}（出典：{b.get('url')}）")
         for n, x in enumerate(d.get("issues") or [], 1):
-            self._add(f"issue:{n}", f"照合結果（未確認）：{x['type']}", "", f"【未確認】{x['statement']}")
+            self._add(f"issue:{n}", f"照合結果（未確認）：{x['type']}", "", r.issue_statement(x))
 
     def facility(self, key):
         return (self.r.fac.get(key) or {}).get("name") or key
-
-    def katei_entry(self, k):
-        span = f"{br.jd(k.get('from'))}〜{br.jd(k.get('to'))}" if k.get("to") and k.get("to") != k.get("from") else br.jd(k.get("from"))
-        return self.r.entry(k.get("from") or "", "検討の段階", k.get("quote"), k.get("url"),
-                            [("段階", k.get("name")), ("期間", span)], k.get("layer"))
 
     def by_key(self, prefix, key):
         return sorted((i for i, it in self.items.items() if i.startswith(prefix) and it["key"] == key),
@@ -119,7 +115,7 @@ class Server:
 
     def issue_text(self, n):
         x = self.d["issues"][n - 1]
-        out = [f"[issue:{n}] 照合結果（未確認）：{x['type']}", f"【未確認】{x['statement']}"]
+        out = [f"[issue:{n}] 照合結果（未確認）：{x['type']}", self.r.issue_statement(x)]
         refs = x.get("refs") or []
         if x["type"] == br.UNASKED:
             where, refs = self.r.kiroku_sections(refs)
@@ -150,7 +146,7 @@ class Server:
                 seen.append(t["upper"])
                 out.append(f"- 目的「{t['upper']}」→ 手段「{t['lower']}」：{r.tsunagari_entry(t)}")
         K = sorted(d["records"].get("katei") or [], key=lambda k: k.get("from") or "")
-        out += ["", "## いまの段階（政策の過程のうち新しいもの。原文）"] + [f"- {self.katei_entry(k)}" for k in K[-3:]]
+        out += ["", "## いまの段階（政策の過程のうち新しいもの。原文）"] + [f"- {r.katei_entry(k)}" for k in K[-3:]]
         out += ["", "## 事項（topic で取る。事項ごとに「いまの町の説明」の原文を返す）"]
         out += [f"- {p}（{len(r.kot[p])}件）" for p in r.ordered_points()]
         fs = {}
@@ -231,7 +227,7 @@ class Server:
                         out.append("上は広報ひのの記載のため、数字や時期の出典には、次の計画などの記載（広報ひの以外でいちばん新しいもの）を使う："
                                    + r.kot_entry(base[-1]))
             else:
-                out.append(f"{br.NONE}。")
+                out.append(f"{r.none_text(name)}。")
             ans = [i for i in self.by_key(("yaritori:", "shitsugi:"), name) if "発言：答弁" in self.items[i]["text"]]
             if ans:
                 out.append("当局の答弁のうち新しいもの（原文。これまでの答弁と食い違わないように確かめる）：")
@@ -279,7 +275,7 @@ class Server:
         out = ["照合結果（未確認）：機械による照合の結果で、人による確認は済んでいない。"]
         if not ty:
             out[0] += "type を指定すると、比べた記載とあわせて返す。fetch で issue:<番号> を取ってもよい。"
-            out += [f"[issue:{n}] {x['type']}：【未確認】{x['statement']}" for n, x in enumerate(issues, 1)]
+            out += [f"[issue:{n}] {x['type']}：{self.r.issue_statement(x)}" for n, x in enumerate(issues, 1)]
             return "\n".join(out)
         hit = [n for n, x in enumerate(issues, 1) if x["type"] == ty]
         if not hit:

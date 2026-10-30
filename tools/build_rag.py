@@ -121,6 +121,55 @@ class Rag:
         q = f"「{quote}」" if quote else ""
         return f"{head}［{jd(date)}］{source}：{f}{q}（出典：{url or '出典なし'}）"
 
+    @staticmethod
+    def katei_span(k):
+        """過程の記録の期間（LINK_SCHEMA §17.1）。"""
+        a, b = k.get("from"), k.get("to")
+        if not a:
+            return jd(a)
+        if not b:
+            return f"{jd(a)}〜（継続中）"
+        return jd(a) if a == b else f"{jd(a)}〜{jd(b)}"
+
+    def katei_entry(self, k):
+        """過程の記録の段落：［ ］を付けず、期間と1つめの資料の名前を書く（LINK_SCHEMA §17.1）。"""
+        head = "【未確認】" if k.get("layer") != CONFIRMED else ""
+        src = (k.get("sources") or "").split(",")[0]
+        q = f"「{k.get('quote')}」" if k.get("quote") else ""
+        return (f"{head}検討の段階：段階：{k.get('name')}。期間：{self.katei_span(k)}。資料：{self.name(src)}。"
+                f"{q}（出典：{k.get('url') or '出典なし'}）")
+
+    def none_text(self, p):
+        """町の資料の行が無い事柄（LINK_SCHEMA §17.1）。"""
+        n = sum(1 for r in self.kot.get(p) or [] if r["source"].startswith("sp:"))
+        return f"{NONE}（会議録の発言 {n} 件）"
+
+    def ref_date(self, r):
+        """比べた記載の資料の日付。記録の行に当たらないものと、資料の日付の無い過程の記録は空。"""
+        hit = self.ref_index().get(r.get("ref"))
+        if hit is None:
+            return ""
+        n, x = hit
+        if n.endswith("/row"):
+            return x[0].get("date") or ""
+        if n in ("yaritori", "shitsugi"):
+            return x.get("date") or ""
+        return x.get("source_date") or ""
+
+    def issue_statement(self, x):
+        """照合結果の文。問われていない点のほかは、比べた記載の出典を資料の日付の順に付ける（LINK_SCHEMA §17.1）。"""
+        s = f"【未確認】{x['statement']}"
+        if x["type"] == UNASKED:
+            return s
+        refs = list(enumerate(x.get("refs") or []))
+        dated = sorted(((self.ref_date(r), i, r) for i, r in refs if self.ref_date(r)), key=lambda t: (t[0], t[1]))
+        undated = [(i, r) for i, r in refs if not self.ref_date(r)]
+        urls = []
+        for u in [r.get("url") for _, _, r in dated] + [r.get("url") for _, r in undated]:
+            if u and u not in urls:
+                urls.append(u)
+        return s + (f"（比べた記載の出典：{'、'.join(urls)}）" if urls else "")
+
     def latest_date(self):
         ds = []
         for n, rows in self.R.items():
@@ -141,6 +190,7 @@ class Rag:
         doc.li(f"作ったデータ：build/theme/{self.d.get('theme')}.json（sha256 {self.sha[:12]}）。入力の版：{lock}")
         doc.li(f"取り込んだ資料のうち、いちばん新しい記載の資料の日付は {jd(self.latest_date())} です。それより後の資料は入っていません")
         doc.li("記載は1つごとに1段落で、「［資料の日付］資料の名前：欄：値。「引用」（出典：url）」の形で書いています。引用は資料の文を原文のまま写したものです")
+        doc.li("検討の段階（政策の過程）の記載は、資料の日付ではなく期間を書くため、［ ］を付けていません")
         doc.li("「【未確認】」の段落と「照合結果（未確認）」の節は、機械による照合の結果か、人による確認が済んでいない記録です")
         doc.li("評価や判断は加えていません。議員ごとの件数や順位は示していません")
         doc.end_list()
@@ -209,7 +259,7 @@ class Rag:
                     doc.p(f"当初：{r.get('prev')}　→　{jd(r['source_date'])}に変更。変更理由：「{r.get('reason')}」（出典：{r.get('url')}）" if r.get("reason")
                           else f"当初：{r.get('prev')}　→　{jd(r['source_date'])}に変更（出典：{r.get('url')}）")
             else:
-                doc.p(f"{NONE}。会議録の発言を日付順に示します。")
+                doc.p(f"{self.none_text(p)}。会議録の発言を日付順に示します。")
             doc.p("記載の推移（日付順）：")
             for r in self.kot[p]:
                 doc.li(self.kot_entry(r))
@@ -219,9 +269,7 @@ class Rag:
         doc.p("検討の段階、議決、一般質問、予定の変更を日付順に示します。")
         ev = []
         for k in self.R.get("katei") or []:
-            span = f"{jd(k.get('from'))}〜{jd(k.get('to'))}" if k.get("to") and k.get("to") != k.get("from") else (f"{jd(k.get('from'))}〜（継続中）" if k.get("from") and not k.get("to") else jd(k.get("from")))
-            ev.append((k.get("from") or "", self.entry(k.get("from") or "", "検討の段階", k.get("quote"), k.get("url"),
-                                                      [("段階", k.get("name")), ("期間", span)], k.get("layer"))))
+            ev.append((k.get("from") or "", self.katei_entry(k)))
         for b in d.get("bills") or []:
             ev.append((b["date"], f"［{jd(b['date'])}］議決：{b.get('meeting')}の{b.get('no')} {b.get('title')}。議決結果：{b.get('result')}。採決方法：{b.get('method')}（出典：{b.get('url')}）"))
         for x in d.get("exchanges") or []:
@@ -281,7 +329,7 @@ class Rag:
             for x in d["issues"]:
                 if x["type"] != t:
                     continue
-                doc.p(f"【未確認】{x['statement']}")
+                doc.p(self.issue_statement(x))
                 refs = x.get("refs") or []
                 if t == UNASKED:
                     where, refs = self.kiroku_sections(refs)
@@ -320,11 +368,12 @@ class Rag:
         doc.h(2, f"{self.pname}：年度ごとの節目")
         years = {}
 
-        def add(date, text):
+        def add(date, text, bracket=True):
             if date:
-                years.setdefault(fiscal_year(date), []).append((date, text))
+                years.setdefault(fiscal_year(date), []).append((date, text, bracket))
         for k in self.R.get("katei") or []:
-            add(k.get("from"), f"検討の段階：{k.get('name')}（出典：{k.get('url')}）")
+            # 過程の記録は資料の日付が無いので［ ］を付けない（LINK_SCHEMA §17.1）
+            add(k.get("from"), f"検討の段階：{k.get('name')}。期間：{self.katei_span(k)}（出典：{k.get('url')}）", bracket=False)
         for b in d.get("bills") or []:
             add(b["date"], f"議決：{b.get('meeting')}の{b.get('no')} {b.get('title')}（出典：{b.get('url')}）")
         for x in d.get("exchanges") or []:
@@ -336,8 +385,8 @@ class Rag:
                 add(r["source_date"], f"予定の記載：{r['point']}：{r.get('target') or r.get('value') or ''}{'（変更）' if r.get('kind') == '変更' else ''}（出典：{r.get('url')}）")
         for y in sorted(years):
             doc.h(3, f"{self.pname}：年度ごとの節目：{fy_name(y)}")
-            for dt, t in sorted(years[y]):
-                doc.li(f"［{jd(dt)}］{t}")
+            for dt, t, bracket in sorted(years[y]):
+                doc.li(f"［{jd(dt)}］{t}" if bracket else t)
             doc.end_list()
         if self.bud:
             fy = (re.match(r"fh:fuhyo-r(\d+)/", self.bud["key"]) or [None, ""])[1]
@@ -398,6 +447,8 @@ class Rag:
             return self.shisetsu_entry(x)
         if n == "tsunagari":
             return self.tsunagari_entry(x)
+        if n == "katei":
+            return self.katei_entry(x)
         src = x.get("source") or (x.get("sources") or "").split(",")[0]
         return self.entry(x.get("source_date") or x.get("from") or "", self.name(src), x.get("quote"), r.get("url"), layer=x.get("layer"))
 
@@ -459,9 +510,7 @@ class Rag:
                 doc.end_list()
             elif name == "katei":
                 for k in sorted(R.get("katei") or [], key=lambda k: int(k["step"])):
-                    span = f"{jd(k.get('from'))}〜{jd(k.get('to'))}" if k.get("to") else jd(k.get("from"))
-                    doc.li(self.entry(k.get("from") or "", "検討の段階", k.get("quote"), k.get("url"),
-                                      [("段階", k.get("name")), ("期間", span)], k.get("layer")))
+                    doc.li(self.katei_entry(k))
                 doc.end_list()
             elif name == "kisai":
                 by = {}

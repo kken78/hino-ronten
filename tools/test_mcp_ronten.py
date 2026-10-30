@@ -83,7 +83,7 @@ class ToolTest(unittest.TestCase):
         self.assertIn("当初予算額 228,421千円", text)
         self.assertIn("## 正式な名前（答弁や文書では略さずに使う）\n- 認定こども園整備事業\n- 再編整備計画", text)
         self.assertIn("- 目的「持続可能な環境」→ 手段「こども園の新設」：［2025年3月］再編整備計画：関係：目的と手段。", text)
-        self.assertIn("- ［2022年7月12日］検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。", text)
+        self.assertIn("- 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。", text)
         self.assertIn("- 開園時期（3件）", text)
         self.assertIn("- 日野幼稚園（1件）", text)
         self.assertIn("一般質問 1問（うち質問・答弁を項目ごとに記録したもの 1問。", text)
@@ -101,7 +101,7 @@ class ToolTest(unittest.TestCase):
         text, _ = call(s, "fetch", {"ids": ["yaritori:iq:1", "issue:1"]})
         self.assertIn("[yaritori:iq:1] 一般質問：2025年3月10日 令和7年3月定例会　質問者：日野花子 議員", text)
         self.assertIn("- [yaritori:iq:1/2] ［2025年3月10日］令和7年3月定例会の一般質問：発言：答弁。", text)
-        self.assertIn("[issue:1] 照合結果（未確認）：予定の変更\n【未確認】開園時期は、令和10年度から令和11年度", text)
+        self.assertIn("[issue:1] 照合結果（未確認）：予定の変更\n【未確認】開園時期は、令和10年度から令和11年度（比べた記載の出典：", text)
 
     def test_topic(self):
         text, _ = call(server(), "topic", {"name": "開園時期"})
@@ -134,7 +134,10 @@ class ToolTest(unittest.TestCase):
     def test_issues_and_links(self):
         s = server()
         text, _ = call(s, "issues")
-        self.assertIn("[issue:2] 問われていない点：【未確認】「懇話会の設置目的」は、取り上げられていない", text)
+        # 照合結果の文に、比べた記載の出典を資料の日付の順に付ける（日付の無いものは最後）。問われていない点には付けない
+        self.assertIn("[issue:1] 予定の変更：【未確認】開園時期は、令和10年度から令和11年度（比べた記載の出典："
+                      "https://example.jp/a.pdf#page=1、https://example.jp/q2、https://example.jp/z）", text)
+        self.assertTrue(text.endswith("[issue:2] 問われていない点：【未確認】「懇話会の設置目的」は、取り上げられていない"), text)
         self.assertNotIn("- 比べた記載", text)
         text, _ = call(s, "issues", {"type": "問われていない点"})
         # 記録の行に当たる比べた記載は、記録の節と件数にする（fixture では 広報ひのに変えた1行は記録の行に当たらない）
@@ -142,7 +145,8 @@ class ToolTest(unittest.TestCase):
         self.assertIn("- 比べた記載：w（出典：https://example.jp/w）", text)
         text, _ = call(s, "links")
         self.assertIn("- [tsunagari:1] ［2025年3月］再編整備計画：関係：目的と手段。上位の記載：持続可能な環境。", text)
-        self.assertIn("- [katei:1] ［2022年7月12日］検討の段階：段階：懇話会。", text)
+        self.assertIn("- [katei:1] 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。"
+                      "「令和４年７月１２日」（出典：https://example.jp/c1）", text)
         self.assertIn("- 総合計画のめざす姿：「どの子も育つまち」", text)
 
     def test_theme_words(self):
