@@ -87,7 +87,7 @@ class RunOyoTest(unittest.TestCase):
                 with redirect_stdout(buf):
                     rc = ro.main(["run_oyo.py", "--run", "t1", "--dry-run",
                                   "--common", os.path.join(ro.HERE, "..", "prompts", "shisaku1-common-v3.md"),
-                                  "--oyo", os.path.join(ro.HERE, "..", "prompts", "shisaku1-oyo-v3.md")])
+                                  "--oyo", os.path.join(ro.HERE, "..", "prompts", "shisaku1-oyo-v4.md")])
             self.assertEqual(rc, 0)
             self.assertFalse(os.path.exists(os.path.join(tmp, "build", "eval")))
             out = buf.getvalue()

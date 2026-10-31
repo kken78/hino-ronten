@@ -82,7 +82,8 @@ class ToolTest(unittest.TestCase):
         self.assertIn("いちばん新しい記載の資料の日付：2026年7月", text)
         self.assertIn("当初予算額 228,421千円", text)
         self.assertIn("## 正式な名前（答弁や文書では略さずに使う）\n- 認定こども園整備事業\n- 再編整備計画", text)
-        self.assertIn("- 目的「持続可能な環境」→ 手段「こども園の新設」：［2025年3月］再編整備計画：関係：目的と手段。", text)
+        self.assertIn("- 目的「持続可能な環境」→ 手段「こども園の新設」：［2025年3月］再編整備計画：資料の種類：町の資料。関係：目的と手段。", text)
+        self.assertIn("欄「資料の種類」は、会議録（会議録の発言）・広報ひの・町の資料の別。", text)
         self.assertIn("- 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。", text)
         self.assertIn("- 開園時期（3件）", text)
         self.assertIn("- 日野幼稚園（1件）", text)
@@ -106,16 +107,16 @@ class ToolTest(unittest.TestCase):
     def test_topic(self):
         text, _ = call(server(), "topic", {"name": "開園時期"})
         self.assertIn("町の資料の最新の記載（2026年7月、「広報ひの」）：令和11年4月", text)
-        self.assertIn("いまの町の説明（原文。答弁や文書ではこの言い回しを使う）：［2026年7月］「広報ひの」：", text)
+        self.assertIn("いまの町の説明（原文。答弁や文書ではこの言い回しを使う）：［2026年7月］「広報ひの」：資料の種類：広報ひの。", text)
         # 広報ひののときは、広報ひの以外でいちばん新しい町の資料を並べる（会議録は使わない）
         self.assertIn("次の計画などの記載（広報ひの以外でいちばん新しいもの）を使う：［2025年3月］再編整備計画：", text)
         self.assertIn("当局の答弁のうち新しいもの（原文。これまでの答弁と食い違わないように確かめる）：\n- [yaritori:iq:1/2]", text)
         self.assertLess(text.index("いまの町の説明"), text.index("記載の推移（資料の日付順）："))
         text, _ = call(server(), "topic", {"name": "日野幼稚園"})
-        self.assertIn("## 施設：日野幼稚園\n- [shisetsu:1] ［2025年3月］再編整備計画：面：状況。値：閉園。", text)
+        self.assertIn("## 施設：日野幼稚園\n- [shisetsu:1] ［2025年3月］再編整備計画：資料の種類：町の資料。面：状況。値：閉園。", text)
         text, _ = call(server(), "topic", {"name": "懇話会の設置目的"})
         self.assertIn("## 記載の見出し：懇話会の設置目的", text)
-        self.assertIn("- [kisai:1] ［2022年7月］懇話会の資料：見出し：懇話会の設置目的。「在り方を検討する。」", text)
+        self.assertIn("- [kisai:1] ［2022年7月］懇話会の資料：資料の種類：町の資料。見出し：懇話会の設置目的。「在り方を検討する。」", text)
         text, _ = call(server(), "topic", {"name": "開園時期"})
         self.assertIn("令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", text)
 
@@ -147,8 +148,8 @@ class ToolTest(unittest.TestCase):
         self.assertIn("比べた記載のある記録：構造にしていない記載：懇話会の設置目的（1件）、事柄：開園時期（1件）、つながり（1件）", text)
         self.assertIn("- 比べた記載：w（出典：https://example.jp/w）", text)
         text, _ = call(s, "links")
-        self.assertIn("- [tsunagari:1] ［2025年3月］再編整備計画：関係：目的と手段。上位の記載：持続可能な環境。", text)
-        self.assertIn("- [katei:1] 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。"
+        self.assertIn("- [tsunagari:1] ［2025年3月］再編整備計画：資料の種類：町の資料。関係：目的と手段。上位の記載：持続可能な環境。", text)
+        self.assertIn("- [katei:1] 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。資料の種類：町の資料。"
                       "「令和４年７月１２日」（出典：https://example.jp/c1）", text)
         self.assertIn("- 総合計画のめざす姿：「どの子も育つまち」", text)
 

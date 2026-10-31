@@ -2,6 +2,7 @@
 
 判定はしない。答えごとに、出典の url が道具の返したものか、かぎかっこの引用が道具の返した文にあるかを数え、
 合わないものを一覧にする。引用は空白だけを除いて比べ、NFKC にそろえたときだけ合うものは「字の幅などを変えた引用」として別に数える。
+かぎかっこの外に「…ますと」「…ましたとして」「…まいると」のような形がある行（清書版で引用の語尾を言い換えていない所）も数える。
 道具が返しうる文は、tools/mcp_ronten.py の道具（overview・links・issues・council・topic・speeches と、すべての記載）を
 その場で呼んで集める。標準ライブラリだけ。
 
@@ -25,6 +26,7 @@ import mcp_ronten as mr  # noqa: E402
 ROOT = os.path.dirname(HERE)
 RE_URL = re.compile(r"https?://[A-Za-z0-9._~:/?#@!$&'+,;=%\-]+")
 RE_SPLIT = re.compile(r"…+|\.\.\.+|（中略）")
+RE_GOBI = re.compile(r"(?:ます|ました|ません|です|でした|まいる)と|。と")
 
 
 def ws(s):
@@ -59,22 +61,27 @@ class Corpus:
 
 
 def answers(md):
-    """tools/run_oyo.py の <モデル>-<会話>.md：[(依頼の名前, 答え)]。"""
-    out, req, buf, on = [], None, [], False
+    """tools/run_oyo.py の <モデル>-<会話>.md：[(依頼の名前, 答え)]。「### 答え」の行より後を答えとする。
+    その行の無い依頼（画面から写した答えなど）は、「## 依頼N」の行より後の全部を答えとする。"""
+    out, req, buf, whole, on = [], None, [], [], False
+
+    def close():
+        if req:
+            out.append((req, "\n".join(buf if on else whole)))
     for line in md.split("\n"):
         m = re.fullmatch(r"## (依頼\d+)", line)
         if m:
-            if req:
-                out.append((req, "\n".join(buf)))
-            req, buf, on = m.group(1), [], False
+            close()
+            req, buf, whole, on = m.group(1), [], [], False
             continue
         if line.strip() == "### 答え" and req:
             on, buf = True, []
             continue
         if on:
             buf.append(line)
-    if req:
-        out.append((req, "\n".join(buf)))
+        elif req:
+            whole.append(line)
+    close()
     return out
 
 
@@ -97,6 +104,24 @@ def quotes(line):
     return out
 
 
+def outside(line):
+    """かぎかっこ「」の外の文。"""
+    out, depth = "", 0
+    for ch in line:
+        if ch == "「":
+            depth += 1
+        elif ch == "」" and depth:
+            depth -= 1
+        elif not depth:
+            out += ch
+    return out
+
+
+def gobi(text):
+    """かぎかっこの外に「…ますと」「…ましたとして」「…まいると」などの形がある行。"""
+    return [line.strip() for line in text.split("\n") if RE_GOBI.search(outside(line))]
+
+
 def check(text, corpus):
     urls = [u.rstrip("-.,;:") for u in RE_URL.findall(text)]
     qs = [q for line in text.split("\n") for q in quotes(line)]
@@ -108,23 +133,25 @@ def check(text, corpus):
         (width if all(nk(p) in corpus.nk for p in parts) else not_in).append(q)
     return {"chars": len(ws(text)), "urls": len(urls), "url_kinds": len(set(urls)),
             "bad_urls": sorted({u for u in urls if u not in corpus.urls}), "quotes": len(qs),
-            "not_in": not_in, "width": width}
+            "not_in": not_in, "width": width, "gobi": gobi(text)}
 
 
 def report(run, rows):
     out = [f"# {run}：道具で照らした結果（docs/eval-shisaku1.md §8.2）", "",
            "判定はしない。合わない引用には、点検した答弁案の言い回しや、自分で作った問い・見出しが入る。どれに当たるかは人が見る。", "",
-           "| 答え | 字数 | url（種類） | 道具が返していない url | 引用 | 道具の返した文に無い引用 | 字の幅などを変えた引用 |",
-           "| --- | --- | --- | --- | --- | --- | --- |"]
+           "語尾の形は、かぎかっこの外に「…ますと」「…ましたとして」「…まいると」などの形がある行の数（清書版で引用の語尾を言い換えていない所。本文の地の文の言い回しも入る）。", "",
+           "| 答え | 字数 | url（種類） | 道具が返していない url | 引用 | 道具の返した文に無い引用 | 字の幅などを変えた引用 | 語尾の形 |",
+           "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     for name, req, r in rows:
         out.append(f"| {name} {req} | {r['chars']} | {r['urls']}（{r['url_kinds']}） | {len(r['bad_urls'])} | {r['quotes']} | "
-                   f"{len(r['not_in'])} | {len(r['width'])} |")
+                   f"{len(r['not_in'])} | {len(r['width'])} | {len(r['gobi'])} |")
     for name, req, r in rows:
-        if r["bad_urls"] or r["not_in"] or r["width"]:
+        if r["bad_urls"] or r["not_in"] or r["width"] or r["gobi"]:
             out += ["", f"## {name} {req}", ""]
             out += [f"- 道具が返していない url：{u}" for u in r["bad_urls"]]
             out += [f"- 字の幅などを変えた引用：「{q}」" for q in r["width"]]
             out += [f"- 道具の返した文に無い引用：「{q}」" for q in r["not_in"]]
+            out += [f"- 語尾の形：{g}" for g in r["gobi"]]
     return "\n".join(out) + "\n"
 
 
@@ -158,7 +185,7 @@ def main(argv):
         f.write(report(a.run, rows))
     for name, req, r in rows:
         print(f"{name} {req}：url {r['urls']}・返していない url {len(r['bad_urls'])}・引用 {r['quotes']}・"
-              f"文に無い {len(r['not_in'])}・字の幅など {len(r['width'])}")
+              f"文に無い {len(r['not_in'])}・字の幅など {len(r['width'])}・語尾の形 {len(r['gobi'])}")
     print(f"書いた：{os.path.join(d, 'check.md')}")
     return 0
 

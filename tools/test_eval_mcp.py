@@ -39,6 +39,9 @@ class EvalMcpTest(unittest.TestCase):
 
     def test_answers(self):
         self.assertEqual(em.answers(MD), [("依頼1", "\n答弁案の本文。\n"), ("依頼2", "\n点検の本文。\n")])
+        # 「### 答え」の行が無い依頼（画面から写した答え）は、「## 依頼N」より後の全部
+        self.assertEqual(em.answers("# 写し\n\n## 依頼1\n\n本文1。\n\n## 依頼2\n\n本文2。\n"),
+                         [("依頼1", "\n本文1。\n"), ("依頼2", "\n本文2。\n")])
 
     def test_check(self):
         text = ("- 根1 「令和10年度の開設を目指します。」（出典：https://example.jp/a.pdf#page=1）\n"
@@ -53,6 +56,15 @@ class EvalMcpTest(unittest.TestCase):
         self.assertEqual(r["width"], ["令和１０年度の開設を目指します。"])     # NFKC でだけ合う
         self.assertEqual(r["not_in"], ["自分で作った問い"])                # 略記の「…」は前後で比べる
 
+    def test_gobi(self):
+        text = ("令和１１年度での開設を目指しますとしております。\n"
+                "「令和１１年度での開設を目指します。」としております。\n"
+                "維持管理費は精査してまいるとお答えしております。\n"
+                "令和１１年度での開設を目指すこととしております。\n"
+                "「選定しました。」と「予定しています。」の2つ\n")
+        self.assertEqual(em.gobi(text), ["令和１１年度での開設を目指しますとしております。", "維持管理費は精査してまいるとお答えしております。"])
+        self.assertEqual(em.check(text, self.corpus)["gobi"], em.gobi(text))
+
     def test_quotes_per_line(self):
         self.assertEqual(em.quotes("「外「内」側」と「次」"), ["外「内」側", "次"])
         self.assertEqual(em.quotes("閉じない「かっこ"), [])
@@ -60,7 +72,7 @@ class EvalMcpTest(unittest.TestCase):
     def test_report(self):
         r = em.check("「自分で作った問い」", self.corpus)
         s = em.report("t", [("opus-A", "依頼1", r)])
-        self.assertIn("| opus-A 依頼1 | 10 | 0（0） | 0 | 1 | 1 | 0 |", s)
+        self.assertIn("| opus-A 依頼1 | 10 | 0（0） | 0 | 1 | 1 | 0 | 0 |", s)
         self.assertIn("- 道具の返した文に無い引用：「自分で作った問い」", s)
 
 

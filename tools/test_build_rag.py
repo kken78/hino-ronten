@@ -144,7 +144,7 @@ class BuildTest(unittest.TestCase):
         for md in built():
             for line in md.split("\n"):
                 self.assertFalse(line.startswith("|"), line)
-                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落",
+                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」",
                                                                  "【未確認】", "比べた記載：記録編の")):
                     self.assertIn("出典：", line, line)
 
@@ -195,7 +195,7 @@ class BuildTest(unittest.TestCase):
     def test_katei_form(self):
         honpen, kiroku = built()
         # 過程の記録は資料の日付が無いので［ ］を付けず、期間と1つめの資料の名前を書く（§17.1）
-        line = ("- 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。"
+        line = ("- 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。資料の種類：町の資料。"
                 "「令和４年７月１２日」（出典：https://example.jp/c1）")
         self.assertIn(line + "\n", kiroku)
         self.assertIn(line + "\n", honpen)        # 経過
@@ -229,10 +229,18 @@ class BuildTest(unittest.TestCase):
         self.assertIn("［2025年3月10日］令和7年3月定例会の課長の発言：資料の種類：会議録。回：再質問1。書き方：いまのこと。「答えの文。」", kiroku)
         self.assertIn("［2025年6月13日］令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", kiroku)
         self.assertNotIn("資料の種類：町の資料。回：", kiroku)          # 町の資料には回を付けない
-        # 検討の段階：資料のキーから分かる資料の日付を添える（sp は発言の日、doc は台帳の date）
-        self.assertIn("期間：2026年1月14日。資料：令和8年3月定例会議の子ども支援課長の発言（2026年3月9日）。「契約を結んだ。」", kiroku)
-        self.assertIn("期間：2026年4月〜（継続中）。資料：「予算のあらまし」（2026年5月）。", kiroku)
-        self.assertIn("資料：懇話会の資料（第1回）。「令和４年７月１２日」", kiroku)   # 台帳の date が無い doc は書かない
+        # 検討の段階：資料のキーから分かる資料の日付を添える（sp は発言の日、doc は台帳の date）。
+        # 1つめの資料の種類と、会議録の発言なら回も書く（§17.1）
+        self.assertIn("期間：2026年1月14日。資料：令和8年3月定例会議の子ども支援課長の発言（2026年3月9日）。資料の種類：会議録。回：未記録。"
+                      "「契約を結んだ。」", kiroku)
+        self.assertIn("期間：2026年4月〜（継続中）。資料：「予算のあらまし」（2026年5月）。資料の種類：広報ひの。「取り組みます。」", kiroku)
+        self.assertIn("資料：懇話会の資料（第1回）。資料の種類：町の資料。「令和４年７月１２日」", kiroku)   # 台帳の date が無い doc は書かない
+        # 検討の段階の資料の発言が、やりとりの記録の確定した行にあれば、その回
+        d["records"]["yaritori"][0]["rows"][1].update(sid="sp:0000008942_20260309_0233", round="再質問2")
+        kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)[1]
+        self.assertIn("（2026年3月9日）。資料の種類：会議録。回：再質問2。「契約を結んだ。」", kiroku)
+        self.assertEqual([br.Rag.kind_of(k) for k in ("sp:1", "doc:koho-no790-05/1", "doc:a/1", "pt:x", "")],
+                         ["会議録", "広報ひの", "町の資料", "町の資料", "町の資料"])
 
     def test_none_text(self):
         d = json.loads(data())

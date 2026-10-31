@@ -166,7 +166,7 @@ def main(argv):
     ap.add_argument("--theme", default="hoiku")
     ap.add_argument("--program", default="node:jisshi/e008")
     ap.add_argument("--common", default=os.path.join(ROOT, "prompts", "shisaku1-common-v3.md"))
-    ap.add_argument("--oyo", default=os.path.join(ROOT, "prompts", "shisaku1-oyo-v3.md"))
+    ap.add_argument("--oyo", default=os.path.join(ROOT, "prompts", "shisaku1-oyo-v4.md"))
     ap.add_argument("--copy-to", default="")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv[1:])
