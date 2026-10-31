@@ -109,6 +109,15 @@ class Rag:
                 self.kot.setdefault(r["point"], []).append(r)
         for rows in self.kot.values():
             rows.sort(key=lambda r: (r["source_date"], r["source"]))
+        # 会議録の発言の回：やりとりの記録の確定した行の round（LINK_SCHEMA §17.1）
+        self.rounds = {}
+        for q in self.R.get("yaritori") or []:
+            for row in sorted(q["rows"], key=lambda r: int(r["row"])):
+                if row.get("layer") == CONFIRMED and row.get("sid") and row.get("round"):
+                    rs = self.rounds.setdefault(row["sid"], [])
+                    if row["round"] not in rs:
+                        rs.append(row["round"])
+        self.doc_dates = {x.get("id"): x.get("date") or "" for x in data.get("docs") or [] if x.get("id")}
 
     # ---- 共通 ----
     def name(self, key):
@@ -121,6 +130,22 @@ class Rag:
         q = f"「{quote}」" if quote else ""
         return f"{head}［{jd(date)}］{source}：{f}{q}（出典：{url or '出典なし'}）"
 
+    def round_of(self, source):
+        """会議録の発言（sp）の回。やりとりの記録に無ければ「未記録」。sp でなければ空（LINK_SCHEMA §17.1）。"""
+        if not (source or "").startswith("sp:"):
+            return ""
+        return "・".join(self.rounds.get(source) or []) or "未記録"
+
+    def source_date(self, key):
+        """資料のキーから分かる資料の日付：sp は発言の日、doc は町の公開資料の台帳の date。ほかは空（LINK_SCHEMA §17.1）。"""
+        m = re.fullmatch(r"sp:[0-9]+_([0-9]{4})([0-9]{2})([0-9]{2})_[0-9]+", key or "")
+        if m:
+            return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+        m = records.RE_DOC_PAGE.fullmatch(key or "") or records.RE_DOC.fullmatch(key or "")
+        if m:
+            return self.doc_dates.get(m.group(1), "")
+        return ""
+
     @staticmethod
     def katei_span(k):
         """過程の記録の期間（LINK_SCHEMA §17.1）。"""
@@ -132,12 +157,13 @@ class Rag:
         return jd(a) if a == b else f"{jd(a)}〜{jd(b)}"
 
     def katei_entry(self, k):
-        """過程の記録の段落：［ ］を付けず、期間と1つめの資料の名前を書く（LINK_SCHEMA §17.1）。"""
+        """過程の記録の段落：［ ］を付けず、期間と1つめの資料の名前（分かれば資料の日付）を書く（LINK_SCHEMA §17.1）。"""
         head = "【未確認】" if k.get("layer") != CONFIRMED else ""
         src = (k.get("sources") or "").split(",")[0]
+        sd = self.source_date(src)
         q = f"「{k.get('quote')}」" if k.get("quote") else ""
-        return (f"{head}検討の段階：段階：{k.get('name')}。期間：{self.katei_span(k)}。資料：{self.name(src)}。"
-                f"{q}（出典：{k.get('url') or '出典なし'}）")
+        return (f"{head}検討の段階：段階：{k.get('name')}。期間：{self.katei_span(k)}。資料：{self.name(src)}"
+                f"{'（' + jd(sd) + '）' if sd else ''}。{q}（出典：{k.get('url') or '出典なし'}）")
 
     def none_text(self, p):
         """町の資料の行が無い事柄（LINK_SCHEMA §17.1）。"""
@@ -225,7 +251,7 @@ class Rag:
     def kot_entry(self, r):
         kind = "会議録" if r["source"].startswith("sp:") else "町の資料"
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("資料の種類", kind), ("値", r.get("value")), ("対象の時期", r.get("target")),
+                          [("資料の種類", kind), ("回", self.round_of(r["source"])), ("値", r.get("value")), ("対象の時期", r.get("target")),
                            ("書き方", r.get("kind")), ("変更前", r.get("prev"))], r.get("layer"))
 
     def honpen(self):
@@ -449,6 +475,8 @@ class Rag:
             return self.tsunagari_entry(x)
         if n == "katei":
             return self.katei_entry(x)
+        if n == "kisai":
+            return self.kisai_entry(x)
         src = x.get("source") or (x.get("sources") or "").split(",")[0]
         return self.entry(x.get("source_date") or x.get("from") or "", self.name(src), x.get("quote"), r.get("url"), layer=x.get("layer"))
 
@@ -467,12 +495,17 @@ class Rag:
 
     def shisetsu_entry(self, r):
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("面", ASPECT.get(r.get("aspect"), r.get("aspect"))), ("値", r.get("value")), ("対象の時期", r.get("target")),
+                          [("回", self.round_of(r["source"])), ("面", ASPECT.get(r.get("aspect"), r.get("aspect"))), ("値", r.get("value")), ("対象の時期", r.get("target")),
                            ("書き方", r.get("kind")), ("変更前", r.get("prev"))], r.get("layer"))
 
     def tsunagari_entry(self, r):
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("関係", r.get("link")), ("上位の記載", r.get("upper")), ("下位の記載", r.get("lower"))], r.get("layer"))
+                          [("回", self.round_of(r["source"])), ("関係", r.get("link")), ("上位の記載", r.get("upper")),
+                           ("下位の記載", r.get("lower"))], r.get("layer"))
+
+    def kisai_entry(self, r):
+        return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
+                          [("回", self.round_of(r["source"])), ("見出し", r.get("title"))], r.get("layer"))
 
     # ---- 記録編 ----
     def kiroku(self):
@@ -519,8 +552,7 @@ class Rag:
                 for a in sorted(by):
                     doc.h(2, f"{self.pname}：記録：構造にしていない記載：{a}")
                     for r in sorted(by[a], key=lambda r: (r["source_date"], r["source"], r["title"])):
-                        doc.li(self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                                          [("見出し", r.get("title"))], r.get("layer")))
+                        doc.li(self.kisai_entry(r))
                     doc.end_list()
         return doc
 

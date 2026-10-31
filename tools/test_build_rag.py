@@ -207,6 +207,33 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(span({"from": "2026-01-14", "to": "2026-01-14"}), "2026年1月14日")
         self.assertEqual(span({"from": "", "to": ""}), br.jd(""))
 
+    def test_round_and_source_date(self):
+        d = json.loads(data())
+        sid = "sp:0000008397_20250310_0291"
+        d["records"]["yaritori"][0]["rows"][1].update(sid=sid, round="再質問1")
+        d["records"]["kotogara"].append({"theme": "hoiku", "point": "開園時期", "program": P, "source": sid,
+                                         "source_date": "2025-03-10", "quote": "答えの文。", "value": "", "target": "",
+                                         "kind": "いまのこと", "prev": "", "reason": "", "url": U + "sp291", "layer": "確定"})
+        d["names"]["sources"][sid] = "令和7年3月定例会の課長の発言"
+        d["records"]["katei"].append({"theme": "hoiku", "step": "2", "name": "設計者の選定", "from": "2026-01-14",
+                                      "to": "2026-01-14", "sources": "sp:0000008942_20260309_0233,doc:b/1",
+                                      "quote": "契約を結んだ。", "url": U + "sp233", "layer": "確定"})
+        d["records"]["katei"].append({"theme": "hoiku", "step": "3", "name": "予算", "from": "2026-04", "to": "",
+                                      "sources": "doc:koho-no790-05/1", "quote": "取り組みます。", "url": U + "k790",
+                                      "layer": "確定"})
+        d["docs"].append({"id": "koho-no790-05", "category": "koho", "title": "予算のあらまし", "date": "2026-05", "url": U + "k790"})
+        d["names"]["sources"]["sp:0000008942_20260309_0233"] = "令和8年3月定例会議の子ども支援課長の発言"
+        d["names"]["sources"]["doc:koho-no790-05/1"] = "「予算のあらまし」"
+        honpen, kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        # 回：やりとりの記録の確定した行の round。無ければ未記録（§17.1）
+        self.assertIn("［2025年3月10日］令和7年3月定例会の課長の発言：資料の種類：会議録。回：再質問1。書き方：いまのこと。「答えの文。」", kiroku)
+        self.assertIn("［2025年6月13日］令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", kiroku)
+        self.assertNotIn("資料の種類：町の資料。回：", kiroku)          # 町の資料には回を付けない
+        # 検討の段階：資料のキーから分かる資料の日付を添える（sp は発言の日、doc は台帳の date）
+        self.assertIn("期間：2026年1月14日。資料：令和8年3月定例会議の子ども支援課長の発言（2026年3月9日）。「契約を結んだ。」", kiroku)
+        self.assertIn("期間：2026年4月〜（継続中）。資料：「予算のあらまし」（2026年5月）。", kiroku)
+        self.assertIn("資料：懇話会の資料（第1回）。「令和４年７月１２日」", kiroku)   # 台帳の date が無い doc は書かない
+
     def test_none_text(self):
         d = json.loads(data())
         d["records"]["kotogara"] = [r for r in d["records"]["kotogara"] if r["source"].startswith("sp:")]

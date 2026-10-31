@@ -115,6 +115,9 @@ class ToolTest(unittest.TestCase):
         self.assertIn("## 施設：日野幼稚園\n- [shisetsu:1] ［2025年3月］再編整備計画：面：状況。値：閉園。", text)
         text, _ = call(server(), "topic", {"name": "懇話会の設置目的"})
         self.assertIn("## 記載の見出し：懇話会の設置目的", text)
+        self.assertIn("- [kisai:1] ［2022年7月］懇話会の資料：見出し：懇話会の設置目的。「在り方を検討する。」", text)
+        text, _ = call(server(), "topic", {"name": "開園時期"})
+        self.assertIn("令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", text)
 
     def test_council_and_speeches(self):
         s = server()

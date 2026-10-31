@@ -75,7 +75,7 @@ class Server:
             self._add(f"katei:{n}", "過程", k.get("from"), r.katei_entry(k), k.get("name"))
         for n, x in enumerate(R.get("kisai") or [], 1):
             self._add(f"kisai:{n}", f"記載：{x.get('about') or ''}", x["source_date"],
-                      r.entry(x["source_date"], r.name(x["source"]), x["quote"], x.get("url"), [("見出し", x.get("title"))], x.get("layer")),
+                      r.kisai_entry(x),
                       x.get("about") or "")
         for name in ("yaritori", "shitsugi"):
             for q in R.get(name) or []:
