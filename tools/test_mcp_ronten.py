@@ -152,6 +152,7 @@ class ToolTest(unittest.TestCase):
         self.assertIn("- [katei:1] 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。資料の種類：町の資料。"
                       "「令和４年７月１２日」（出典：https://example.jp/c1）", text)
         self.assertIn("- 総合計画のめざす姿：「どの子も育つまち」", text)
+        self.assertIn("- 再編整備計画 18〜19ページに掲げる課題：「① 出生数の減少」（出典：https://example.jp/youho.pdf#page=20）", text)
 
     def test_theme_words(self):
         with tempfile.TemporaryDirectory() as tmp:

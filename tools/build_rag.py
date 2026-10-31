@@ -25,6 +25,8 @@ OUT_DIR = os.path.join(ROOT, "build", "rag")
 PROMPT = os.path.join(ROOT, "prompts", "shisaku1-common-v2.md")
 RE_NODE = re.compile(r"node:([a-z0-9_-]+)/(e[0-9]+)")
 RE_DATE = re.compile(r"([0-9]{4})-([0-9]{2})(?:-([0-9]{2}))?")
+RE_YM = re.compile(r"(令和|平成)?(元|[0-9]+)年([0-9]{1,2})月")
+ERA = {"令和": 2018, "平成": 1988}
 CONFIRMED = "確定"
 NONE = "町の資料に記載なし"
 # 表示の言葉（LINK_SCHEMA §16.3）
@@ -55,6 +57,16 @@ def jd(s):
 
 def fy_name(y):
     return f"令和{'元' if y == 2019 else y - 2018}年度" if y >= 2019 else f"{y}年度"
+
+
+def posted_date(posted):
+    """計画の meta の posted の文のうち、最後に出る年月（YYYY-MM）。無ければ空（LINK_SCHEMA §17.1）。"""
+    ms = list(RE_YM.finditer(posted or ""))
+    if not ms:
+        return ""
+    era, y, mo = ms[-1].groups()
+    y = 1 if y == "元" else int(y)
+    return f"{y + ERA[era] if era else y:04d}-{int(mo):02d}"
 
 
 def fiscal_year(d):
@@ -177,6 +189,25 @@ class Rag:
                 f"{'（' + jd(sd) + '）' if sd else ''}。資料の種類：{self.kind_of(src)}。{'回：' + rd + '。' if rd else ''}"
                 f"{q}（出典：{k.get('url') or '出典なし'}）")
 
+    def policy_of(self, ref):
+        key = (ref or "").split("/", 1)[1] if (ref or "").startswith("policies/") else ""
+        return next((p for p in self.d.get("policies") or [] if key and p.get("key") == key), None)
+
+    def vision_line(self, v):
+        """総合計画のめざす姿。policies の posted から資料の日付を付ける（LINK_SCHEMA §17.1）。"""
+        pd = posted_date((self.policy_of(v.get("ref")) or {}).get("posted"))
+        return (f"{'［' + jd(pd) + '］' if pd else ''}総合計画のめざす姿：「{re.sub(r'^めざす姿:', '', v.get('text', ''))}」"
+                f"（出典：{v.get('source') or v.get('url')}）")
+
+    def kadai_line(self, k):
+        """計画に掲げる課題：［資料の日付］計画の名前 ページに掲げる課題：「引用」（LINK_SCHEMA §17.1）。"""
+        plan = next((x for x in self.d.get("plans") or [] if k.get("ref", "").startswith(x["key"] + "/")), None)
+        pg = re.search(r"p\.(\d+)(?:-(\d+))?", k.get("source") or "")
+        where = f" {pg.group(1)}{'〜' + pg.group(2) if pg.group(2) else ''}ページ" if pg else ""
+        pd = posted_date((plan or {}).get("posted"))
+        return (f"{'［' + jd(pd) + '］' if pd else ''}{(plan or {}).get('name') or '計画'}{where}に掲げる課題：「{k.get('text')}」"
+                f"（出典：{k.get('url')}）")
+
     def none_text(self, p):
         """町の資料の行が無い事柄（LINK_SCHEMA §17.1）。"""
         n = sum(1 for r in self.kot.get(p) or [] if r["source"].startswith("sp:"))
@@ -272,18 +303,21 @@ class Rag:
         self.guide(doc, "本編")
         doc.h(1, f"{self.pname}（本編）：1 事業の要点")
         yrs = [int(str(y).lstrip("R")) for y in P.get("years") or [] if str(y).lstrip("R").isdigit()]
-        doc.p(self.entry("", "実施計画", P.get("desc"), P.get("source"),
+        pd = posted_date(P.get("posted"))
+        doc.p(self.entry(pd, "実施計画", P.get("desc"), P.get("source"),
                          [("事業名", self.pname), ("分野", f"{P.get('field_no', '')} {P.get('field_name', '')}".strip())]).replace("［日付不明］", ""))
         if P.get("cost"):
             c = P["cost"]
             span = f"令和{yrs[0]}〜{yrs[-1]}年度" if yrs else ""
-            doc.p(f"実施計画：{c.get('label')}（{span}）：{c.get('amount'):,}{c.get('unit')}（出典：{P.get('source')}）")
+            doc.p(f"{'［' + jd(pd) + '］' if pd else ''}実施計画：{c.get('label')}（{span}）：{c.get('amount'):,}{c.get('unit')}（出典：{P.get('source')}）")
         if self.bud:
             b = self.bud
             fy = (re.match(r"fh:fuhyo-r(\d+)/", b["key"]) or [None, ""])[1]
             doc.p(f"令和{fy}年度当初予算の附表：{b.get('name')}：当初予算額 {b.get('amount'):,}{b.get('unit')}。区分：{'・'.join(b.get('kubun') or []) or 'なし'}。担当課：{'・'.join(b.get('dept') or [])}（出典：{b.get('url')}）")
         if self.pol:
-            doc.p(f"総合計画：{P.get('field_no')} {P.get('field_name')}／基本施策{self.pol.get('no')} {self.pol.get('name')}（出典：{self.pol.get('source') or self.pol.get('url')}）")
+            gd = posted_date(self.pol.get("posted"))
+            doc.p(f"{'［' + jd(gd) + '］' if gd else ''}総合計画：{P.get('field_no')} {P.get('field_name')}／基本施策{self.pol.get('no')} {self.pol.get('name')}"
+                  f"（出典：{self.pol.get('source') or self.pol.get('url')}）")
 
         doc.h(1, f"{self.pname}（本編）：2 概要")
         doc.h(2, f"{self.pname}：主な事項")
@@ -397,12 +431,9 @@ class Rag:
         doc.end_list()
         doc.h(2, f"{self.pname}：総合計画のめざす姿と、計画に掲げる課題")
         for v in self.sheet.get("vision") or []:
-            doc.li(f"総合計画のめざす姿：「{re.sub(r'^めざす姿:', '', v.get('text', ''))}」（出典：{v.get('source') or v.get('url')}）")
+            doc.li(self.vision_line(v))
         for k in self.sheet.get("kadai") or []:
-            plan = next((x["name"] for x in d.get("plans") or [] if k.get("ref", "").startswith(x["key"] + "/")), "計画")
-            pg = re.search(r"p\.(\d+)(?:-(\d+))?", k.get("source") or "")
-            where = f" {pg.group(1)}{'〜' + pg.group(2) if pg.group(2) else ''}ページ" if pg else ""
-            doc.li(f"{plan}{where}に掲げる課題：「{k.get('text')}」（出典：{k.get('url')}）")
+            doc.li(self.kadai_line(k))
         doc.end_list()
         doc.h(2, f"{self.pname}：年度ごとの節目")
         years = {}

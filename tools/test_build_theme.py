@@ -156,7 +156,9 @@ class ItemsTest(unittest.TestCase):
         self.assertEqual([(x["key"], x["kind"], x["no"]) for x in self.data["policies"]],
                          [("node:sogo6/e011", "分野", "①"), ("node:sogo6/e047", "基本施策", "(3)")])
         self.assertEqual(self.data["policies"][0]["source"], "https://example.jp/sogo6.pdf")
+        self.assertEqual(self.data["policies"][0]["posted"], "2021年6月")          # 計画の meta の posted（原文のまま）
         pg = self.data["programs"][0]
+        self.assertEqual(pg["posted"], "令和8年4月")
         self.assertEqual((pg["key"], pg["field_no"], pg["field_name"], pg["cost"]["amount"]),
                          ("node:jisshi/e008", "分野①", "子ども・子育て", 3000000))
         b = self.data["budget"]

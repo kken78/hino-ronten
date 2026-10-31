@@ -242,6 +242,27 @@ class BuildTest(unittest.TestCase):
         self.assertEqual([br.Rag.kind_of(k) for k in ("sp:1", "doc:koho-no790-05/1", "doc:a/1", "pt:x", "")],
                          ["会議録", "広報ひの", "町の資料", "町の資料", "町の資料"])
 
+    def test_plan_dates(self):
+        # 計画の posted の最後の年月を資料の日付にする（§17.1）
+        self.assertEqual([br.posted_date(x) for x in ("令和8年4月", "令和7年3月策定・令和8年6月一部改正", "2021年3月発行",
+                                                       "平成30年3月", "令和元年5月", "令和7年度", "")],
+                         ["2026-04", "2026-06", "2021-03", "2018-03", "2019-05", "", ""])
+        d = json.loads(data())
+        d["programs"][0]["posted"] = "令和8年4月"
+        d["policies"][0].update(key="node:sogo6/e047", posted="2021年3月発行")
+        d["sheets"][0]["vision"][0]["ref"] = "policies/node:sogo6/e047"
+        d["plans"][0]["posted"] = "令和7年3月策定・令和8年6月一部改正"
+        honpen = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)[0]
+        self.assertIn("［2026年4月］実施計画：事業名：認定こども園整備事業。", honpen)
+        self.assertIn("［2026年4月］実施計画：概算事業費（令和8〜9年度）：3,000,000千円", honpen)
+        self.assertIn("［2021年3月］総合計画：分野① 子ども・子育て／基本施策(3)", honpen)
+        self.assertIn("- ［2021年3月］総合計画のめざす姿：「どの子も育つまち」", honpen)
+        self.assertIn("- ［2026年6月］再編整備計画 18〜19ページに掲げる課題：「① 出生数の減少」（出典：https://example.jp/youho.pdf#page=20）", honpen)
+        # posted が無ければ［ ］を付けない
+        honpen = br.build(data(), P)[0]
+        self.assertIn("\n実施計画：事業名：認定こども園整備事業。", honpen)
+        self.assertIn("- 再編整備計画 18〜19ページに掲げる課題：「① 出生数の減少」", honpen)
+
     def test_none_text(self):
         d = json.loads(data())
         d["records"]["kotogara"] = [r for r in d["records"]["kotogara"] if r["source"].startswith("sp:")]

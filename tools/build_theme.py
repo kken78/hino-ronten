@@ -228,7 +228,8 @@ def build_policies(d, keys):
             desc = it.get("desc") or ""
             kind = "分野" if any(line.startswith("めざす姿:") for line in desc.split("\n")) else "基本施策"
             out.append(dict(key=key, kind=kind, no=it.get("no", ""), name=it.get("name", ""), desc=desc,
-                            source=plan_pdf(plan), url=PLAN_PAGE.format(pid), layer=CONFIRMED))
+                            source=plan_pdf(plan), posted=(plan.get("meta") or {}).get("posted", ""),
+                            url=PLAN_PAGE.format(pid), layer=CONFIRMED))
     return out
 
 
@@ -242,7 +243,8 @@ def build_programs(d, keys):
                 continue
             out.append(dict(key=key, plan=f"plan:{pid}", field_no=g.get("no", ""), field_name=g.get("name", ""),
                             name=it.get("name", ""), desc=it.get("desc", ""), years=it.get("years") or [],
-                            cost=it.get("cost") or {}, source=plan_pdf(plan), url=PLAN_PAGE.format(pid), layer=CONFIRMED))
+                            cost=it.get("cost") or {}, source=plan_pdf(plan), posted=(plan.get("meta") or {}).get("posted", ""),
+                            url=PLAN_PAGE.format(pid), layer=CONFIRMED))
     return out
 
 

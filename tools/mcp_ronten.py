@@ -289,10 +289,8 @@ class Server:
         out += ["", "## 政策の過程（検討の段階）"]
         out += [self.line(i) for i in sorted((i for i in self.items if i.startswith("katei:")), key=lambda i: (self.items[i]["date"], i))]
         out += ["", "## 総合計画のめざす姿と、計画に掲げる課題"]
-        for v in r.sheet.get("vision") or []:
-            out.append(f"- 総合計画のめざす姿：「{re.sub(r'^めざす姿:', '', v.get('text', ''))}」（出典：{v.get('source') or v.get('url')}）")
-        for k in r.sheet.get("kadai") or []:
-            out.append(f"- 計画に掲げる課題：「{k.get('text')}」（出典：{k.get('url')}）")
+        out += [f"- {r.vision_line(v)}" for v in r.sheet.get("vision") or []]
+        out += [f"- {r.kadai_line(k)}" for k in r.sheet.get("kadai") or []]
         return "\n".join(out)
 
     TOOLS = [
