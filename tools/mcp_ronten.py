@@ -224,7 +224,7 @@ class Server:
                 if c["source"].startswith(KOHO):
                     base = [x for x in r.kot[name] if not x["source"].startswith(("sp:", KOHO))]
                     if base:
-                        out.append("上は広報ひのの記載のため、数字や時期の出典には、次の計画などの記載（広報ひの以外でいちばん新しいもの）を使う："
+                        out.append("上は広報ひのの記載。広報ひの以外でいちばん新しい町の資料の記載（時期や数字の書き方が違うときは、両方を資料の日付とともに示す）："
                                    + r.kot_entry(base[-1]))
             else:
                 out.append(f"{r.none_text(name)}。")

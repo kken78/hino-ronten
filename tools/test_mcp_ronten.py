@@ -108,8 +108,9 @@ class ToolTest(unittest.TestCase):
         text, _ = call(server(), "topic", {"name": "開園時期"})
         self.assertIn("町の資料の最新の記載（2026年7月、「広報ひの」）：令和11年4月", text)
         self.assertIn("いまの町の説明（原文。答弁や文書ではこの言い回しを使う）：［2026年7月］「広報ひの」：資料の種類：広報ひの。", text)
-        # 広報ひののときは、広報ひの以外でいちばん新しい町の資料を並べる（会議録は使わない）
-        self.assertIn("次の計画などの記載（広報ひの以外でいちばん新しいもの）を使う：［2025年3月］再編整備計画：", text)
+        # 広報ひののときは、広報ひの以外でいちばん新しい町の資料も並べる（会議録は使わない。DESIGN.md ADR-14・ADR-27）
+        self.assertIn("上は広報ひのの記載。広報ひの以外でいちばん新しい町の資料の記載（時期や数字の書き方が違うときは、両方を資料の日付とともに示す）：［2025年3月］再編整備計画：", text)
+        self.assertNotIn("出典には", text)
         self.assertIn("当局の答弁のうち新しいもの（原文。これまでの答弁と食い違わないように確かめる）：\n- [yaritori:iq:1/2]", text)
         self.assertLess(text.index("いまの町の説明"), text.index("記載の推移（資料の日付順）："))
         text, _ = call(server(), "topic", {"name": "日野幼稚園"})
