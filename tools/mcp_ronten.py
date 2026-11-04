@@ -148,7 +148,7 @@ class Server:
             if t["link"] == "目的と手段" and t["upper"] not in seen:
                 seen.append(t["upper"])
                 out.append(f"- 目的「{t['upper']}」→ 手段「{t['lower']}」：{r.tsunagari_entry(t)}")
-        K = sorted(d["records"].get("katei") or [], key=lambda k: k.get("from") or "")
+        K = [k for _, k in r.katei_ordered(d["records"].get("katei") or [])]     # step の順（§16.2）
         out += ["", "## いまの段階（政策の過程のうち新しいもの。原文）"] + [f"- {r.katei_entry(k)}" for k in K[-3:]]
         out += ["", "## 事項（topic で取る。事項ごとに「いまの町の説明」の原文を返す）"]
         out += [f"- {p}（{len(r.kot[p])}件）" for p in r.ordered_points()]
@@ -225,9 +225,10 @@ class Server:
             c = r.latest(name)
             out.append(f"## 事柄：{name}")
             if c:
-                v = c.get("value") or c.get("target") or ""
+                v = r.latest_value(name)
                 out.append(f"町の資料の最新の記載（{br.jd(c['source_date'])}、{r.name(c['source'])}）：{v}（出典：{c.get('url')}）")
-                out.append(f"いまの町の説明（原文。答弁や文書ではこの言い回しを使う）：{r.kot_entry(c)}")
+                for x in r.latest_all(name):     # 最新の日付の行が複数なら行ごと（§14 topic）
+                    out.append(f"いまの町の説明（原文。答弁や文書ではこの言い回しを使う）：{r.kot_entry(x)}")
                 if c["source"].startswith(KOHO):
                     base = [x for x in r.kot_all[name] if not x["source"].startswith(("sp:", KOHO))]
                     if base:
@@ -294,7 +295,7 @@ class Server:
         out = ["## 目的と手段・もとにした資料（つながりの記録。ここに無い関係は記録に無い）"]
         out += [self.line(i) for i in self.items if i.startswith("tsunagari:")]
         out += ["", "## 政策の過程（検討の段階）"]
-        out += [self.line(i) for i in sorted((i for i in self.items if i.startswith("katei:")), key=lambda i: (self.items[i]["date"], i))]
+        out += [self.line(i) for i in sorted((i for i in self.items if i.startswith("katei:")), key=lambda i: int(i.split(":")[1]))]     # step の順（§14 links）
         out += ["", "## 総合計画のめざす姿と、計画に掲げる課題"]
         out += [f"- {r.vision_line(v)}" for v in r.sheet.get("vision") or []]
         out += [f"- {r.kadai_line(k)}" for k in r.sheet.get("kadai") or []]

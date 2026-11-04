@@ -121,6 +121,22 @@ class ToolTest(unittest.TestCase):
         text, _ = call(server(), "topic", {"name": "開園時期"})
         self.assertIn("令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", text)
 
+    def test_topic_latest_all_and_stage_order(self):
+        d = json.loads(data())
+        d["records"]["kotogara"].append(dict(d["records"]["kotogara"][1], quote="もう1つの文。", target="令和12年4月"))
+        d["records"]["katei"].append({"theme": "hoiku", "step": "2", "name": "検討会", "from": "", "to": "",
+                                      "sources": "doc:c/1", "quote": "検討会を置く。", "url": U + "c1", "layer": "確定"})
+        s = mr.Server(json.dumps(d, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None)
+        text, _ = call(s, "topic", {"name": "開園時期"})
+        # 最新の日付の行が複数：値は「／」、いまの町の説明は行ごと（§14 topic）
+        self.assertIn("：令和11年4月／令和12年4月（出典：", text)
+        self.assertEqual(text.count("いまの町の説明（原文。答弁や文書ではこの言い回しを使う）："), 2)
+        # いまの段階は step の順の後ろから3つ：from の無い段階も出る。links の過程も step の順
+        text, _ = call(s, "overview")
+        self.assertLess(text.index("段階：懇話会。"), text.index("段階：検討会。"))
+        text, _ = call(s, "links")
+        self.assertLess(text.index("[katei:1]"), text.index("[katei:2]"))
+
     def test_council_and_speeches(self):
         s = server()
         text, _ = call(s, "council", {"from_date": "2025-01-01"})

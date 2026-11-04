@@ -323,19 +323,37 @@ class Rag:
         theme = sorted((p for p in self.kot if p not in self.view_points), key=key)
         return view + theme
 
-    def latest(self, p):
+    def latest_all(self, p):
+        """町の資料の最新の日付の行：value か target のある行を全部（変更でない行を先に、同じなら行の順）。
+        無ければ最後の行だけ（LINK_SCHEMA §16.2・§14 topic）。"""
         base = [r for r in self.kot_all[p] if not r["source"].startswith("sp:")]
         if not base:
-            return None
+            return []
         d = base[-1]["source_date"]
         last = [r for r in base if r["source_date"] == d]
-        for r in last:
-            if (r.get("value") or r.get("target")) and r.get("kind") != "変更":
-                return r
-        for r in last:
-            if r.get("value") or r.get("target"):
-                return r
-        return last[-1]
+        v = [r for r in last if r.get("value") or r.get("target")]
+        if not v:
+            return [last[-1]]
+        return [r for r in v if r.get("kind") != "変更"] + [r for r in v if r.get("kind") == "変更"]
+
+    def latest(self, p):
+        a = self.latest_all(p)
+        return a[0] if a else None
+
+    def latest_value(self, p):
+        """最新の記載の値（複数の行は「／」でつなぐ。§16.2）。"""
+        return "／".join(v for v in ((r.get("value") or r.get("target") or "") for r in self.latest_all(p)) if v)
+
+    @staticmethod
+    def katei_ordered(K):
+        """過程の記録を step の順に並べ、from の無い段階に1つ前の段階の from を並べ替えのキーとして付ける（§16.2）。
+        返すのは (キー, 行) の組。"""
+        out, prev = [], ""
+        for k in sorted(K, key=lambda k: int(k["step"])):
+            key = k.get("from") or prev
+            prev = key
+            out.append((key, k))
+        return out
 
     def kot_entry(self, r):
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
@@ -400,7 +418,7 @@ class Rag:
             c = self.latest(p)
             doc.h(3, f"{self.pname}：主な事項：{p}")
             if c:
-                v = c.get("value") or c.get("target") or ""
+                v = self.latest_value(p)
                 doc.p(f"町の資料の最新の記載（{jd(c['source_date'])}、{self.name(c['source'])}）：{v}{'（予定）' if v and c.get('kind') == '予定' else ''}（出典：{c.get('url')}）")
                 chg = [r for r in self.kot[p] if r.get("kind") == "変更"]
                 for r in chg:
@@ -416,8 +434,9 @@ class Rag:
         doc.h(2, f"{self.pname}：経過")
         doc.p("検討の段階、議決、一般質問、予定の変更を日付順に示します。")
         ev = []
-        for k in self.R.get("katei") or []:
-            ev.append((k.get("from") or "", self.katei_entry(k)))
+        # 過程の段階は step の順。from の無い段階は1つ前の段階の直後（§16.2）。並べ替えのキーに段階の番号を含める
+        for i, (key, k) in enumerate(self.katei_ordered(self.R.get("katei") or [])):
+            ev.append((key, f"{i:04d}" + self.katei_entry(k)))
         for b in d.get("bills") or []:
             ev.append((b["date"], f"［{jd(b['date'])}］議決：{b.get('meeting')}の{b.get('no')} {b.get('title')}。議決結果：{b.get('result')}。採決方法：{b.get('method')}（出典：{b.get('url')}）"))
         for x in d.get("exchanges") or []:
@@ -427,7 +446,7 @@ class Rag:
                 ev.append((r["source_date"], self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
                                                         [("予定の変更", r["point"]), ("変更前", r.get("prev")), ("変更後", r.get("target"))], r.get("layer"))))
         for _, t in sorted(ev, key=lambda e: (e[0] == "", e[0], e[1])):
-            doc.li(t)
+            doc.li(t[4:] if t[:4].isdigit() else t)
         doc.end_list()
 
         doc.h(2, f"{self.pname}：施設の再編")
@@ -518,9 +537,13 @@ class Rag:
         def add(date, text, bracket=True):
             if date:
                 years.setdefault(fiscal_year(date), []).append((date, text, bracket))
-        for k in self.R.get("katei") or []:
-            # 過程の記録は資料の日付が無いので［ ］を付けない（LINK_SCHEMA §17.1）
-            add(k.get("from"), f"検討の段階：{cycle_of(k)}{k.get('name')}。期間：{self.katei_span(k)}（出典：{k.get('url')}）", bracket=False)
+        for _, k in self.katei_ordered(self.R.get("katei") or []):
+            # 過程の記録は資料の日付が無いので［ ］を付けない（LINK_SCHEMA §17.1）。from の無い段階は「年度不明」（§16.2）
+            t = f"検討の段階：{cycle_of(k)}{k.get('name')}。期間：{self.katei_span(k)}（出典：{k.get('url')}）"
+            if k.get("from"):
+                add(k.get("from"), t, bracket=False)
+            else:
+                years.setdefault("nodate", []).append((f"{int(k['step']):04d}", t, False))     # 並びは step の順
         for b in d.get("bills") or []:
             add(b["date"], f"議決：{b.get('meeting')}の{b.get('no')} {b.get('title')}（出典：{b.get('url')}）")
         for x in d.get("exchanges") or []:
@@ -530,8 +553,8 @@ class Rag:
         for r in self.R.get("kotogara") or []:
             if r.get("kind") in ("予定", "変更") and self.in_scope(r):
                 add(r["source_date"], f"予定の記載：{r['point']}：{r.get('target') or r.get('value') or ''}{'（変更）' if r.get('kind') == '変更' else ''}（出典：{r.get('url')}）")
-        for y in sorted(years):
-            doc.h(3, f"{self.pname}：年度ごとの節目：{fy_name(y)}")
+        for y in sorted(years, key=lambda y: (y == "nodate", y if y != "nodate" else 0)):
+            doc.h(3, f"{self.pname}：年度ごとの節目：{'年度不明' if y == 'nodate' else fy_name(y)}")
             for dt, t, bracket in sorted(years[y]):
                 doc.li(f"［{jd(dt)}］{t}" if bracket else t)
             doc.end_list()

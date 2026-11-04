@@ -252,6 +252,23 @@ class BuildTest(unittest.TestCase):
         self.assertIn("- 検討の段階：期：第9期。段階：懇話会。期間：2022年7月12日〜2024年1月12日。", kiroku)
         self.assertIn("- 検討の段階：期：第9期。懇話会。期間：2022年7月12日〜2024年1月12日（出典：", honpen)
 
+    def test_latest_all_and_katei_order(self):
+        d = json.loads(data())
+        # 同じ最新の日付に value・target のある行がもう1つ：値は「／」でつなぐ（§16.2・§17.2）
+        d["records"]["kotogara"].append(dict(d["records"]["kotogara"][1], quote="もう1つの文。", target="令和12年4月"))
+        # from の無い段階：1つ前の段階（懇話会 2022-07-12）の直後。年度ごとの節目では「年度不明」
+        d["records"]["katei"].append({"theme": "hoiku", "step": "2", "name": "検討会", "from": "", "to": "",
+                                      "sources": "doc:c/1", "quote": "検討会を置く。", "url": U + "c1", "layer": "確定"})
+        d["records"]["katei"].append({"theme": "hoiku", "step": "3", "name": "策定", "from": "2025-03", "to": "2025-03",
+                                      "sources": "doc:a/1", "quote": "策定した。", "url": U + "a1", "layer": "確定"})
+        honpen, kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        self.assertIn("町の資料の最新の記載（2026年7月、「広報ひの」）：令和11年4月／令和12年4月", honpen)
+        i, j, k = (honpen.index(x) for x in ("段階：懇話会。", "段階：検討会。期間：日付不明。", "段階：策定。"))
+        self.assertLess(i, j)
+        self.assertLess(j, k)
+        self.assertIn("年度ごとの節目：年度不明", honpen)
+        self.assertGreater(honpen.index("年度ごとの節目：年度不明"), honpen.index("年度ごとの節目：令和7年度"))
+
     def test_round_and_source_date(self):
         d = json.loads(data())
         sid = "sp:0000008397_20250310_0291"
