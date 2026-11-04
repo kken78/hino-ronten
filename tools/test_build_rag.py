@@ -47,7 +47,8 @@ def data(**kw):
                     "kadai": [{"ref": "plan:youho/hoshin/challenges/1/1", "text": "① 出生数の減少",
                                "source": "youho/honpen p.18-19", "url": U + "youho.pdf#page=20"}]}],
         "exchanges": [{"meeting_id": "m", "meeting": "令和7年3月定例会", "date": "2025-03-10", "n": 1, "question": "iq:1",
-                       "member": {"key": "k", "name": "日野花子", "seat": 1}, "titles": [{"title": "新こども園について"}],
+                       "member": {"key": "k", "name": "日野花子", "seat": 1}, "titles": [{"title": "新こども園について", "n": 1}],
+                       "titles_chosen": True,
                        "turns": [{"url": U + "t1"}]}],
         "bills": [{"key": "b", "meeting": "令和8年3月定例会議", "date": "2026-03-23", "no": "議案第1号", "title": "予算",
                    "result": "原案可決", "method": "起立", "debates": [], "url": U + "bill"}],
@@ -173,7 +174,19 @@ class BuildTest(unittest.TestCase):
         self.assertIn("再編整備計画 18〜19ページに掲げる課題：「① 出生数の減少」", honpen)
         self.assertIn("### 認定こども園整備事業：施設の再編：日野幼稚園（日野地区）", honpen)
         self.assertIn("### 認定こども園整備事業：年度ごとの節目：令和7年度", honpen)
-        self.assertIn("一般質問：令和7年3月定例会　質問者：日野花子 議員　議会だよりの見出し「新こども園について」", honpen)
+        self.assertIn("一般質問：令和7年3月定例会　質問者：日野花子 議員　議会だよりの見出し：問1「新こども園について」", honpen)
+
+    def test_bulletin_titles(self):
+        # 議会だよりの見出し（LINK_SCHEMA §17.1、DESIGN.md ADR-28）
+        t1, t2 = {"title": "通園制度", "n": 1}, {"title": "新こども園の大きさは", "n": 2}
+        for x, want in (({"titles": [], "titles_chosen": False}, ""),
+                        ({"titles": [t2], "titles_chosen": True}, "　議会だよりの見出し：問2「新こども園の大きさは」"),
+                        ({"titles": [t1], "titles_chosen": False}, "　議会だよりの見出し：問1「通園制度」"),
+                        ({"titles": [t1, t2], "titles_chosen": True}, "　議会だよりの見出し：問1「通園制度」、問2「新こども園の大きさは」"),
+                        ({"titles": [t1, t2], "titles_chosen": False},
+                         "　議会だよりの見出し（どの問いに当たるかは確かめていない）：問1「通園制度」、問2「新こども園の大きさは」")):
+            with self.subTest(x=x):
+                self.assertEqual(br.bulletin_titles(x), want)
 
     def test_issues(self):
         honpen = built()[0]

@@ -74,6 +74,18 @@ def fiscal_year(d):
     return y if m >= 4 else y - 1
 
 
+NOT_CHECKED = "どの問いに当たるかは確かめていない"
+
+
+def bulletin_titles(x):
+    """一般質問の議会だよりの見出しの部分（LINK_SCHEMA §17.1、DESIGN.md ADR-28）。見出しが無ければ空。"""
+    ts = x.get("titles") or []
+    if not ts:
+        return ""
+    body = "、".join(f"問{t.get('n')}「{t.get('title')}」" for t in ts)
+    return f"　議会だよりの見出し{'' if x.get('titles_chosen') or len(ts) == 1 else '（' + NOT_CHECKED + '）'}：{body}"
+
+
 class Doc:
     """Markdown の行を積む。DOCX も同じ行から作る。"""
 
@@ -525,9 +537,8 @@ class Rag:
         return self.entry(x.get("source_date") or x.get("from") or "", self.name(src), x.get("quote"), r.get("url"), layer=x.get("layer"))
 
     def exchange_line(self, x):
-        t = (x.get("titles") or [{}])[0].get("title", "")
         return (f"［{jd(x['date'])}］一般質問：{x.get('meeting')}　質問者：{x['member'].get('name')} 議員"
-                f"{'　議会だよりの見出し「' + t + '」' if t else ''}（出典：{(x.get('turns') or [{}])[0].get('url')}）")
+                f"{bulletin_titles(x)}（出典：{(x.get('turns') or [{}])[0].get('url')}）")
 
     def qa_entry(self, n, q, r):
         side = "質問" if r["side"] == "問い" else "答弁"

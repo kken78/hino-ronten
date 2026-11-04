@@ -191,9 +191,30 @@ class ItemsTest(unittest.TestCase):
         self.assertEqual([(t["sid"], t["side"]) for t in q1["turns"]],
                          [(f"sp:{sid(2)}", "問い"), (f"sp:{sid(4)}", "答え"), (f"sp:{sid(6)}", "問い"), (f"sp:{sid(8)}", "答え")])
         self.assertEqual(q1["member"], {"key": "mb:松田洋子", "name": "松田 洋子", "seat": "4番"})
-        self.assertEqual(q1["titles"], [])
-        q2 = ex[(f"iq:{sid(10)}", 2)]
-        self.assertEqual(q2["titles"], [{"title": "用地は", "theme": "子育て", "issue": "30"}])
+        # 議会だよりの見出し（§13.4、DESIGN.md ADR-28）。やりとりの記録の bq で選ぶ
+        self.assertEqual(q1["titles"], [{"title": "こども園の定員は", "theme": "", "issue": "30", "n": 1}])
+        self.assertTrue(q1["titles_chosen"])
+        q2 = ex[(f"iq:{sid(10)}", 2)]   # やりとりの記録が無い：その質問の議会だよりの見出しをすべて
+        self.assertEqual(q2["titles"], [{"title": "用地は", "theme": "子育て", "issue": "30", "n": 2}])
+        self.assertFalse(q2["titles_chosen"])
+
+    def test_exchanges_titles_all_in_order(self):
+        d = make_data()
+        d.inp.segments[sid(2)]["topics"] = [{"n": 2, "title": "用地は", "theme": "子育て", "src": "bulletin", "issue": "30"},
+                                            {"n": 1, "title": "定員", "src": "minutes"},
+                                            {"n": 1, "title": "定員は", "theme": "子育て", "src": "bulletin", "issue": "30"}]
+        led = tr.ledgers()
+        led["yaritori"] = [dict(r, status="rejected") for r in led["yaritori"]]   # rejected の行の bq は使わない
+        ex = {x["question"]: x for x in build(led=led, d=d)["exchanges"]}
+        q1 = ex[f"iq:{sid(2)}"]
+        self.assertEqual([(t["n"], t["title"]) for t in q1["titles"]], [(1, "定員は"), (2, "用地は")])
+        self.assertFalse(q1["titles_chosen"])
+
+    def test_exchanges_titles_member_differs(self):
+        d = make_data()
+        d.questions["bq:30/松田洋子/1"]["member"] = "山本 秀喜"
+        with self.assertRaisesRegex(bt.BuildError, "bq の議員が問いの議員と違う"):
+            build(d=d)
 
     def test_exchanges_theme_question_without_mention(self):
         rf = refs()

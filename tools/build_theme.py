@@ -299,7 +299,26 @@ def member_of(seg):
     return dict(key=mb_key(seg.get("member")), name=seg.get("member", ""), seat=seg.get("seat", ""))
 
 
-def build_exchanges(d, council, questions=()):
+def exchange_titles(d, sg, question, yaritori):
+    """議会だよりの見出し（LINK_SCHEMA §13.4、DESIGN.md ADR-28）。やりとりの記録の bq で選べれば (見出し, True)、
+    選べなければ、その質問の議会だよりの見出しを問番号の順にすべて (見出し, False)。"""
+    bqs = sorted({r["bq"] for r in yaritori if r["question"] == question and r["status"] != "rejected" and r["bq"]},
+                 key=lambda k: int(k.rsplit("/", 1)[1]))
+    if bqs:
+        out = []
+        for k in bqs:
+            q = d.questions.get(k)
+            if q is None:
+                raise BuildError(f"{question} の bq が議会だよりに無い（{k}）")
+            if mb_key(q.get("member")) != mb_key(sg.get("member")):
+                raise BuildError(f"{question} の bq の議員が問いの議員と違う（{k}）")
+            out.append(dict(title=q.get("title", ""), theme=q.get("theme", ""), issue=q.get("issue", ""), n=int(q["q_num"])))
+        return out, True
+    tp = sorted((x for x in sg.get("topics") or [] if x.get("src") == "bulletin"), key=lambda x: int(x["n"]))
+    return [dict(title=x.get("title", ""), theme=x.get("theme", ""), issue=x.get("issue", ""), n=int(x["n"])) for x in tp], False
+
+
+def build_exchanges(d, council, questions=(), yaritori=()):
     """council の会議録の言及を含む一般質問の問いと、テーマの問い（§12 の kind 問い）。turns の問番号の単位。
     議会だよりの言及（bq）からは作らない。"""
     groups = {}
@@ -327,10 +346,9 @@ def build_exchanges(d, council, questions=()):
         turns = question_turns(d, sg, qn)
         first_q = next((s for s, t in turns if t == "q"), turns[0][0])
         mid = sg["meetingId"]
-        titles = [dict(title=x.get("title", ""), theme=x.get("theme", ""), issue=x.get("issue", ""))
-                  for x in sg.get("topics") or [] if x.get("n") == qn and x.get("src") == "bulletin"]
+        titles, chosen = exchange_titles(d, sg, f"iq:{first_q}", yaritori)
         out.append(dict(meeting_id=mid, meeting=meeting_name(d, mid), date=d.index[first_q]["date"],
-                        n=qn, question=f"iq:{first_q}", member=member_of(sg), titles=titles,
+                        n=qn, question=f"iq:{first_q}", member=member_of(sg), titles=titles, titles_chosen=chosen,
                         turns=[dict(sid=f"sp:{s}", side="答え" if t == "a" else "問い", speaker=speaker_class(d.index[s].get("role")),
                                     role=d.index[s].get("role") or "", excerpt=head(d.index[s].get("text")),
                                     url=SEARCH.format(sg["from"], s)) for s, t in turns],
@@ -972,7 +990,7 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
     plans = build_plans(d, tk["系列"], refs["lineage"])
     plan_keys = {p["key"] for p in plans}
     council = build_council(d, plan_keys, refs["links"])
-    exchanges = build_exchanges(d, council, tk["問い"])
+    exchanges = build_exchanges(d, council, tk["問い"], ledgers["yaritori"])
     words = Words(tk["語"], tk["除外の語"])
     data = {
         "theme": theme,
