@@ -128,6 +128,13 @@ hoiku	質疑	sq:0000008397_20250307_0076	令和7年第2回（3月）定例会会
 hoiku	質疑	sq:0000008942_20260305_0013	令和8年3月定例会議 2026-03-05 3番 谷口智哉 議第115号の質疑。テーマにかかわる部分：新こども園（町長の答えの中）、令和8年度から幼稚園として使われない建物	kken78	2026-10-27	質疑の記録の6行（判定シート2）のまとまり
 hoiku	質疑	sq:0000008942_20260305_0131	令和8年3月定例会議 2026-03-05 8番 山本秀喜 議第109号・議第115号の質疑。テーマにかかわる部分：新こども園の整備費用と財源（子育て未来基金の使い道）	kken78	2026-10-27	質疑の記録の6行（判定シート2）のまとまり
 hoiku	除外の語	学童保育	学童保育所（放課後児童クラブ）は就学後の子どもの施設で、このテーマに含めない	kken78	2026-10-24	
+kaigo	事柄	介護予防ボランティアポイント事業	sq:0000007861_20240307_0156（厚生主監の答え sp:0000007861_20240307_0160）、iq:0000008691_20251212_0378	kken78	2026-11-04	判定シート K2b
+kaigo	事柄	介護人材の確保	jisshi e105「介護人材確保の促進ならびに介護職への定着を支援する」、iq:0000007861_20240308_0224	kken78	2026-11-04	判定シート K2b
+kaigo	事柄	地域密着型サービスの事業所の整備	sq:0000008942_20260305_0170（厚生主監の答え sp:0000008942_20260305_0174）、kaigo9 の地域密着型サービスの計画的整備	kken78	2026-11-04	判定シート K2b
+kaigo	事柄	地域支援事業から重層的支援体制整備事業への移管	jisshi e110「令和7年度まで介護保険特別会計の地域支援事業として実施していた地域包括支援センター運営事業」、e109・e093 も同じ移管	kken78	2026-11-04	判定シート K2b
+kaigo	事柄	第10期の計画の策定	doc:jigyo-kaigo-chosa-r7/1「日野町高齢者福祉計画・介護保険事業計画（第10期）策定に係るアンケート調査結果報告書」	kken78	2026-11-04	判定シート K2b
+kaigo	事柄	第9期の介護保険料	doc:koho-no767-06（令和6から8年度の介護保険料の所得段階が決定しました）、sq:0000007861_20240307_0038	kken78	2026-11-04	判定シート K2b
+kaigo	事柄	重層的支援体制整備事業の実施計画	sq:0000007861_20240307_0067「重層的支援体制整備事業実施計画をどのようにつくっていくのか」	kken78	2026-11-04	判定シート K2b
 kaigo	事業	node:jisshi/e086	shiga-hino-plans data/plans/jisshi.json 分野⑯ 重層的支援体制整備事業	kken78	2026-11-04	
 kaigo	事業	node:jisshi/e092	shiga-hino-plans data/plans/jisshi.json 分野⑯ 高齢者生活支援事業	kken78	2026-11-04	
 kaigo	事業	node:jisshi/e093	shiga-hino-plans data/plans/jisshi.json 分野⑯ 重層的支援体制整備事業（生活支援体制整備事業）	kken78	2026-11-04	
@@ -140,12 +147,26 @@ kaigo	事業	node:jisshi/e108	shiga-hino-plans data/plans/jisshi.json 分野⑱ 
 kaigo	事業	node:jisshi/e109	shiga-hino-plans data/plans/jisshi.json 分野⑱ 重層的支援体制整備事業（地域介護予防活動支援事業）	kken78	2026-11-04	
 kaigo	事業	node:jisshi/e110	shiga-hino-plans data/plans/jisshi.json 分野⑱ 重層的支援体制整備事業（地域包括支援センター運営事業）	kken78	2026-11-04	
 kaigo	名前	高齢者福祉・介護	docs/chosa-3daizai-2026-10-25.md §1.1、DESIGN.md ADR-30	kken78	2026-11-04	
+kaigo	問い	iq:0000007191_20230309_0267	令和5年第2回（3月）定例会会議録 2023-03-09 10番 中西佳子 問1「介護支援ボランティア制度」	kken78	2026-11-04	題は会議録の題
+kaigo	問い	iq:0000007861_20240308_0224	令和6年第2回（3月）定例会会議録 2024-03-08 3番 松田洋子 問1「介護・障害福祉・保育所での人手不足について」	kken78	2026-11-04	題は議会だよりの題
+kaigo	問い	iq:0000008116_20240913_0183	令和6年第6回（9月）定例会会議録 2024-09-13 8番 山本秀喜 問3「「誰もが安心・元気で長寿」の町に向けて」	kken78	2026-11-04	題は議会だよりの題
+kaigo	問い	iq:0000008116_20240917_0003	令和6年第6回（9月）定例会会議録 2024-09-17 12番 中西佳子 問2「認知症の人に寄り添った社会の構築について」	kken78	2026-11-04	題は議会だよりの題
+kaigo	問い	iq:0000008211_20241212_0203	令和6年第7回（12月）定例会会議録 2024-12-12 9番 髙橋源三郎 問1「介護予防の普及と啓発にもっと力を」	kken78	2026-11-04	題は議会だよりの題
+kaigo	問い	iq:0000008489_20250612_0065	令和7年6月定例会議 2025-06-12 3番 谷口智哉 問1「高齢者の健康づくりの担い手は誰なのか」	kken78	2026-11-04	題は議会だよりの題。やりとりの記録を作る（K3。DESIGN.md ADR-30）
+kaigo	問い	iq:0000008489_20250613_0273	令和7年6月定例会議 2025-06-13 11番 後藤勇樹 問2「進む高齢化への対応と福祉施策のあり方を問う」	kken78	2026-11-04	題は議会だよりの題
+kaigo	問い	iq:0000008582_20250916_0082	令和7年9月定例会議 2025-09-16 7番 野矢貴之 問1「地域共生社会をつくる重層的支援体制整備とは？」	kken78	2026-11-04	題は議会だよりの題。やりとりの記録を作る（K3。DESIGN.md ADR-30）
+kaigo	問い	iq:0000008691_20251212_0210	令和7年12月定例会議 2025-12-12 10番 加藤和幸 問2「町の高齢者の健康と介護保険」	kken78	2026-11-04	題は議会だよりの題。やりとりの記録を作る（K3。DESIGN.md ADR-30）
+kaigo	問い	iq:0000008691_20251212_0378	令和7年12月定例会議 2025-12-12 12番 中西佳子 問2「介護予防ボランティアについて」	kken78	2026-11-04	題は議会だよりの題
+kaigo	問い	iq:0000008942_20260310_0029	令和8年3月定例会議 2026-03-10 10番 加藤和幸 問2「除雪・除草に見る高齢化と集落のあり方は」	kken78	2026-11-04	題は議会だよりの題。地域のあり方の題材と重なる
 kaigo	施策	node:sogo6/e028	shiga-hino-plans data/plans/sogo6.json 分野⑱ 高齢者福祉	kken78	2026-11-04	
 kaigo	施策	node:sogo6/e088	shiga-hino-plans data/plans/sogo6.json 分野⑱の基本施策(1) 高齢者支援の仕組みづくり	kken78	2026-11-04	
 kaigo	施策	node:sogo6/e089	shiga-hino-plans data/plans/sogo6.json 分野⑱の基本施策(2) 介護予防の推進	kken78	2026-11-04	
 kaigo	施策	node:sogo6/e090	shiga-hino-plans data/plans/sogo6.json 分野⑱の基本施策(3) 認知症の人と家族への支援体制の推進	kken78	2026-11-04	
 kaigo	系列	chiiki-fukushi	ref/lineage.tsv chiiki-fukushi（日野町地域福祉計画 第4期）	kken78	2026-11-04	重層的支援体制（e086・e093・e109・e110）の側の計画として入れる（DESIGN.md ADR-30）
 kaigo	系列	kaigo	ref/lineage.tsv kaigo（第6期〜第9期 高齢者福祉計画・介護保険事業計画）	kken78	2026-11-04	
+kaigo	記載	地域共生社会	pt:kaigo9/honpen/3「これまで進めてきた「地域包括ケアシステム」のさらなる深化と「地域共生社会」の実現に向け」	kken78	2026-11-04	判定シート K2b
+kaigo	記載	地域包括ケアシステムの深化・推進	pt:kaigo9/honpen/30「中核的役割を担う地域包括支援センターのさらなる機能強化とその役割の周知といった深化・推進に向けた取組が重要となります」	kken78	2026-11-04	判定シート K2b
+kaigo	記載	第8期の評価	pt:kaigo9/honpen/23「第８期計画の評価・検証結果」（期の流れ。DESIGN.md ADR-30）	kken78	2026-11-04	判定シート K2b
 kaigo	語	介護	kaigo9 の計画名、jisshi e107・e108 の事業名	kken78	2026-11-04	
 kaigo	語	地域包括	jisshi e110 の事業名、sogo6 e088 の説明	kken78	2026-11-04	
 kaigo	語	老人	jisshi e102・e103 の事業名	kken78	2026-11-04	
@@ -153,12 +174,47 @@ kaigo	語	認知症	sogo6 e090 の名前	kken78	2026-11-04
 kaigo	語	重層的支援	jisshi e086・e093・e109・e110 の事業名	kken78	2026-11-04	
 kaigo	語	高齢者	kaigo9 の計画名、sogo6 e028 の名前	kken78	2026-11-04	
 kaigo	議案	gi:0000007861/議第17号	hino-council-search public/data/gian.json 会議 0000007861 日野町介護保険条例の一部を改正する条例の制定について	kken78	2026-11-04	
+kaigo	議案	gi:0000007861/議第29号	hino-council-search public/data/gian.json 会議 0000007861 令和６年度日野町一般会計予算	kken78	2026-11-04	質疑（K2b）の対象
 kaigo	議案	gi:0000007861/議第31号	hino-council-search public/data/gian.json 会議 0000007861 令和６年度日野町介護保険特別会計予算	kken78	2026-11-04	
 kaigo	議案	gi:0000008397/議第13号	hino-council-search public/data/gian.json 会議 0000008397 日野町介護保険条例の一部を改正する条例の制定について	kken78	2026-11-04	
 kaigo	議案	gi:0000008397/議第14号	hino-council-search public/data/gian.json 会議 0000008397 日野町地域包括支援センターの包括的支援事業の実施に関する基準を定める条例および日野町指定介護予防支援等の事業の人員および運営ならびに指定介護予防支援等に係る介護予防のための効果的な支援の方法に関する基準を定める条例の一部を改正する条例の制定について	kken78	2026-11-04	
+kaigo	議案	gi:0000008397/議第25号	hino-council-search public/data/gian.json 会議 0000008397 令和７年度日野町一般会計予算	kken78	2026-11-04	質疑（K2b）の対象
 kaigo	議案	gi:0000008397/議第27号	hino-council-search public/data/gian.json 会議 0000008397 令和７年度日野町介護保険特別会計予算	kken78	2026-11-04	
+kaigo	議案	gi:0000008582/議第64号	hino-council-search public/data/gian.json 会議 0000008582 令和７年度日野町介護保険特別会計補正予算（第１号）	kken78	2026-11-04	質疑（K2b）の対象
 kaigo	議案	gi:0000008582/議第70号	hino-council-search public/data/gian.json 会議 0000008582 令和６年度日野町介護保険特別会計歳入歳出決算について	kken78	2026-11-04	
+kaigo	議案	gi:0000008691/議第88号	hino-council-search public/data/gian.json 会議 0000008691 令和７年度日野町一般会計補正予算（第５号）	kken78	2026-11-04	質疑（K2b）の対象
 kaigo	議案	gi:0000008942/議第104号	hino-council-search public/data/gian.json 会議 0000008942 日野町介護保険条例の一部を改正する条例の制定について	kken78	2026-11-04	
+kaigo	議案	gi:0000008942/議第109号	hino-council-search public/data/gian.json 会議 0000008942 令和７年度日野町一般会計補正予算（第８号）	kken78	2026-11-04	質疑（K2b）の対象
 kaigo	議案	gi:0000008942/議第115号	hino-council-search public/data/gian.json 会議 0000008942 令和８年度日野町一般会計予算	kken78	2026-11-04	
 kaigo	議案	gi:0000008942/議第117号	hino-council-search public/data/gian.json 会議 0000008942 令和８年度日野町介護保険特別会計予算	kken78	2026-11-04	
+kaigo	資料	doc:jigyo-kaigo-chosa-r7	hino-town-docs data/sources.tsv（c1de9d4） jigyo-kaigo-chosa-r7 日野町高齢者福祉計画・ 介護保険事業計画（第10期）策定に係るアンケート調査（報告書）	kken78	2026-11-04	
+kaigo	資料	doc:kessan-r3-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r3-ikensho 令和3年度日野町各会計決算審査意見書	kken78	2026-11-04	
+kaigo	資料	doc:kessan-r4-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r4-ikensho 令和4年度日野町各会計決算審査意見書	kken78	2026-11-04	
+kaigo	資料	doc:kessan-r5-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r5-ikensho 令和5年度日野町各会計決算審査意見書	kken78	2026-11-04	
+kaigo	資料	doc:kessan-r6-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r6-ikensho 令和6年度日野町各会計決算審査意見書	kken78	2026-11-04	
+kaigo	資料	doc:kessan-r7-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r7-ikensho 令和7年度日野町各会計決算審査意見書	kken78	2026-11-04	
+kaigo	資料	doc:koho-no734-03	hino-town-docs data/sources.tsv（c1de9d4） koho-no734-03 認知症になっても安心して暮らせるまちをめざして	kken78	2026-11-04	
+kaigo	資料	doc:koho-no735-07	hino-town-docs data/sources.tsv（c1de9d4） koho-no735-07 フレイルを予防して元気に明るく過ごそう	kken78	2026-11-04	
+kaigo	資料	doc:koho-no746-04	hino-town-docs data/sources.tsv（c1de9d4） koho-no746-04 認知症になっても安心して暮らせるまちをめざして	kken78	2026-11-04	
+kaigo	資料	doc:koho-no760-02	hino-town-docs data/sources.tsv（c1de9d4） koho-no760-02 『自分らしく生きる』認知症とともに	kken78	2026-11-04	
+kaigo	資料	doc:koho-no766-03	hino-town-docs data/sources.tsv（c1de9d4） koho-no766-03 令和6年度一般会計予算のあらまし（政策の柱）	kken78	2026-11-04	
+kaigo	資料	doc:koho-no766-09	hino-town-docs data/sources.tsv（c1de9d4） koho-no766-09 日野町高齢者福祉計画・介護保険事業計画（第9期）を策定しました／在宅寝たきり者等に対する訪問理美容助成事業／100歳おめでとうございます／みんなで支えあう国民健康保険	kken78	2026-11-04	
+kaigo	資料	doc:koho-no767-06	hino-town-docs data/sources.tsv（c1de9d4） koho-no767-06 令和6から8年度の介護保険料の所得段階が決定しました／運動教室に参加してみませんか？	kken78	2026-11-04	
+kaigo	資料	doc:koho-no770-09	hino-town-docs data/sources.tsv（c1de9d4） koho-no770-09 認知症になっても安心して暮らせるまちをめざして	kken78	2026-11-04	
+kaigo	資料	doc:koho-no778-04	hino-town-docs data/sources.tsv（c1de9d4） koho-no778-04 令和7年度 一般会計予算のあらまし（政策の柱）	kken78	2026-11-04	
+kaigo	資料	doc:koho-no782-13	hino-town-docs data/sources.tsv（c1de9d4） koho-no782-13 屋外広告物（看板）の掲出には許可が必要です／不足額給付金を実施します／日野町地域福祉計画策定委員会 公募委員を募集しています／お知らせ／令和7年度防衛省自衛官等採用試験のご案内	kken78	2026-11-04	
+kaigo	資料	doc:koho-no790-05	hino-town-docs data/sources.tsv（c1de9d4） koho-no790-05 令和8年度一般会計予算のあらまし（政策の柱）	kken78	2026-11-04	
+kaigo	資料	doc:koho-no791-02	hino-town-docs data/sources.tsv（c1de9d4） koho-no791-02 いくつになっても元気に自分らしく お住まいの地域の運動教室に参加してみませんか	kken78	2026-11-04	
+kaigo	資料	doc:koho-no794-10	hino-town-docs data/sources.tsv（c1de9d4） koho-no794-10 9月は認知症月間です／9月21日は敬老の日／「秋の全国交通安全運動」が実施されます／9月10日から16日は自殺予防週間です	kken78	2026-11-04	
+kaigo	資料	doc:yosan-r8-gaiyou	hino-town-docs data/sources.tsv（c1de9d4） yosan-r8-gaiyou 令和8年度当初予算の概要	kken78	2026-11-04	
+kaigo	質疑	sq:0000007861_20240307_0038	令和6年第2回（3月）定例会会議録 2024-03-07 5番 川東昭男 議第14号・議第17号・議第18号・議第23号・議第29号の質疑。テーマにかかわる部分：第9期の介護保険料の改定、市町村特別給付	kken78	2026-11-04	やりとりの記録を作る（K3。DESIGN.md ADR-30）
+kaigo	質疑	sq:0000007861_20240307_0067	令和6年第2回（3月）定例会会議録 2024-03-07 6番 野矢貴之 議第29号の質疑。テーマにかかわる部分：重層的支援体制整備事業（新規）と実施計画の策定	kken78	2026-11-04	やりとりの記録を作る（K3。DESIGN.md ADR-30）
+kaigo	質疑	sq:0000007861_20240307_0156	令和6年第2回（3月）定例会会議録 2024-03-07 11番 中西佳子 議第14号・議第29号の質疑。テーマにかかわる部分：介護保険特別会計繰出金、地域支援事業の介護予防ボランティアポイント事業（新規）	kken78	2026-11-04	
+kaigo	質疑	sq:0000008397_20250307_0034	令和7年第2回（3月）定例会会議録 2025-03-07 11番 後藤勇樹 議第25号の質疑。テーマにかかわる部分：介護保険特別会計の介護給付費の減と見通し	kken78	2026-11-04	
+kaigo	質疑	sq:0000008397_20250307_0114	令和7年第2回（3月）定例会会議録 2025-03-07 7番 野矢貴之 議第25号の質疑。テーマにかかわる部分：重層的支援体制の取組と課をまたぐ連携の会議（企画振興課長の答え）	kken78	2026-11-04	
+kaigo	質疑	sq:0000008582_20250911_0033	令和7年9月定例会議 2025-09-11 4番 松田洋子 議第63号・議第70号の質疑。テーマにかかわる部分：議第70号 令和6年度日野町介護保険特別会計歳入歳出決算	kken78	2026-11-04	やりとりの記録を作る（K3。DESIGN.md ADR-30）
+kaigo	質疑	sq:0000008582_20250911_0121	令和7年9月定例会議 2025-09-11 10番 加藤和幸 議第58号・議第59号・議第57号・議第63号・議第64号・議第68号の質疑。テーマにかかわる部分：償還金と還付加算金	kken78	2026-11-04	
+kaigo	質疑	sq:0000008691_20251211_0074	令和7年12月定例会議 2025-12-11 10番 加藤和幸 議第83号・議第84号・議第85号・議第88号の質疑。テーマにかかわる部分：公的介護施設整備事業（高齢者施設の防災・減災対策）	kken78	2026-11-04	
+kaigo	質疑	sq:0000008942_20260305_0147	令和8年3月定例会議 2026-03-05 4番 松田洋子 議第115号・議第109号の質疑。テーマにかかわる部分：高齢者補聴器購入費助成事業（在宅高齢者福祉推進支援事業）	kken78	2026-11-04	
+kaigo	質疑	sq:0000008942_20260305_0170	令和8年3月定例会議 2026-03-05 10番 加藤和幸 議第106号・議第109号の質疑。テーマにかかわる部分：第9期の計画で令和7・8年度に整備するとした地域密着型サービスの事業所の見込み（厚生主監の答え）	kken78	2026-11-04	やりとりの記録を作る（K3。DESIGN.md ADR-30）
 kaigo	除外の語	後期高齢者	後期高齢者医療制度（医療保険）は、このテーマに含めない	kken78	2026-11-04	
