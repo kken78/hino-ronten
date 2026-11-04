@@ -1,6 +1,7 @@
-"""記録の台帳（records/）・テーマの定義（ref/themes.tsv）・施設の参照表（ref/shisetsu.tsv）を確かめる
-（LINK_SCHEMA.md §11 の「テーマの定義」「施設の参照表」「記録の台帳」「発言の取りこぼし」「引用の前後」「届き先」、
-DESIGN.md ADR-24・ADR-31）。
+"""記録の台帳（records/）・テーマの定義（ref/themes.tsv）・施設の参照表（ref/shisetsu.tsv）・
+地区と組織の参照表（ref/chiku.tsv・ref/soshiki.tsv）を確かめる
+（LINK_SCHEMA.md §11 の「テーマの定義」「施設の参照表」「地区・組織の参照表」「記録の台帳」「発言の取りこぼし」「引用の前後」
+「届き先」、DESIGN.md ADR-24・ADR-31・ADR-32）。地区と組織の参照表は、ファイルが無ければ0行として扱う。
 
 inputs.lock.json の版の入力（会議録の索引と審議の記録・議案・議会だより・計画・計画の原典の文字・町の公開資料）で照らす。
 台帳には書かない。報告と一覧は build/records/ に書く：
@@ -30,6 +31,8 @@ OUT_DIR = os.path.join(gm.ROOT, "build", "records")
 RECORDS_DIR = os.path.join(gm.ROOT, "records")
 THEMES = os.path.join(gm.ROOT, "ref", "themes.tsv")
 SHISETSU = os.path.join(gm.ROOT, "ref", "shisetsu.tsv")
+CHIKU = os.path.join(gm.ROOT, "ref", "chiku.tsv")       # 地区の参照表（§12.1）。無ければ0行
+SOSHIKI = os.path.join(gm.ROOT, "ref", "soshiki.tsv")   # 組織の参照表（§12.1）。無ければ0行
 EXAMPLES = 20
 
 
@@ -38,6 +41,12 @@ def read_file(path, columns, optional=False):
         return []
     with open(path, "rb") as f:
         return records.parse_tsv(f.read(), columns, os.path.relpath(path, gm.ROOT))
+
+
+def read_area_refs():
+    """地区と組織の参照表の行（§12.1）。ファイルが無ければ0行。(chiku, soshiki)。"""
+    return (read_file(CHIKU, records.AREA_COLUMNS, optional=True),
+            read_file(SOSHIKI, records.AREA_COLUMNS, optional=True))
 
 
 def bulletin_texts(questions):
@@ -119,7 +128,7 @@ def _breakdown(counts):
 
 
 def report_lines(rep):
-    L = ["# 記録の台帳の確かめ（records/・ref/themes.tsv・ref/shisetsu.tsv）", ""]
+    L = ["# 記録の台帳の確かめ（records/・ref/themes.tsv・ref/shisetsu.tsv・ref/chiku.tsv・ref/soshiki.tsv）", ""]
     L.append("- 台帳の行の数：" + "・".join(f"{n} {c}" for n, c in rep.counts.items()))
     L.append(f"- 誤り：{len(rep.errors)}")
     L.append(f"- round が turns から求めた値と違う行：{len(rep.round_diff)}（round_diff.tsv）")
@@ -135,6 +144,7 @@ def report_lines(rep):
     L.append(f"- 届き先の信号：views の無い点の確定行 {len(rep.signal_todoku)}（signal_todoku.tsv）")
     L.append(f"- 届き先の信号：問いごとの点が空の割合（signal_point.tsv。問い {len(rep.signal_point)}）")
     L.append(f"- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ {len(rep.signal_chushin)}）")
+    L.append("- 参照表の行の数：" + "・".join(f"{n} {c}" for n, c in rep.ref_counts.items()))
     if rep.errors:
         L += ["", "## 誤り", ""] + [f"- {e}" for e in rep.errors]
     return L
@@ -168,12 +178,13 @@ def main():
                    for n in records.LEDGERS}
         themes = read_file(THEMES, records.THEME_COLUMNS)
         shisetsu = read_file(SHISETSU, records.SHISETSU_COLUMNS)
+        chiku, soshiki = read_area_refs()
     except (gm.GenError, records.RecordsError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
-    rep = records.check_all(ledgers, themes, shisetsu, inp)
+    rep = records.check_all(ledgers, themes, shisetsu, inp, chiku, soshiki)
     write_outputs(OUT_DIR, rep)
-    print("\n".join(report_lines(rep)[2:11]))
+    print("\n".join(report_lines(rep)[2:12]))
     if rep.errors:
         for e in rep.errors[:EXAMPLES]:
             print(f"  {e}", file=sys.stderr)

@@ -183,11 +183,11 @@ td.date,.date{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-s
 const RAW=document.getElementById('data').textContent.trim();
 if(RAW==='__DA'+'TA__'){document.querySelector('main').innerHTML='<p class="intro">このファイルは画面のひな形で、データが入っていません。</p>';return;}
 const D=JSON.parse(RAW), P=JSON.parse(document.getElementById('page').textContent), R=D.records;
-/* 見方（LINK_SCHEMA §2・§16）：事業・期の計画・施設・テーマ。PROG は見方が事業のときだけ */
+/* 見方（LINK_SCHEMA §2・§16）：事業・期の計画・施設・地区・組織・テーマ。PROG は見方が事業のときだけ */
 const SHEET=D.sheets.find(s=>s.view===P.view);
 const PROG=P.view_kind==='事業'?D.programs.find(p=>p.key===P.view):null;
 /* 「本事業」の言い換え（LINK_SCHEMA §16.4）。目的と手段の図の印も同じ言葉で、テーマの見方では付けない */
-const SELF={'事業':'本事業','期の計画':'本計画','施設':'本施設','テーマ':'本テーマ'}[P.view_kind]||'本テーマ';
+const SELF={'事業':'本事業','期の計画':'本計画','施設':'本施設','地区':'本地区','組織':'本組織','テーマ':'本テーマ'}[P.view_kind]||'本テーマ';
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const A=(url,t)=>url?`<a href="${esc(url)}" target="_blank" rel="noopener">${esc(t)}</a>`:esc(t);
 const lab=k=>(D.names.sources||{})[k]||k;
@@ -228,6 +228,15 @@ if(PROG){
   const st=R.shisetsu.filter(r=>r.facility===P.view&&r.aspect==='状態').sort((a,b)=>(a.source_date+a.source).localeCompare(b.source_date+b.source)).pop();
   facts=fact('地区',esc(f.district||NOREC))+
     fact('状況',st?`${esc(st.value)}${st.target?`（${esc(st.target)}）`:''}${st.kind==='予定'?'（予定）':''}　${esc(jd(st.source_date))} ${A(st.url,lab(st.source))}`:NOREC);
+}else if(P.view_kind==='地区'){
+  /* 地区の名前と、その地区の施設（names.views の施設のうち district がその地区の名前のもの。§14・§16.1） */
+  const V=D.names.views||{};
+  const fs=Object.keys(V).filter(k=>k.startsWith('fa:')&&V[k].district&&V[k].district===P.name).map(k=>V[k].name||k);
+  facts=fact('地区',esc(P.name||NOREC))+fact('施設',fs.length?esc(fs.join('、')):NOREC);
+}else if(P.view_kind==='組織'){
+  /* 組織の名前と、ほかの表記（参照表の aliases。§14・§16.1） */
+  const al=((D.names.views||{})[P.view]||{}).aliases||[];
+  facts=fact('組織',esc(P.name||NOREC))+fact('ほかの表記',al.length?esc(al.join('、')):NOREC);
 }else{
   const ch=D.sheets.find(s=>s.view===D.chushin&&s.view!==D.theme);
   facts=fact('系列の計画',D.plans.map(p=>A(p.url,p.name)).join('、')||NOREC)+

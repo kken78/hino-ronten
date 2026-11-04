@@ -126,6 +126,23 @@ def data(**kw):
     return json.dumps(d, ensure_ascii=False).encode("utf-8")
 
 
+def area_data():
+    """地区・組織の見方の見本（DESIGN.md ADR-32）：dist:hino「日野」と org:kucho-kai「日野町区長会」のシートと names.views。
+    日野地区の施設は fa:f1 と fa:f2。fa:f3 は別の地区。施設の記録に面「規模」の行を1つ足す。"""
+    d = json.loads(data())
+    d["sheets"][-1:-1] = [sheet("dist:hino", "地区", "日野"), sheet("org:kucho-kai", "組織", "日野町区長会")]
+    d["names"]["views"] = {"dist:hino": {"name": "日野", "aliases": []},
+                           "fa:f1": {"name": "日野幼稚園", "district": "日野"},
+                           "fa:f2": {"name": "保育所あおぞら園", "district": "日野"},
+                           "fa:f3": {"name": "必佐幼稚園", "district": "必佐"},
+                           "node:jisshi/e008": {"name": "認定こども園整備事業"},
+                           "org:kucho-kai": {"name": "日野町区長会", "aliases": ["区長会", "区長連絡会"]}}
+    d["records"]["shisetsu"].append({"facility": "fa:f1", "aspect": "規模", "value": "1,278㎡", "source": "doc:a/2",
+                                     "source_date": "2025-03", "quote": "延床面積1,278㎡", "target": "", "kind": "いまのこと",
+                                     "prev": "", "url": U + "a2", "layer": "確定"})
+    return json.dumps(d, ensure_ascii=False).encode("utf-8")
+
+
 def docx_bytes(md):
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "a.docx")
@@ -394,6 +411,35 @@ class BuildTest(unittest.TestCase):
         d["chushin"] = ""
         honpen = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), "hoiku")[0]
         self.assertIn("中心の見方：未記録", honpen)
+
+    def test_area_views(self):
+        # 地区・組織の見方（§14・§17.2 の1。ADR-32）：地区は名前とその地区の施設、組織は名前とほかの表記。事業の要点は出さない
+        raw = area_data()
+        honpen, kiroku = br.build(raw, "dist:hino")
+        self.assertIn("# 日野（本編）：1 見方の要点", honpen)
+        self.assertIn("地区：日野。施設：日野幼稚園、保育所あおぞら園\n", honpen)
+        self.assertNotIn("必佐幼稚園", honpen)
+        self.assertTrue(kiroku.startswith("# 日野（記録編）：この資料の読み方"))
+        honpen = br.build(raw, "org:kucho-kai")[0]
+        self.assertIn("# 日野町区長会（本編）：1 見方の要点", honpen)
+        self.assertIn("組織：日野町区長会。ほかの表記：区長会、区長連絡会\n", honpen)
+        for h in (br.build(raw, "dist:hino")[0], honpen):
+            self.assertNotIn("当初予算額", h)
+            self.assertNotIn("概算事業費", h)
+            self.assertNotIn("1 事業の要点", h)
+        # 施設の無い地区・ほかの表記の無い組織は「未記録」
+        d = json.loads(raw)
+        d["names"]["views"]["org:kucho-kai"]["aliases"] = []
+        for k in ("fa:f1", "fa:f2"):
+            d["names"]["views"][k]["district"] = ""
+        raw2 = json.dumps(d, ensure_ascii=False).encode("utf-8")
+        self.assertIn("地区：日野。施設：未記録\n", br.build(raw2, "dist:hino")[0])
+        self.assertIn("組織：日野町区長会。ほかの表記：未記録\n", br.build(raw2, "org:kucho-kai")[0])
+
+    def test_aspect_kibo(self):
+        # 施設の記録の面「規模」（§15.8）は、表示の言葉を替えずにそのまま書く
+        kiroku = br.build(area_data(), P)[1]
+        self.assertIn("面：規模。値：1,278㎡。", kiroku)
 
     def test_point_scope(self):
         # 主な事項：その見方の事柄 → テーマ全体の事柄。ほかの見方だけの点は出さない（§16.2・§17.2）。記録編は全行（§17.3）

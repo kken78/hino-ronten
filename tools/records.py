@@ -1,5 +1,6 @@
-"""記録の台帳（records/）・テーマの定義（ref/themes.tsv）・施設の参照表（ref/shisetsu.tsv）を確かめる関数
-（LINK_SCHEMA.md §1・§2・§11・§12・§15、DESIGN.md ADR-19・ADR-21〜ADR-24・ADR-31）。
+"""記録の台帳（records/）・テーマの定義（ref/themes.tsv）・施設の参照表（ref/shisetsu.tsv）・
+地区と組織の参照表（ref/chiku.tsv・ref/soshiki.tsv）を確かめる関数
+（LINK_SCHEMA.md §1・§2・§11・§12・§12.1・§15、DESIGN.md ADR-19・ADR-21〜ADR-24・ADR-31・ADR-32）。
 
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
 （theme・views）で決める（§15.3・§15.4・§15.6、ADR-31 の2）。届き先の信号（§11、ADR-31 の4）は一覧に出すだけで、止めない。
@@ -47,10 +48,12 @@ LEDGERS = tuple(COLUMNS)          # nozoki は無ければ0行（DESIGN.md ADR-2
 OPTIONAL = ("nozoki",)
 
 THEME_COLUMNS = ["theme", "kind", "value", "source", "views", "reviewer", "date", "note"]
-THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "事柄", "記載", "施設")
-VIEW_KINDS = ("事柄", "記載", "施設", "施策")   # views を持てる kind（§12）
+THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "事柄", "記載", "施設",
+               "地区", "組織")
+VIEW_KINDS = ("事柄", "記載", "施設", "施策", "地区", "組織")   # views を持てる kind（§12）
 POINT_KINDS = ("事柄", "記載")                  # 届き先の信号で見る点の kind（§11 届き先）
 SHISETSU_COLUMNS = ["key", "name", "aliases", "district", "source", "reviewer", "date", "note"]
+AREA_COLUMNS = ["key", "name", "aliases", "source", "reviewer", "date", "note"]   # ref/chiku.tsv・ref/soshiki.tsv（§12.1）
 
 SIDES = ("問い", "答え")
 STAGES = ("課題", "投入", "活動", "手続き", "結果", "成果", "めざす姿")
@@ -59,7 +62,7 @@ A_KINDS = ("事実・数字", "方針・考え", "留保", "考えていない",
 BULLETIN = ("載っている", "載っていない", "言い回しが違う")
 TIME_KINDS = ("済んだこと", "いまのこと", "予定", "変更")
 LINKS = ("目的と手段", "もとにした")
-ASPECTS = ("種類", "運営", "役割", "状態")
+ASPECTS = ("種類", "運営", "役割", "状態", "規模")   # §15.8（規模は ADR-32）
 FIRST = "最初の問い"
 ROUND = re.compile(r"最初の問い|再質問[1-9][0-9]*")
 QUOTE_MAX = 200                   # 不変の制約9
@@ -77,6 +80,8 @@ RE_NODE = re.compile(r"node:([a-z0-9][a-z0-9-]*)/([A-Za-z0-9_-]+)")
 RE_PLAN = re.compile(r"plan:([a-z0-9][a-z0-9-]*)")
 RE_PLAN_ITEM = re.compile(r"plan:([a-z0-9][a-z0-9-]*)/[A-Za-z0-9_-]+/[a-z_]+/[1-9][0-9]*/[1-9][0-9]*")
 RE_FA = re.compile(r"fa:[a-z0-9][a-z0-9-]*")
+RE_DIST = re.compile(r"dist:[a-z0-9][a-z0-9-]*")   # 地区（§2。ref/chiku.tsv）
+RE_ORG = re.compile(r"org:[a-z0-9][a-z0-9-]*")     # 組織（§2。ref/soshiki.tsv）
 RE_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 RE_MONTH = re.compile(r"[0-9]{4}-[0-9]{2}(-[0-9]{2})?")
 RE_INT = re.compile(r"[1-9][0-9]*")
@@ -148,6 +153,7 @@ class Inputs:
 class Report:
     errors: list = field(default_factory=list)          # 止める誤り（文）
     counts: dict = field(default_factory=dict)          # 台帳ごとの行の数
+    ref_counts: dict = field(default_factory=dict)      # 参照表ごとの行の数（shisetsu・chiku・soshiki）
     round_diff: list = field(default_factory=list)
     quote_mismatch: list = field(default_factory=list)
     torikoboshi: list = field(default_factory=list)
@@ -348,8 +354,8 @@ def split_views(views):
     return views.split(",") if views else []
 
 
-def check_views(r, inp, shisetsu_keys, w, rep):
-    """views の形（§12）：持てる kind、空の要素・重複、テーマの id、見方のキーの形と入力にあること（§2）。"""
+def check_views(r, inp, shisetsu_keys, w, rep, chiku_keys=frozenset(), soshiki_keys=frozenset()):
+    """views の形（§12）：持てる kind、空の要素・重複、テーマの id、見方のキーの形と入力・参照表にあること（§2）。"""
     vs = split_views(r["views"])
     if not vs:
         return
@@ -374,14 +380,20 @@ def check_views(r, inp, shisetsu_keys, w, rep):
             ok = v[5:] in inp.plans_in_lineage
         elif RE_FA.fullmatch(v):
             ok = v in shisetsu_keys
+        elif RE_DIST.fullmatch(v):
+            ok = v in chiku_keys
+        elif RE_ORG.fullmatch(v):
+            ok = v in soshiki_keys
         else:
-            rep.err(w, f"views のキーが §2 の見方のキー（node・plan・fa）の形でない（{v}）")
+            rep.err(w, f"views のキーが §2 の見方のキー（node・plan・fa・dist・org）の形でない（{v}）")
             continue
         if not ok:
-            rep.err(w, f"views のキーが入力に無い（{v}。node は計画の事業、plan は系譜表、fa は施設の参照表）")
+            rep.err(w, f"views のキーが入力に無い（{v}。node は計画の事業、plan は系譜表、fa は施設の参照表、"
+                       "dist は地区の参照表、org は組織の参照表）")
 
 
-def check_themes(rows, inp, shisetsu_keys, rep):
+def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_keys=frozenset()):
+    """テーマの定義（§12・§11）。chiku_keys・soshiki_keys は地区・組織の参照表の key（無ければ空）。"""
     name = "ref/themes.tsv"
     check_order(rows, ("theme", "kind", "value"), name, rep)
     by, views, notes = {}, {}, {}
@@ -419,13 +431,17 @@ def check_themes(rows, inp, shisetsu_keys, rep):
             ok = bool(m) and m.group(1) in inp.docs
         elif k == "施設":
             ok = v in shisetsu_keys
+        elif k == "地区":
+            ok = bool(RE_DIST.fullmatch(v)) and v in chiku_keys
+        elif k == "組織":
+            ok = bool(RE_ORG.fullmatch(v)) and v in soshiki_keys
         elif k in ("語", "除外の語"):
             ok = bool(v) and norm(v) == v
         else:
             ok = bool(v)
         if not ok:
             rep.err(w, "value が kind の形に合わないか、lock の版の入力に無い")
-        check_views(r, inp, shisetsu_keys, w, rep)
+        check_views(r, inp, shisetsu_keys, w, rep, chiku_keys, soshiki_keys)
         if k in VIEW_KINDS:
             views.setdefault((k, v), set()).update(x for x in split_views(r["views"]) if x)
         if k == "名前":
@@ -463,13 +479,29 @@ def member_in(member, source):
     return bool(m) and m in s
 
 
-def check_shisetsu_ref(rows, rep):
+def check_shisetsu_ref(rows, rep, chiku_names=None):
+    """施設の参照表（§11・§15.8）。chiku_names は地区の参照表の name の集まり。地区の参照表が無いか0行なら None で、
+    district の照らし合わせを飛ばす。"""
     name = "ref/shisetsu.tsv"
     check_order(rows, ("key",), name, rep)
     for r in rows:
         w = f"{name} {r['key']}"
         if not RE_FA.fullmatch(r["key"]):
             rep.err(w, "key が §2 の fa の形でない")
+        if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
+            rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
+        if chiku_names is not None and r["district"] and r["district"] not in chiku_names:
+            rep.err(w, f"district が地区の参照表（ref/chiku.tsv）の name に無い（{r['district']}）")
+    return {r["key"] for r in rows}
+
+
+def check_area_ref(rows, name, rx, prefix, rep):
+    """地区・組織の参照表（§11・§12.1）：key の順と重複、key の形（dist: か org:）、reviewer と date。key の集まりを返す。"""
+    check_order(rows, ("key",), name, rep)
+    for r in rows:
+        w = f"{name} {r['key']}"
+        if not rx.fullmatch(r["key"]):
+            rep.err(w, f"key が §2 の {prefix} の形でない")
         if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
             rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
     return {r["key"] for r in rows}
@@ -900,11 +932,17 @@ def signals(ledgers, theme, rep):
 
 # ---- 全体 ----
 
-def check_all(ledgers, themes_rows, shisetsu_rows, inp):
-    """ledgers：台帳の名前 → 行の並び（nozoki は無ければ []）。Report を返す。"""
+def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=()):
+    """ledgers：台帳の名前 → 行の並び（nozoki は無ければ []）。chiku_rows・soshiki_rows は地区・組織の参照表の行
+    （ファイルが無ければ []。§12.1）。Report を返す。"""
     rep = Report()
-    shisetsu_keys = check_shisetsu_ref(shisetsu_rows, rep)
-    theme = check_themes(themes_rows, inp, shisetsu_keys, rep)
+    rep.ref_counts = {"shisetsu": len(shisetsu_rows), "chiku": len(chiku_rows), "soshiki": len(soshiki_rows)}
+    chiku_keys = check_area_ref(chiku_rows, "ref/chiku.tsv", RE_DIST, "dist", rep)
+    soshiki_keys = check_area_ref(soshiki_rows, "ref/soshiki.tsv", RE_ORG, "org", rep)
+    # 地区の参照表が無いか0行なら、施設の参照表の district は照らさない（§11 施設の参照表）
+    chiku_names = {r["name"] for r in chiku_rows} if chiku_rows else None
+    shisetsu_keys = check_shisetsu_ref(shisetsu_rows, rep, chiku_names)
+    theme = check_themes(themes_rows, inp, shisetsu_keys, rep, chiku_keys, soshiki_keys)
     for name in LEDGERS:
         rows = ledgers.get(name, [])
         rep.counts[name] = len(rows)

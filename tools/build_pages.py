@@ -4,8 +4,9 @@ build/theme/<theme>.json（tools/build_theme.py が作る。§13）だけを読�
 lock の版の入力は読まない。外から何も読み込まない1つの HTML の文書になる。同じデータからは同じファイルができる。
 
 実行: python3 -B tools/build_pages.py <theme> <見方のキー>（例 hoiku node:jisshi/e008）
-見方のキーは node・plan・fa のキーか、テーマの id（テーマ全体）。見方の名前は、事業は node キーの最後の部分（e008）、
-期の計画は計画の id（kaigo9）、施設は fa の key（nishioji-yo）、テーマ自体は theme（hoiku-theme.html）。
+見方のキーは node・plan・fa・dist・org のキーか、テーマの id（テーマ全体）。見方の名前は、事業は node キーの最後の部分（e008）、
+期の計画は計画の id（kaigo9）、施設は fa の key（nishioji-yo）、地区は dist の key（hino）、組織は org の key（kucho-kai）、
+テーマ自体は theme（hoiku-theme.html）。
 終了コード：0 は作った。1 は止めた（理由を表示する）。
 """
 import hashlib
@@ -24,6 +25,8 @@ PLACEHOLDERS = ("__TITLE__", "__DATA__", "__PAGE__")
 RE_NODE = re.compile(r"node:([a-z0-9_-]+)/([A-Za-z0-9_-]+)")
 RE_PLAN = re.compile(r"plan:([a-z0-9][a-z0-9-]*)")
 RE_FA = re.compile(r"fa:([a-z0-9][a-z0-9-]*)")
+RE_DIST = re.compile(r"dist:([a-z0-9][a-z0-9-]*)")
+RE_ORG = re.compile(r"org:([a-z0-9][a-z0-9-]*)")
 RE_THEME = re.compile(r"[a-z]+")
 # 外から読み込む書き方（§16 の形：外から何も読み込まない）
 RE_EXTERNAL = re.compile(r"<(?:script|img|iframe|link|source|video|audio)\b[^>]*\b(?:src|href)\s*=\s*[\"']?(?:https?:)?//"
@@ -41,13 +44,13 @@ def script_json(obj):
 
 def view_name(theme, view):
     """見方のキー → 見方の名前（§16）。形が合わなければ止める。"""
-    for rx in (RE_NODE, RE_PLAN, RE_FA):
+    for rx in (RE_NODE, RE_PLAN, RE_FA, RE_DIST, RE_ORG):
         m = rx.fullmatch(view)
         if m:
             return m.group(m.lastindex)
     if view == theme and RE_THEME.fullmatch(view):
         return "theme"
-    raise PageError(f"見方のキー（node・plan・fa のキーか、テーマの id）の形でない：{view}")
+    raise PageError(f"見方のキー（node・plan・fa・dist・org のキーか、テーマの id）の形でない：{view}")
 
 
 def render(template, data_bytes, view):
@@ -84,7 +87,8 @@ def out_path(theme, view):
 
 def main(argv):
     if len(argv) != 3:
-        print("使い方: python3 -B tools/build_pages.py <theme> <見方のキー>（node・plan・fa のキーか、テーマの id）", file=sys.stderr)
+        print("使い方: python3 -B tools/build_pages.py <theme> <見方のキー>（node・plan・fa・dist・org のキーか、テーマの id）",
+              file=sys.stderr)
         return 1
     theme, view = argv[1], argv[2]
     src = os.path.join(THEME_DIR, f"{theme}.json")

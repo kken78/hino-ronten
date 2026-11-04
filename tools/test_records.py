@@ -1,4 +1,4 @@
-"""tools/records.py・tools/check_records.py の検査（LINK_SCHEMA.md §1・§11・§12・§15、DESIGN.md ADR-24・ADR-31）。
+"""tools/records.py・tools/check_records.py の検査（LINK_SCHEMA.md §1・§11・§12・§12.1・§15、DESIGN.md ADR-24・ADR-31・ADR-32）。
 
 実行: python3 -B tools/test_records.py -v
 見本の小さな入力（発言・場面・議会だより・資料のページ・計画）と、§15 の形に合う見本の台帳を作り、
@@ -6,6 +6,7 @@
 """
 import os
 import sys
+import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -89,6 +90,23 @@ def shisetsu_ref():
              "reviewer": "kken78", "date": "2026-10-27", "note": ""}]
 
 
+# 見本の地区・組織の参照表（§12.1。ADR-32）
+DIST = "dist:hino"
+ORG = "org:kucho-kai"
+
+
+def chiku_ref():
+    return [{"key": DIST, "name": "日野", "aliases": "", "source": "見本", "reviewer": "kken78", "date": "2026-11-05",
+             "note": ""},
+            {"key": "dist:hisa", "name": "必佐", "aliases": "", "source": "見本", "reviewer": "kken78", "date": "2026-11-05",
+             "note": ""}]
+
+
+def soshiki_ref():
+    return [{"key": ORG, "name": "日野町区長会", "aliases": "区長会", "source": "見本", "reviewer": "kken78",
+             "date": "2026-11-05", "note": ""}]
+
+
 def row(ledger, **kw):
     r = {c: "" for c in rc.COLUMNS[ledger]}
     r.update(OK)
@@ -127,9 +145,18 @@ def ledgers():
     return {"yaritori": y, "shitsugi": s, "kotogara": k, "tsunagari": t, "katei": p, "kisai": ki, "shisetsu": sh}
 
 
-def run(led=None, themes=None, ref=None, inp=None):
+def run(led=None, themes=None, ref=None, inp=None, chiku=None, soshiki=None):
     return rc.check_all(led if led is not None else ledgers(), themes if themes is not None else theme_rows(),
-                        ref if ref is not None else shisetsu_ref(), inp or inputs())
+                        ref if ref is not None else shisetsu_ref(), inp or inputs(),
+                        chiku if chiku is not None else chiku_ref(), soshiki if soshiki is not None else soshiki_ref())
+
+
+def with_area(rows, **views):
+    """テーマの定義に kind 地区（dist:hino）と組織（org:kucho-kai）の行を足す。views は「地区」「組織」→ views の列。"""
+    base = rows[0]
+    rows = rows + [dict(base, kind="地区", value=DIST, views=views.get("地区", ""), note=""),
+                   dict(base, kind="組織", value=ORG, views=views.get("組織", ""), note="")]
+    return sorted(rows, key=lambda r: (r["theme"], r["kind"], r["value"]))
 
 
 class RecordsTestCase(unittest.TestCase):
@@ -325,12 +352,70 @@ class ThemeTest(RecordsTestCase):
         rows = theme_rows() + [dict(theme_rows()[0], kind="名前", value="別の名前")]
         rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
         self.assertErr(run(themes=rows), "名前 の行が1行でない")
-        rows = theme_rows() + [dict(theme_rows()[0], kind="地区", value="日野")]
+        rows = theme_rows() + [dict(theme_rows()[0], kind="会計", value="一般会計")]
         rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
-        self.assertErr(run(themes=rows), "kind が §12 の13")
+        self.assertErr(run(themes=rows), "kind が §12 の15")
 
     def test_shisetsu_ref(self):
         self.assertErr(run(ref=[dict(shisetsu_ref()[0], key="fa:A")]), "fa の形でない")
+
+    def test_shisetsu_district(self):
+        # district は、空か、地区の参照表の name のどれか（§11 施設の参照表・§12.1）
+        self.assertFalse(run().errors)
+        self.assertFalse(run(ref=[dict(shisetsu_ref()[0], district="")]).errors)
+        self.assertErr(run(ref=[dict(shisetsu_ref()[0], district="東京")]), "district が地区の参照表（ref/chiku.tsv）の name に無い")
+        self.assertErr(run(ref=[dict(shisetsu_ref()[0], district="hino")]), "district が地区の参照表")   # key ではなく name
+        # 地区の参照表が無いか0行なら、この検査は飛ばす
+        self.assertFalse(run(ref=[dict(shisetsu_ref()[0], district="東京")], chiku=[]).errors)
+
+    def test_area_ref_ok(self):
+        rep = run()
+        self.assertFalse(rep.errors)
+        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 2, "soshiki": 1})
+        rep = run(chiku=[], soshiki=[])     # ファイルが無い（0行）ときも止めない
+        self.assertFalse(rep.errors)
+        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 0, "soshiki": 0})
+
+    def test_area_ref_errors(self):
+        c, o = chiku_ref(), soshiki_ref()
+        cases = [(dict(chiku=list(reversed(c))), "ref/chiku.tsv：3行目：行がキーの順でない"),
+                 (dict(chiku=c + [dict(c[1])]), "ref/chiku.tsv：行のキーが重なっている"),
+                 (dict(chiku=[c[0], dict(c[1], key="org:hisa")]), "ref/chiku.tsv org:hisa：key が §2 の dist の形でない"),
+                 (dict(chiku=[c[0], dict(c[1], key="dist:hisa_")]), "key が §2 の dist の形でない"),
+                 (dict(soshiki=[dict(o[0], key="dist:kucho-kai")]), "ref/soshiki.tsv dist:kucho-kai：key が §2 の org の形でない"),
+                 (dict(soshiki=[dict(o[0], reviewer="")]), "ref/soshiki.tsv org:kucho-kai：reviewer か date"),
+                 (dict(chiku=[c[0], dict(c[1], date="2026/11/05")]), "ref/chiku.tsv dist:hisa：reviewer か date")]
+        for kw, msg in cases:
+            with self.subTest(msg=msg):
+                self.assertErr(run(**kw), msg)
+
+    def test_kind_area(self):
+        # kind 地区・組織の value は dist・org のキーで、参照表にある（§11・§12）
+        rep = run(themes=with_area(theme_rows()))
+        self.assertFalse(rep.errors)
+        rows = with_area(theme_rows())
+        for r in rows:
+            if r["kind"] == "地区":
+                r["value"] = "日野"           # 名前ではなく dist キー
+        self.assertErr(run(themes=rows), "hoiku/地区/日野：value が kind の形に合わないか")
+        self.assertErr(run(themes=with_area(theme_rows()), chiku=[]), "hoiku/地区/dist:hino：value が kind の形に合わないか")
+        self.assertErr(run(themes=with_area(theme_rows()), soshiki=[]), "hoiku/組織/org:kucho-kai：value が kind の形に合わないか")
+        rows = with_area(theme_rows())
+        for r in rows:
+            if r["kind"] == "組織":
+                r["value"] = DIST             # 組織の行に地区のキー
+        self.assertErr(run(themes=rows), f"hoiku/組織/{DIST}：value が kind の形に合わないか")
+
+    def test_views_area(self):
+        # views に dist・org のキーを書ける。kind 地区・組織の行も views を持てる（§12）
+        rep = run(themes=self.views("事柄", f"{P},{DIST},{ORG}"))
+        self.assertFalse(rep.errors)
+        rep = run(themes=with_area(theme_rows(), 地区=f"{P},{ORG}", 組織=f"plan:youho,{DIST}"))
+        self.assertFalse(rep.errors)
+        th = rc.check_themes(with_area(theme_rows(), 地区=P), inputs(), {"fa:a"}, rc.Report(), {DIST}, {ORG})
+        self.assertEqual(th.views_of("地区", DIST), {P})
+        self.assertErr(run(themes=with_area(theme_rows(), 組織="dist:nai")), "views のキーが入力に無い（dist:nai")
+        self.assertErr(run(themes=self.views("事柄", DIST), chiku=[]), f"views のキーが入力に無い（{DIST}")
 
     def views(self, kind, views, value=None):
         rows = theme_rows()
@@ -357,8 +442,10 @@ class ThemeTest(RecordsTestCase):
                  ("事柄", "plan:nai", "views のキーが入力に無い"),
                  ("事柄", "plan:jisshi", "views のキーが入力に無い"),   # manifest にあっても系譜表に無い
                  ("事柄", "fa:b", "views のキーが入力に無い"),
-                 ("事柄", "lin:youho/1", "見方のキー（node・plan・fa）の形でない"),
-                 ("事柄", "kaigo", "見方のキー（node・plan・fa）の形でない")]
+                 ("事柄", "dist:nai", "views のキーが入力に無い"),
+                 ("事柄", "org:nai", "views のキーが入力に無い"),
+                 ("事柄", "lin:youho/1", "見方のキー（node・plan・fa・dist・org）の形でない"),
+                 ("事柄", "kaigo", "見方のキー（node・plan・fa・dist・org）の形でない")]
         for kind, views, msg in cases:
             with self.subTest(kind=kind, views=views):
                 self.assertErr(run(themes=self.views(kind, views)), msg)
@@ -484,6 +571,10 @@ class OtherLedgersTest(RecordsTestCase):
         led = ledgers()
         led["shisetsu"][0]["aspect"] = "面積"
         self.assertErr(run(led), "aspect が")
+        # 面「規模」（§15.8。ADR-32）
+        led = ledgers()
+        led["shisetsu"][0].update(aspect="規模", value="一頁目")
+        self.assertFalse(run(led).errors)
 
 
 class TorikoboshiTest(RecordsTestCase):
@@ -615,9 +706,30 @@ class CheckRecordsTest(unittest.TestCase):
         rep = run()
         lines = check_records.report_lines(rep)
         self.assertIn("- 誤り：0", lines)
-        self.assertEqual(lines[8:11], ["- 届き先の信号：views の無い点の確定行 2（signal_todoku.tsv）",
+        self.assertEqual(lines[8:12], ["- 届き先の信号：views の無い点の確定行 2（signal_todoku.tsv）",
                                        "- 届き先の信号：問いごとの点が空の割合（signal_point.tsv。問い 2）",
-                                       "- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ 1）"])
+                                       "- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ 1）",
+                                       "- 参照表の行の数：shisetsu 1・chiku 2・soshiki 1"])
+
+    def test_read_area_refs(self):
+        # ファイルが無ければ0行。あれば §1 の形と §12.1 の列で読む（列名と列の順が違えば止める）
+        with tempfile.TemporaryDirectory() as d:
+            old = check_records.CHIKU, check_records.SOSHIKI
+            try:
+                check_records.CHIKU, check_records.SOSHIKI = os.path.join(d, "chiku.tsv"), os.path.join(d, "soshiki.tsv")
+                self.assertEqual(check_records.read_area_refs(), ([], []))
+                head = "\t".join(rc.AREA_COLUMNS) + "\n"
+                with open(check_records.CHIKU, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(head + "dist:hino\t日野\t\t見本\tkken78\t2026-11-05\t\n")
+                chiku, soshiki = check_records.read_area_refs()
+                self.assertEqual((chiku[0]["key"], chiku[0]["name"], soshiki), (DIST, "日野", []))
+                cols = ["key", "aliases", "name", "source", "reviewer", "date", "note"]
+                with open(check_records.SOSHIKI, "w", encoding="utf-8", newline="\n") as f:
+                    f.write("\t".join(cols) + "\n")
+                with self.assertRaises(rc.RecordsError):
+                    check_records.read_area_refs()
+            finally:
+                check_records.CHIKU, check_records.SOSHIKI = old
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ records.check_all をかけ、判定シート（Markdown）と、見直し役に
 整えること：status は candidate、reviewer・date は空、note は
 「下書き：<date>・<model>（<prompt か「プロンプトの版なし」>）」＋（注記があれば「。」＋注記）＋（迷いなら「（迷い）」）。
 
-検査：records/ の全台帳と ref/themes.tsv・ref/shisetsu.tsv を読み、対象の台帳の写しに下書きの行を足して行のキーの順に
+検査：records/ の全台帳と ref/themes.tsv・ref/shisetsu.tsv（と、あれば ref/chiku.tsv・ref/soshiki.tsv）を読み、対象の台帳の写しに下書きの行を足して行のキーの順に
 並べる。本体に同じキーの行があれば「本体に同じキーの行がある」として誤りにする（写しでは本体の行を下書きの行に
 置き換えて検査する）。records.check_all の報告と一覧は check_records.write_outputs と同じ形で --out に書く。
 
@@ -123,16 +123,17 @@ def merge(ledger, body, drafts):
     return merged, dup
 
 
-def check(ledger, drafts, ledgers, themes_rows, shisetsu_rows, inp):
+def check(ledger, drafts, ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=()):
     """写しに下書きの行を足して records.check_all をかける。(Report, Theme) を返す。"""
     copy = {n: list(rows) for n, rows in ledgers.items()}
     copy[ledger], dup = merge(ledger, ledgers.get(ledger, []), drafts)
-    rep = records.check_all(copy, themes_rows, shisetsu_rows, inp)
+    rep = records.check_all(copy, themes_rows, shisetsu_rows, inp, chiku_rows, soshiki_rows)
     for r in drafts:
         if row_key(ledger, r) in dup:
             rep.err(records.label(ledger, r), f"本体に同じキーの行がある（records/{ledger}.tsv）")
     # 出る先を引くためのテーマの定義（誤りは check_all の報告にあるので、ここでは捨てる）
-    theme = records.check_themes(themes_rows, inp, {r["key"] for r in shisetsu_rows}, records.Report())
+    theme = records.check_themes(themes_rows, inp, {r["key"] for r in shisetsu_rows}, records.Report(),
+                                 {r["key"] for r in chiku_rows}, {r["key"] for r in soshiki_rows})
     return rep, theme
 
 
@@ -267,16 +268,17 @@ def main(argv):
                                               n in records.OPTIONAL) for n in records.LEDGERS}
         themes_rows = check_records.read_file(check_records.THEMES, records.THEME_COLUMNS)
         shisetsu = check_records.read_file(check_records.SHISETSU, records.SHISETSU_COLUMNS)
+        area = check_records.read_area_refs()
     except (OSError, DraftError, gm.GenError, records.RecordsError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
     outdir = a.out or os.path.join(gm.ROOT, "build", "draft", a.sheet)
-    return run(a, drafts, mayoi, ledgers, themes_rows, shisetsu, inp, outdir)
+    return run(a, drafts, mayoi, ledgers, themes_rows, shisetsu, inp, outdir, area)
 
 
-def run(a, drafts, mayoi, ledgers, themes_rows, shisetsu, inp, outdir):
-    """検査をかけ、出すものを書き、件数を表示する。終了コード（誤りがあれば1）を返す。"""
-    rep, theme = check(a.ledger, drafts, ledgers, themes_rows, shisetsu, inp)
+def run(a, drafts, mayoi, ledgers, themes_rows, shisetsu, inp, outdir, area=((), ())):
+    """検査をかけ、出すものを書き、件数を表示する。終了コード（誤りがあれば1）を返す。area は地区・組織の参照表の行。"""
+    rep, theme = check(a.ledger, drafts, ledgers, themes_rows, shisetsu, inp, *area)
     names = write_all(outdir, a.sheet, a.ledger, a.date, a.model, drafts, mayoi, rep, theme)
     mis = mismatch_keys(a.ledger, rep)
     print(f"{outdir}：" + "・".join(names))

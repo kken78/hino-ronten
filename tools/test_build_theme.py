@@ -126,12 +126,22 @@ def with_views(rows, **views):
     return out
 
 
-def build(led=None, rf=None, themes=None, d=None):
+def build(led=None, rf=None, themes=None, d=None, area=None):
+    """area：地区・組織の参照表の行（省けば tools/test_records.py の見本 dist:hino・dist:hisa・org:kucho-kai）。"""
     d = d or make_data()
     d.inp.nodes |= {"node:sogo6/e011", "node:sogo6/e047"}
     d.inp.series |= {"kodomo"}
     return bt.build("hoiku", themes or theme_rows(), led or tr.ledgers(), d, {"hino-council-search": {"sha": "a" * 40}},
-                    rf or refs(), {"ref/themes.tsv": "x"}, tr.shisetsu_ref())
+                    rf or refs(), {"ref/themes.tsv": "x"}, tr.shisetsu_ref(),
+                    area if area is not None else tr.chiku_ref() + tr.soshiki_ref())
+
+
+def area_rows(**views):
+    """地区・組織の見方の見本（ADR-32）：kind 地区 dist:hino・組織 org:kucho-kai を足し、事柄「新こども園の定員」を
+    e008 と dist:hino に、記載「再編の方針」を org:kucho-kai に出す。views で上書きできる。"""
+    v = {"事柄/新こども園の定員": f"{tr.P},{tr.DIST}", "記載/再編の方針": tr.ORG}
+    v.update(views)
+    return with_views(tr.with_area(theme_rows()), **v)
 
 
 class SpeakerTest(unittest.TestCase):
@@ -491,8 +501,57 @@ class SheetsTest(unittest.TestCase):
         for views in ({"事柄/新こども園の定員": "node:jisshi/e009"}, {"記載/提言": "plan:kodomo"},
                       {"記載/提言": "fa:b"}):
             with self.subTest(views=views):
-                with self.assertRaisesRegex(bt.BuildError, "の views の .* が、テーマの事業／系列の計画／施設に無い"):
+                with self.assertRaisesRegex(bt.BuildError, "の views の .* が、テーマの事業／系列の計画／施設／地区／組織に無い"):
                     build(themes=with_views(theme_rows(), **views))
+        # dist・org のキーは、テーマの kind 地区・組織にあり、参照表にあること
+        with self.assertRaisesRegex(bt.BuildError, "の views の dist:hisa が"):
+            build(themes=area_rows(**{"記載/提言": "dist:hisa"}))
+        with self.assertRaisesRegex(bt.BuildError, "の views の org:kucho-kai が"):
+            build(themes=area_rows(), area=tr.chiku_ref())
+
+    def test_area_views(self):
+        # 地区・組織の見方（§13.1・§13.3。ADR-32）：view_kind は「地区」「組織」、name は参照表の name、施設の見方と同じ形
+        data = build(themes=area_rows())
+        sh = {x["view"]: x for x in data["sheets"]}
+        self.assertEqual([(x["view"], x["view_kind"], x["name"]) for x in data["sheets"]],
+                         [(tr.DIST, "地区", "日野"), (tr.P, "事業", "認定こども園整備事業"), (tr.ORG, "組織", "日野町区長会"),
+                          ("hoiku", "テーマ", "幼児教育・保育施設の再編")])
+        whole = sh["hoiku"]
+        for v in (tr.DIST, tr.ORG):
+            with self.subTest(view=v):
+                s = sh[v]
+                self.assertEqual((s["cost"], s["desc"]), ([], []))            # 事業費と予算・事業の説明は空
+                for col in ("kadai", "vision", "katei", "asked"):              # テーマの単位のもの
+                    self.assertEqual(s[col], whole[col], col)
+        d, o = sh[tr.DIST], sh[tr.ORG]
+        # 事柄：point の views にその見方があるもの
+        self.assertEqual([x["ref"] for x in d["kotogara"]], [f"records/kotogara/新こども園の定員/sp:{sid(4)}/定員は285人です。"])
+        self.assertEqual(o["kotogara"], [])
+        # つながり：upper か lower の記載の views にその見方があるもの
+        self.assertEqual(d["tsunagari"], [])
+        self.assertEqual([x["ref"] for x in o["tsunagari"]], ["records/tsunagari/もとにした/提言/再編の方針/doc:teigen/2"])
+        # 施設：見方が地区で、施設の district がその地区の name（fa:a は日野。施設の行の views は空）
+        self.assertEqual([x["ref"] for x in d["shisetsu"]], ["records/shisetsu/fa:a/役割/doc:teigen/1/一頁目の文。"])
+        self.assertEqual(o["shisetsu"], [])
+        self.assertEqual(bt.check_no_empty_url(data), [])
+
+    def test_area_view_other_district(self):
+        # 必佐の見方：日野の施設 fa:a の行は入らない。kind 地区の value だけで（views に出なくても）見方になる
+        rows = sorted(area_rows() + [dict(theme_rows()[0], kind="地区", value="dist:hisa", views="", note="")],
+                      key=lambda r: (r["theme"], r["kind"], r["value"]))
+        sh = {x["view"]: x for x in build(themes=rows)["sheets"]}
+        self.assertEqual((sh["dist:hisa"]["view_kind"], sh["dist:hisa"]["name"], sh["dist:hisa"]["shisetsu"]), ("地区", "必佐", []))
+        self.assertEqual(sh["dist:hisa"]["kotogara"], [])
+
+    def test_area_row_views(self):
+        # kind 地区・組織の行の views に書いたキーも見方になる（§13.1 の「views に現れる見方のキー」）
+        d = make_data()
+        d.inp.plans_in_lineage |= {"youho"}
+        sh = {x["view"]: x for x in build(themes=area_rows(), d=d)["sheets"]}
+        self.assertNotIn("plan:youho", sh)
+        rows = with_views(area_rows(), **{f"組織/{tr.ORG}": "plan:youho"})
+        sh = {x["view"]: x for x in build(themes=rows, d=make_data())["sheets"]}
+        self.assertEqual(sh["plan:youho"]["view_kind"], "期の計画")
 
     def test_empty_url(self):
         d = build()
@@ -647,6 +706,17 @@ class IssuesTest(unittest.TestCase):
         self.assertEqual(d["names"]["sources"][f"sp:{sid(4)}"], "令和7年3月定例会議の子ども支援課長の発言")
         self.assertEqual(d["names"]["facilities"], {"fa:a": {"name": "見本園", "district": "日野"}})
         self.assertEqual(list(d["names"]["sources"]), sorted(d["names"]["sources"]))
+        # names.views（§13.3）：views と kind 施設・地区・組織の value に出る見方のキーごとの名前。施策の views は入れない
+        self.assertEqual(d["names"]["views"], {tr.P: {"name": "認定こども園整備事業"},
+                                               "fa:a": {"name": "見本園", "district": "日野"}})
+
+    def test_names_views_area(self):
+        d = build(themes=area_rows())
+        self.assertEqual(d["names"]["views"], {tr.DIST: {"name": "日野", "aliases": []},
+                                               "fa:a": {"name": "見本園", "district": "日野"},
+                                               tr.P: {"name": "認定こども園整備事業"},
+                                               tr.ORG: {"name": "日野町区長会", "aliases": ["区長会"]}})
+        self.assertEqual(list(d["names"]["views"]), sorted(d["names"]["views"]))
 
     def test_empty_url(self):
         d = build()

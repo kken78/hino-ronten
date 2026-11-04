@@ -6,7 +6,7 @@ public/data/index/<年>.json（会議録の本文）だけ。ネットワーク�
 記載の書き方は持ち込み用の資料（§17.1、tools/build_rag.py）と同じ。
 
 実行: python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]（例 hoiku node:jisshi/e008）
-1つのサーバーが1つの見方を扱う。見方のキーは node・plan・fa のキーか、テーマの id（テーマ全体）。
+1つのサーバーが1つの見方を扱う。見方のキーは node・plan・fa・dist・org のキーか、テーマの id（テーマ全体）。
 """
 import csv
 import json
@@ -389,8 +389,8 @@ def main(argv):
         log = args[i + 1]
         del args[i:i + 2]
     if len(args) != 2:
-        print("使い方: python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]（見方のキーは node・plan・fa のキーか、テーマの id）",
-              file=sys.stderr)
+        print("使い方: python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]"
+              "（見方のキーは node・plan・fa・dist・org のキーか、テーマの id）", file=sys.stderr)
         return 1
     theme, view = args
     try:

@@ -3,7 +3,8 @@
 確定の層の9つの項目（plans・policies・programs・budget・council・exchanges・bills・docs・records）と、
 語の一致（hits）・整理シート（sheets）・論点の候補（issues）を作る（§13.1・§13.2・§13.4）。
 データはテーマの単位で1つ作る。sheets と issues の scope は見方（§2 の見方のキー）の単位で持つ。見方は、
-テーマの定義の kind 事柄・記載・施設の行の views に現れるキーと、テーマ自体である（§13.1、DESIGN.md ADR-31）。
+テーマの定義の kind 事柄・記載・施設・地区・組織の行の views に現れるキーと、kind 地区・組織の value と、テーマ自体である
+（§13.1、DESIGN.md ADR-31・ADR-32）。地区・組織の見方の名前は ref/chiku.tsv・ref/soshiki.tsv（無ければ0行）の name。
 kotogara・tsunagari・kisai のテーマへの帰属は、テーマの定義の kind 事柄・記載・資料の値で決める（§13.4・§15.6）。
 
 先に tools/records.py の検査（LINK_SCHEMA §11 のテーマの定義・施設の参照表・記録の台帳）をかけ、誤りがあれば作らない。
@@ -30,6 +31,7 @@ import records  # noqa: E402
 
 OUT_DIR = os.path.join(gm.ROOT, "build", "theme")
 LEDGERS = ["links/mention.tsv", "links/relink.tsv", "links/fuhyo.tsv", "ref/themes.tsv", "ref/shisetsu.tsv",
+           "ref/chiku.tsv", "ref/soshiki.tsv",   # 地区・組織の参照表（§12.1）。無ければ ledgers に入れない
            "ref/lineage.tsv", "ref/aliases.tsv"] + [f"records/{n}.tsv" for n in records.LEDGERS]
 PLAN_PAGE = "https://kken78.github.io/shiga-hino-plans/plans/{}.html"
 SEARCH = "https://kken78.github.io/hino-council-search/#thread={}&focus={}"
@@ -703,7 +705,10 @@ def rec_ref(name, r):
                 (r.get("sources") or "").split(",")[0], url=r["url"], layer=r["layer"])
 
 
-VIEW_KINDS = {"事業": records.RE_NODE, "期の計画": records.RE_PLAN, "施設": records.RE_FA}
+VIEW_KINDS = {"事業": records.RE_NODE, "期の計画": records.RE_PLAN, "施設": records.RE_FA, "地区": records.RE_DIST,
+              "組織": records.RE_ORG}
+AREA_KINDS = ("地区", "組織")                         # 参照表 ref/chiku.tsv・ref/soshiki.tsv の見方（§12.1。ADR-32）
+VIEW_ROW_KINDS = ("事柄", "記載", "施設", "地区", "組織")   # views を見方の集まりに入れる kind（施策の views は事業の対応で、見方にしない）
 THEME_VIEW = "テーマ"
 
 
@@ -717,7 +722,7 @@ def theme_views(themes_rows, theme):
 
 
 def view_kind(key, theme):
-    """見方のキーの種類（§2・§13.3）：「事業」「期の計画」「施設」「テーマ」。どれでもなければ空。"""
+    """見方のキーの種類（§2・§13.3）：「事業」「期の計画」「施設」「地区」「組織」「テーマ」。どれでもなければ空。"""
     if key == theme:
         return THEME_VIEW
     for kind, rx in VIEW_KINDS.items():
@@ -727,8 +732,11 @@ def view_kind(key, theme):
 
 
 def sheet_views(views):
-    """見方の並び（§13.1）：kind 事柄・記載・施設の行の views に現れるキー（文字コード順）。テーマ自体は呼ぶ側で最後に足す。"""
-    return sorted({v for (k, _), vs in views.items() if k in ("事柄", "記載", "施設") for v in vs})
+    """見方の並び（§13.1）：kind 事柄・記載・施設・地区・組織の行の views に現れるキーと、kind 地区・組織の value
+    （文字コード順）。テーマ自体は呼ぶ側で最後に足す。"""
+    keys = {v for (k, _), vs in views.items() if k in VIEW_ROW_KINDS for v in vs}
+    keys |= {value for (k, value) in views if k in AREA_KINDS}
+    return sorted(keys)
 
 
 def program_policies(themes_rows, theme, policies):
@@ -759,11 +767,13 @@ def group_layer(rows):
 SHEET_COLUMNS = ("kadai", "cost", "desc", "vision", "tsunagari", "kotogara", "shisetsu", "katei", "asked")
 
 
-def view_names(d, data, views, theme, tkeys, shisetsu_rows):
-    """見方のキー → (view_kind, name)。views に書いたキーが、テーマの事業・系列の計画・施設に無ければ止める（§13.1）。"""
+def view_names(d, data, views, theme, tkeys, shisetsu_rows, area_rows=()):
+    """見方のキー → (view_kind, name)。views に書いたキーが、テーマの事業・系列の計画・施設・地区・組織に無ければ止める
+    （§13.1）。地区・組織の名前は参照表（area_rows：ref/chiku.tsv と ref/soshiki.tsv の行）の name。"""
     programs = {p["key"]: p["name"] for p in data["programs"]}
     plans = {p["key"]: p["name"] for p in data["plans"]}
     fac = {r["key"]: r.get("name", "") for r in shisetsu_rows}
+    area = {r["key"]: r.get("name", "") for r in area_rows}
     out = {}
     for v in views:
         kind = view_kind(v, theme)
@@ -773,21 +783,24 @@ def view_names(d, data, views, theme, tkeys, shisetsu_rows):
             out[v] = (kind, plans[v])
         elif kind == "施設" and v in tkeys["施設"]:
             out[v] = (kind, fac.get(v, ""))
+        elif kind in AREA_KINDS and v in tkeys.get(kind, ()) and v in area:
+            out[v] = (kind, area[v])
         else:
-            raise BuildError(f"テーマ {theme} の views の {v} が、テーマの事業／系列の計画／施設に無い")
+            raise BuildError(f"テーマ {theme} の views の {v} が、テーマの事業／系列の計画／施設／地区／組織に無い")
     out[theme] = (THEME_VIEW, data["name"])
     return out
 
 
-def build_sheets(d, data, themes_rows, theme, tkeys=None, shisetsu_rows=()):
-    """見方ごとの整理シート（§13.1・§13.3）。"""
+def build_sheets(d, data, themes_rows, theme, tkeys=None, shisetsu_rows=(), area_rows=()):
+    """見方ごとの整理シート（§13.1・§13.3）。地区・組織の見方は施設の見方と同じ形（cost・desc は空）。"""
     tkeys = tkeys or theme_keys(themes_rows, theme)
-    for kind in ("施設",):
+    for kind in ("施設",) + AREA_KINDS:
         tkeys.setdefault(kind, set())
     R = data["records"]
     tv = theme_views(themes_rows, theme)
     views = sheet_views(tv)
-    names = view_names(d, data, views, theme, tkeys, shisetsu_rows)
+    names = view_names(d, data, views, theme, tkeys, shisetsu_rows, area_rows)
+    district_of = {r["key"]: r.get("district", "") for r in shisetsu_rows}
     vision = [dict(ref=f"policies/{p['key']}", text=line, source=p["source"], url=p["url"], layer=p["layer"])
               for p in data["policies"] if p["kind"] == "分野" for line in p["desc"].split("\n") if line.startswith("めざす姿:")]
     katei = [rec_ref("katei", r) for r in sorted(R["katei"], key=lambda r: int(r["step"]))]
@@ -818,7 +831,10 @@ def build_sheets(d, data, themes_rows, theme, tkeys=None, shisetsu_rows=()):
         tsunagari = [rec_ref("tsunagari", r) for r in R["tsunagari"] if has("記載", r["upper"]) or has("記載", r["lower"])]
         kotogara = [rec_ref("kotogara", r) for r in sorted((r for r in R["kotogara"] if has("事柄", r["point"])),
                                                            key=lambda r: (r["point"], r["source_date"], r["source"]))]
-        shisetsu = [rec_ref("shisetsu", r) for r in sorted((r for r in R["shisetsu"] if has("施設", r["facility"]) or r["facility"] == v),
+        # 見方が地区なら、district がその地区の name の施設の行も入れる（§13.1）
+        dist = name if kind == "地区" else None
+        shisetsu = [rec_ref("shisetsu", r) for r in sorted((r for r in R["shisetsu"] if has("施設", r["facility"]) or r["facility"] == v
+                                                            or (dist and district_of.get(r["facility"]) == dist)),
                                                            key=lambda r: (r["facility"], r["aspect"], r["source_date"], r["source"]))]
         out.append(dict(view=v, view_kind=kind, name=name, kadai=kadai, cost=cost, desc=desc, vision=vision,
                         tsunagari=tsunagari, kotogara=kotogara, shisetsu=shisetsu, katei=katei, asked=asked))
@@ -1149,7 +1165,7 @@ def ledger_hashes():
     return {p: sha256_file(os.path.join(gm.ROOT, p)) for p in LEDGERS if os.path.exists(os.path.join(gm.ROOT, p))}
 
 
-def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
+def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=(), area_rows=()):
     tk = theme_keys(themes_rows, theme)
     for kind in ("名前",):
         if len(tk.get(kind, ())) != 1:
@@ -1178,9 +1194,10 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
         "records": build_records(d, ledgers, theme, tk),
         "hits": {"council": build_hits_council(d, words, council, exchanges, tk), "docs": build_hits_docs(d, words)},
     }
-    data["sheets"] = build_sheets(d, data, themes_rows, theme, tk, shisetsu_rows)
+    data["sheets"] = build_sheets(d, data, themes_rows, theme, tk, shisetsu_rows, area_rows)
     data["issues"] = build_issues(d, data, tk, themes_rows, theme, shisetsu_rows)
     data["names"] = build_names(d, data, shisetsu_rows)
+    data["names"]["views"] = names_views(data, themes_rows, theme, shisetsu_rows, area_rows)
     data["theme_questions"] = len(tk["問い"])
     data["chushin"] = chushin(themes_rows, theme)
     archived = archived_sources(d.docs, d.sources_index)
@@ -1218,6 +1235,32 @@ def build_names(d, data, shisetsu_rows):
         f = fac.get(r["facility"]) or {}
         facilities[r["facility"]] = dict(name=f.get("name", ""), district=f.get("district", ""))
     return {"sources": {k: L.source(k) for k in sorted(keys)}, "facilities": dict(sorted(facilities.items()))}
+
+
+def names_views(data, themes_rows, theme, shisetsu_rows, area_rows=()):
+    """names.views（§13.3）：テーマの定義の views と kind 施設・地区・組織の value に出る見方のキーごとの名前。
+    事業は programs の name、期の計画は plans の name、施設は ref/shisetsu.tsv の name と district、地区と組織は参照表の
+    name と aliases（「;」で区切った並び）。施策の行の views（基本施策に属する事業）は見方にしないので入れない。"""
+    tv = theme_views(themes_rows, theme)
+    keys = set(sheet_views(tv)) | {value for (k, value) in tv if k == "施設"}
+    programs = {p["key"]: p["name"] for p in data["programs"]}
+    plans = {p["key"]: p["name"] for p in data["plans"]}
+    fac = {r["key"]: r for r in shisetsu_rows}
+    area = {r["key"]: r for r in area_rows}
+    out = {}
+    for k in sorted(keys):
+        kind = view_kind(k, theme)
+        if kind == "事業":
+            out[k] = dict(name=programs.get(k, ""))
+        elif kind == "期の計画":
+            out[k] = dict(name=plans.get(k, ""))
+        elif kind == "施設":
+            f = fac.get(k) or {}
+            out[k] = dict(name=f.get("name", ""), district=f.get("district", ""))
+        elif kind in AREA_KINDS:
+            a = area.get(k) or {}
+            out[k] = dict(name=a.get("name", ""), aliases=[x for x in (a.get("aliases") or "").split(";") if x])
+    return out
 
 
 def check_no_empty_url(data):
@@ -1258,10 +1301,11 @@ def main(argv):
                                               n in records.OPTIONAL) for n in records.LEDGERS}
         themes_rows = check_records.read_file(check_records.THEMES, records.THEME_COLUMNS)
         shisetsu = check_records.read_file(check_records.SHISETSU, records.SHISETSU_COLUMNS)
+        chiku, soshiki = check_records.read_area_refs()
     except (gm.GenError, records.RecordsError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
-    rep = records.check_all(ledgers, themes_rows, shisetsu, inp)
+    rep = records.check_all(ledgers, themes_rows, shisetsu, inp, chiku, soshiki)
     if rep.errors:
         print(f"停止：記録の台帳の検査で誤りが {len(rep.errors)} 件ある（tools/check_records.py で確かめる）", file=sys.stderr)
         return 1
@@ -1271,7 +1315,7 @@ def main(argv):
     os.makedirs(OUT_DIR, exist_ok=True)
     for theme in themes:
         try:
-            data = build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu)
+            data = build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu, chiku + soshiki)
         except BuildError as e:
             print(f"停止：{e}", file=sys.stderr)
             return 1

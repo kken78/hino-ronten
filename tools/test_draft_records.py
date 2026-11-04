@@ -117,6 +117,16 @@ class CheckTest(unittest.TestCase):
         rep, _ = dr.check("kotogara", ds, tr.ledgers(), tr.theme_rows(), tr.shisetsu_ref(), tr.inputs())
         self.assertEqual(rep.errors, [])
 
+    def test_area_refs(self):
+        # 地区・組織の参照表を check_all に渡す（views の dist・org を照らす。§11。ADR-32）
+        ds, my = drafts(mayoi=("",), rows=DRAFT_ROWS[:1])
+        rows = tr.with_area(tr.theme_rows(), 地区=tr.ORG)
+        rep, theme = dr.check("kotogara", ds, tr.ledgers(), rows, tr.shisetsu_ref(), tr.inputs(), tr.chiku_ref(), tr.soshiki_ref())
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(theme.views_of("地区", tr.DIST), {tr.ORG})
+        rep, _ = dr.check("kotogara", ds, tr.ledgers(), rows, tr.shisetsu_ref(), tr.inputs())
+        self.assertTrue([e for e in rep.errors if "hoiku/地区/dist:hino" in e])
+
     def test_body_untouched(self):
         led = tr.ledgers()
         before = [dict(r) for r in led["kotogara"]]

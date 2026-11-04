@@ -185,6 +185,20 @@ class ToolTest(unittest.TestCase):
         text, _ = call(server(), "overview")
         self.assertIn("## 事業の要点\n", text)
 
+    def test_overview_area_views(self):
+        # 地区・組織の見方の overview（§14。ADR-32）：地区は名前とその地区の施設の名前、組織は名前とほかの表記
+        raw = tb.area_data()
+        for view, want in (("dist:hino", "地区：日野。施設：日野幼稚園、保育所あおぞら園"),
+                           ("org:kucho-kai", "組織：日野町区長会。ほかの表記：区長会、区長連絡会")):
+            with self.subTest(view=view):
+                text, err = call(mr.Server(raw, view, WORDS, SPEECHES), "overview")
+                self.assertFalse(err)
+                self.assertIn("## 見方の要点\n" + want + "\n", text)
+                self.assertNotIn("## 事業の要点", text)
+                self.assertNotIn("当初予算額", text)
+                self.assertNotIn("必佐幼稚園", text)
+                self.assertTrue(text.startswith(f"{want.split('：')[1].split('。')[0]}（テーマ「幼児教育・保育施設の再編」）の資料。"))
+
     def test_overview_other_points(self):
         # ほかの見方だけに属する事項の行（§14）。見本の「開園時期」は事業の見方の点で、ほかの見方だけの点は無い
         text, _ = call(server(), "overview")

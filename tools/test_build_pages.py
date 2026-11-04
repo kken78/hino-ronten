@@ -25,7 +25,8 @@ def data(**kw):
     d = {"theme": "hoiku", "name": "幼児教育・保育施設の再編",
          "programs": [{"key": P, "name": "認定こども園整備事業", "desc": "", "years": ["R8"], "layer": "確定", "policy": ""}],
          "sheets": [sheet(P, "事業", "認定こども園整備事業"), sheet("plan:youho", "期の計画", "再編整備計画"),
-                    sheet("fa:a", "施設", "見本園"), sheet("hoiku", "テーマ", "幼児教育・保育施設の再編")],
+                    sheet("fa:a", "施設", "見本園"), sheet("dist:hino", "地区", "日野"), sheet("org:kucho-kai", "組織", "日野町区長会"),
+                    sheet("hoiku", "テーマ", "幼児教育・保育施設の再編")],
          "records": {}, "names": {"sources": {}, "facilities": {}}, "theme_questions": 1, "chushin": P,
          "issues": [{"statement": "引用「</script><script>alert(1)</script>」"}]}
     d.update(kw)
@@ -68,6 +69,7 @@ class RenderTest(unittest.TestCase):
 
     def test_render_views(self):
         for view, kind, title in (("plan:youho", "期の計画", "再編整備計画ノート"), ("fa:a", "施設", "見本園ノート"),
+                                  ("dist:hino", "地区", "日野ノート"), ("org:kucho-kai", "組織", "日野町区長会ノート"),
                                   ("hoiku", "テーマ", "幼児教育・保育施設の再編ノート")):
             with self.subTest(view=view):
                 out = bp.render(template(), data(), view)
@@ -96,10 +98,10 @@ class RenderTest(unittest.TestCase):
 
     def test_out_path(self):
         for view, name in ((P, "hoiku-e008.html"), ("plan:kaigo9", "hoiku-kaigo9.html"), ("fa:nishioji-yo", "hoiku-nishioji-yo.html"),
-                           ("hoiku", "hoiku-theme.html")):
+                           ("dist:hino", "hoiku-hino.html"), ("org:kucho-kai", "hoiku-kucho-kai.html"), ("hoiku", "hoiku-theme.html")):
             with self.subTest(view=view):
                 self.assertTrue(bp.out_path("hoiku", view).endswith(os.path.join("build", "pages", name)))
-        for bad in ("e008", "kaigo", "plan:", "fa:A"):
+        for bad in ("e008", "kaigo", "plan:", "fa:A", "dist:", "org:Kucho", "chiku:hino"):
             with self.subTest(bad=bad):
                 with self.assertRaises(bp.PageError):
                     bp.out_path("hoiku", bad)
@@ -229,6 +231,68 @@ class ScriptTest(unittest.TestCase):
         u = r["unei"]
         self.assertIn("年度不明", u)
         self.assertGreater(u.index("年度不明"), u.index("令和4年度"))
+
+
+
+@unittest.skipIf(shutil.which("node") is None, "node が無い")
+class AreaScriptTest(unittest.TestCase):
+    """地区・組織の見方の画面（§16.1・§16.4。DESIGN.md ADR-32）。tools/test_build_theme.py の見本に、
+    kind 地区 dist:hino・組織 org:kucho-kai と、事柄「新こども園の定員」を dist:hino に出す views を足して作る。"""
+
+    @classmethod
+    def setUpClass(cls):
+        import test_build_theme as tbt
+        import test_records as tr
+        cls.tr = tr
+        area = tr.chiku_ref() + [dict(tr.soshiki_ref()[0], aliases="区長会;区長連絡会")]
+        led = tr.ledgers()
+        led["tsunagari"][0]["link"] = "目的と手段"      # 目的と手段の図に出す（提言 → 再編の方針）
+        data = tbt.build(led=led, themes=tbt.area_rows(), area=area)
+        cls.bytes = json.dumps(data, ensure_ascii=False).encode("utf-8")
+
+    def run_view(self, view):
+        return run_page(bp.render(template(), self.bytes, view))
+
+    def test_district(self):
+        r = self.run_view("dist:hino")
+        self.assertEqual((r["title"], r["h1"]), ("日野ノート", "日野"))
+        # 要点：地区の名前と、その地区の施設（参照表の district が日野の施設。fa:a は日野）
+        self.assertIn("<span>地区</span> 日野", r["facts"])
+        self.assertIn("<span>施設</span> 見本園", r["facts"])
+        for w in ("当初予算額", "総合計画", "実施計画"):
+            self.assertNotIn(w, r["facts"])
+        self.assertIn("から本地区に関する記載を抜き出し", r["gaiyo"])      # 「本地区」（§16.4）
+        self.assertIn("新こども園の定員", r["gaiyo"])                        # point の views に dist:hino
+        self.assertNotIn("本事業", "".join(r.values()))
+
+    def test_organization(self):
+        r = self.run_view("org:kucho-kai")
+        self.assertEqual((r["title"], r["h1"]), ("日野町区長会ノート", "日野町区長会"))
+        self.assertIn("<span>組織</span> 日野町区長会", r["facts"])
+        self.assertIn("<span>ほかの表記</span> 区長会、区長連絡会", r["facts"])
+        self.assertNotIn("当初予算額", r["facts"])
+        self.assertIn("から本組織に関する記載を抜き出し", r["gaiyo"])      # 「本組織」（§16.4）
+        self.assertNotIn("新こども園の定員", r["gaiyo"])                     # dist:hino と e008 だけの点は出さない
+        # 目的と手段の図：org:kucho-kai に出す記載「再編の方針」に「本組織」の印（§16.4）
+        self.assertIn("再編の方針<small>本組織</small>", r["unei"])
+        self.assertNotIn("<small>本地区</small>", r["unei"])
+        self.assertNotIn("本事業", "".join(r.values()))
+
+    def test_none(self):
+        # 施設の無い地区（必佐）・ほかの表記の無い組織は「未記録」（§16.1）
+        import test_build_theme as tbt
+        tr = self.tr
+        rows = sorted(tbt.area_rows() + [dict(tbt.theme_rows()[0], kind="地区", value="dist:hisa", views="", note="")],
+                      key=lambda r: (r["theme"], r["kind"], r["value"]))
+        raw = json.dumps(tbt.build(themes=rows), ensure_ascii=False).encode("utf-8")
+        r = run_page(bp.render(template(), raw, "dist:hisa"))
+        self.assertIn("<span>施設</span> 未記録", r["facts"])
+        r = run_page(bp.render(template(), raw, tr.ORG))
+        self.assertIn("<span>ほかの表記</span> 区長会", r["facts"])
+        d = json.loads(raw)
+        d["names"]["views"][tr.ORG]["aliases"] = []
+        r = run_page(bp.render(template(), json.dumps(d, ensure_ascii=False).encode("utf-8"), tr.ORG))
+        self.assertIn("<span>ほかの表記</span> 未記録", r["facts"])
 
 
 if __name__ == "__main__":

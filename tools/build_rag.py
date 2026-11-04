@@ -5,7 +5,7 @@ build/theme/<theme>.json（tools/build_theme.py が作る。§13）だけを読�
 標準ライブラリだけで作る（DOCX は zipfile と XML で書く。圧縮しない）。同じデータからは、どの環境でも同じファイルができる。
 
 実行: python3 -B tools/build_rag.py <theme> <見方のキー>（例 hoiku node:jisshi/e008）
-見方のキーは node・plan・fa のキーか、テーマの id（テーマ全体）。見方の名前は tools/build_pages.py と同じ（§16）。
+見方のキーは node・plan・fa・dist・org のキーか、テーマの id（テーマ全体）。見方の名前は tools/build_pages.py と同じ（§16）。
 終了コード：0 は作った。1 は止めた（理由を表示する）。
 """
 import hashlib
@@ -130,6 +130,7 @@ class Rag:
         self.view = view
         self.names = (data.get("names") or {}).get("sources") or {}
         self.fac = (data.get("names") or {}).get("facilities") or {}
+        self.vnames = (data.get("names") or {}).get("views") or {}   # 見方のキーごとの名前（§13.3 names.views）
         for k in ("names", "theme_questions", "chushin"):
             if k not in data:
                 raise RagError(f"テーマのノートのデータに {k} が無い（tools/build_theme.py で作り直す）")
@@ -399,6 +400,15 @@ class Rag:
                 doc.p("いまの状態：" + self.shisetsu_entry(states[-1]))
             else:
                 doc.p(f"いまの状態：{NOREC}")
+        elif self.view_kind == "地区":
+            # 地区の名前と、その地区の施設の名前（names.views の施設のうち district がその地区の名前のもの。§14）
+            fs = [v.get("name") or k for k, v in self.vnames.items()
+                  if k.startswith("fa:") and v.get("district") and v.get("district") == self.pname]
+            doc.p(f"地区：{self.pname}。施設：{'、'.join(fs) or NOREC}")   # 参照表の名前。出典の url は無い
+        elif self.view_kind == "組織":
+            # 組織の名前と、ほかの表記（参照表の aliases。§14）
+            al = (self.vnames.get(self.view) or {}).get("aliases") or []
+            doc.p(f"組織：{self.pname}。ほかの表記：{'、'.join(al) or NOREC}")   # 参照表の名前。出典の url は無い
         else:
             plans = "、".join(f"{x.get('name')}（出典：{x.get('url')}）" for x in d.get("plans") or []) or NOREC
             ch = d.get("chushin") or ""
@@ -782,7 +792,8 @@ def build(data_bytes, view):
 
 def main(argv):
     if len(argv) != 3:
-        print("使い方: python3 -B tools/build_rag.py <theme> <見方のキー>（node・plan・fa のキーか、テーマの id）", file=sys.stderr)
+        print("使い方: python3 -B tools/build_rag.py <theme> <見方のキー>（node・plan・fa・dist・org のキーか、テーマの id）",
+              file=sys.stderr)
         return 1
     theme, view = argv[1], argv[2]
     src = os.path.join(THEME_DIR, f"{theme}.json")
