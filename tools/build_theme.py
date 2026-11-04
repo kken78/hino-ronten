@@ -652,24 +652,45 @@ def plan_source_url(plan, source):
     return page_url(s.get("url"), int(m.group(2)) + int(s.get("pdf_page_offset") or 0)) if s else ""
 
 
-def challenges_of(d, plans, only=""):
-    """系列の計画の課題のブロックの項目（§13.1）。only に plan キーを渡すと、その計画だけ。"""
-    out = []
+def challenge_blocks(d, plans, only=""):
+    """系列の計画の課題のブロックを (plan キー, 計画, タブ id, そのタブでの番号, ブロック) で並べる。
+    only に plan キーを渡すと、その計画だけ。"""
     for p in plans:
         if not p["key"].startswith("plan:") or only and p["key"] != only:
             continue
-        pid = p["key"][5:]
-        plan = d.plans.get(pid) or {}
+        plan = d.plans.get(p["key"][5:]) or {}
         for t in plan.get("tabs") or []:
             bn = 0
             for b in t.get("blocks") or []:
                 if b.get("type") != "challenges":
                     continue
                 bn += 1
-                for i, it in enumerate(b.get("items") or [], 1):
-                    out.append(dict(ref=f"plan:{pid}/{t['id']}/challenges/{bn}/{i}", text=it.get("title", ""),
-                                    source=f"{pid}/{b.get('source', '')}", url=plan_source_url(plan, b.get("source")),
-                                    layer=CONFIRMED))
+                yield p["key"], plan, t["id"], bn, b
+
+
+def challenges_of(d, plans, only=""):
+    """系列の計画の課題のブロックの項目（§13.1）。only に plan キーを渡すと、その計画だけ。
+    source（ページ）の無いブロックの項目は出典が付けられないので入れない（件数は skipped_challenges）。
+    source があって url が作れない項目は入れ、check_no_empty_url で止める。"""
+    out = []
+    for key, plan, tab, bn, b in challenge_blocks(d, plans, only):
+        if not b.get("source"):
+            continue
+        pid = key[5:]
+        for i, it in enumerate(b.get("items") or [], 1):
+            out.append(dict(ref=f"plan:{pid}/{tab}/challenges/{bn}/{i}", text=it.get("title", ""),
+                            source=f"{pid}/{b['source']}", url=plan_source_url(plan, b["source"]), layer=CONFIRMED))
+    return out
+
+
+def skipped_challenges(d, plans):
+    """source（ページ）の無い課題のブロックの項目の数：{plan キー: 件数}（0件の計画は入れない。§13.1）。
+    入力側の不足として報告するためのもので、止めない（CLAUDE.md 不変の制約4）。"""
+    out = {}
+    for key, _plan, _tab, _bn, b in challenge_blocks(d, plans):
+        n = len(b.get("items") or [])
+        if not b.get("source") and n:
+            out[key] = out.get(key, 0) + n
     return out
 
 
@@ -1269,6 +1290,10 @@ def main(argv):
         print(f"{os.path.relpath(path, gm.ROOT)}：" + "・".join(f"{k} {v}" for k, v in n.items()))
         print("  records：" + "・".join(f"{k} {v}" for k, v in r.items()))
         print("  hits：" + "・".join(f"{k} {len(v)}" for k, v in data["hits"].items()))
+        skipped = skipped_challenges(d, data["plans"])
+        if skipped:
+            print("  課題の記載のうち出典の無いもの：" + "・".join(f"{k} {n}" for k, n in sorted(skipped.items()))
+                  + "（入力の計画に source が無い）")
     return 0
 
 

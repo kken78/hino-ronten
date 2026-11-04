@@ -469,6 +469,24 @@ class SheetsTest(unittest.TestCase):
         self.assertEqual({x["ref"].split("/")[0] for x in sh["plan:youho"]["kadai"]}, {"plan:youho"})
         self.assertEqual({x["ref"].split("/")[0] for x in sh["hoiku"]["kadai"]}, {"plan:youho", "plan:kodomo"})
 
+    def test_kadai_without_source(self):
+        # source（ページ）の無い課題のブロックの項目は kadai に入れず、計画ごとに数える（§13.1）
+        d = make_data()
+        d.plans["kodomo"] = {"id": "kodomo", "meta": {"name": "子ども計画"}, "sources": [],
+                             "tabs": [{"id": "chosa", "blocks": [
+                                 {"type": "challenges", "items": [{"title": "課題1"}, {"title": "課題2"}, {"title": "課題3"}]},
+                                 {"type": "challenges", "source": "", "items": [{"title": "課題4"}]}]}]}
+        rf = refs()
+        rf["lineage"].append({"series": "kodomo", "edition": "3", "plan": "kodomo", "name": "子ども計画", "start_fy": "2025",
+                              "end_fy": "2029", "source": "", "note": ""})
+        data = build(d=d, rf=rf)
+        for s in data["sheets"]:
+            self.assertEqual({x["ref"].split("/")[0] for x in s["kadai"]}, {"plan:youho"})
+            self.assertEqual(len(s["kadai"]), 2)
+        self.assertEqual(bt.skipped_challenges(d, data["plans"]), {"plan:kodomo": 4})
+        self.assertEqual(bt.check_no_empty_url(data), [])
+        self.assertEqual(bt.skipped_challenges(make_data(), build()["plans"]), {})
+
     def test_unknown_view_stops(self):
         for views in ({"事柄/新こども園の定員": "node:jisshi/e009"}, {"記載/提言": "plan:kodomo"},
                       {"記載/提言": "fa:b"}):
