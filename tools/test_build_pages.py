@@ -147,6 +147,11 @@ class ScriptTest(unittest.TestCase):
         led["kotogara"].append(tr.row("kotogara", point="新こども園の用地", source="doc:teigen/2", source_date="2025-02",
                                       quote="再編の方針がある", kind="予定", target="令和10年度"))
         rows = tbt.with_views(rows, **{"事柄/新こども園の用地": ""})
+        # 同じ最新の日付に value・target のある行がもう1つ（§16.2：全部を「／」で示す）
+        led["kotogara"].append(tr.row("kotogara", point="新こども園の用地", source="doc:teigen/2", source_date="2025-02",
+                                      quote="候補地は2つある", kind="予定", target="令和11年度"))
+        # from の無い過程の段階（§16.2：1つ前の段階の直後に「日付なし」、年度の表は「年度不明」）
+        led["katei"].append(tr.row("katei", theme="hoiku", step="2", name="検討会", sources="doc:teigen/1", quote="一頁目の文"))
         cls.bytes = json.dumps(tbt.build(led=led, themes=rows, d=d), ensure_ascii=False).encode("utf-8")
         cls.data = json.loads(cls.bytes)
 
@@ -191,6 +196,22 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("新こども園の定員", r["gaiyo"])
         self.assertIn("新こども園の用地", r["gaiyo"])
         self.assertTrue(r["ronten"] and r["unei"])
+
+    def test_latest_all_and_katei_order(self):
+        r = self.run_view("hoiku")
+        g = r["gaiyo"]
+        # 最新の日付の行が2つ：カードの値は「／」でつなぎ、開いた欄は値と引用を行ごとに（§16.2）
+        self.assertIn("令和10年度／令和11年度（予定）", g)
+        self.assertIn("<b>令和11年度</b>　候補地は2つある", g)
+        # from の無い段階は、1つ前の段階（懇話会 2022-07）の直後に「日付なし」。「日付不明」ではない
+        i, j = g.index("<b>懇話会</b>"), g.index("<b>検討会</b>")
+        self.assertLess(i, j)
+        self.assertEqual(g[g.rfind('<div class="d">', 0, j):j].count("日付なし"), 1)
+        self.assertNotIn("日付不明", g)
+        # 年度ごとの節目：末尾に「年度不明」の行
+        u = r["unei"]
+        self.assertIn("年度不明", u)
+        self.assertGreater(u.index("年度不明"), u.index("令和4年度"))
 
 
 if __name__ == "__main__":

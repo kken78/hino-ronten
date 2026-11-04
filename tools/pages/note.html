@@ -251,7 +251,9 @@ const cmpPoint=(a,b)=>{const da=docDate(a),db=docDate(b);if(!da!==!db)return da?
 const pointsOf=f=>[...new Set(R.kotogara.filter(f).map(r=>r.point))].sort(cmpPoint);
 const ORDER=pointsOf(r=>VIEW_POINTS.has(r.point)).concat(pointsOf(r=>THEME_POINTS.has(r.point)));
 /* カードの値：町の資料の最新の記載の value（無ければ target）。町の資料の記載が無ければ null */
-function latest(p){const base=(kot[p]||[]).filter(r=>!r.source.startsWith('sp:'));if(!base.length)return null;const d=base[base.length-1].source_date;const last=base.filter(r=>r.source_date===d);return last.find(r=>(r.value||r.target)&&r.kind!=='変更')||last.find(r=>r.value||r.target)||last[last.length-1]}
+/* 町の資料の最新の日付の行：value か target のある行を全部（変更でない行を先に、同じなら行の順）。無ければ最後の行だけ（§16.2） */
+function latestAll(p){const base=(kot[p]||[]).filter(r=>!r.source.startsWith('sp:'));if(!base.length)return [];const d=base[base.length-1].source_date;const last=base.filter(r=>r.source_date===d);const v=last.filter(r=>r.value||r.target);if(!v.length)return [last[last.length-1]];return v.filter(r=>r.kind!=='変更').concat(v.filter(r=>r.kind==='変更'))}
+function latest(p){const a=latestAll(p);return a.length?a[0]:null}
 const NONE='町の資料に記載なし';
 const cv=c=>c?(c.value||c.target||''):'';
 /* 会議ごとの一般質問：件数と、質問ごとの会議録へのリンク（議員名は出さない） */
@@ -263,26 +265,29 @@ const qa={}; ['yaritori','shitsugi'].forEach(n=>R[n].forEach(q=>q.rows.forEach(r
 /* ===== 概要 ===== */
 function gaiyo(){
   const o=[`<p class="intro">公開資料（計画・予算・会議録・議会だより・広報ひの等）から${SELF}に関する記載を抜き出し、出典付きで整理したものです。評価や判断は加えていません。</p>`];
-  const items=ORDER.filter(p=>kot[p]).map(p=>{const c=latest(p);const chg=kot[p].filter(r=>r.kind==='変更').pop();
-    const v=cv(c);
+  const items=ORDER.filter(p=>kot[p]).map(p=>{const all=latestAll(p);const c=all[0]||null;const chg=kot[p].filter(r=>r.kind==='変更').pop();
+    const v=all.map(cv).filter(Boolean).join('／');
     return {title:p,value:c?(v||`最新の記載：${jd(c.source_date)}`):NONE,none:!c,render:()=>{
       const rows=kot[p];
       if(!c)return `<h3>${esc(p)}</h3><div class="now"><span class="v">${NONE}</span></div><div class="note">会議録の発言を日付順に示します。</div>`+
         `<div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.source_date))}</span><span><span class="tag t-a">会議録</span></span><span>${esc(r.quote)}<div class="src">${A(r.url,lab(r.source))}</div></span></div>`).join('')}</div>`;
       return `<h3>${esc(p)}</h3><div class="now"><span class="v">${esc(v)}${v&&c.kind==='予定'?'（予定）':''}</span>${chg?`<span class="was">当初：${esc(chg.prev)}　→　${esc(jd(chg.source_date))}に変更</span>`:''}</div>`+
-      `<div class="q">${esc(c.quote)}</div>`+
+      (all.length>1?all.map(r=>`<div class="q">${cv(r)?`<b>${esc(cv(r))}</b>　`:''}${esc(r.quote)}</div>`).join(''):`<div class="q">${esc(c.quote)}</div>`)+
       `<div class="src">最新の記載（町の資料）：${esc(jd(c.source_date))}　${A(c.url,lab(c.source))}</div>`+
       (chg&&chg.reason?`<div class="note">変更理由：${esc(chg.reason)}</div>`:'')+
       `<div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.source_date))}</span><span><span class="tag ${r.source.startsWith('sp:')?'t-a':'t-doc'}">${r.source.startsWith('sp:')?'会議録':'町の資料'}</span></span><span>${esc(r.quote)}<div class="src">${A(r.url,lab(r.source))}${r.kind==='変更'?'　変更前：'+esc(r.prev):''}</div></span></div>`).join('')}</div>`}}});
   o.push(sec('主な事項','項目を選ぶと、最新の記載と記載の推移を表示します',picker('pk-jiko',items)));
   // 経過
   const ev=[];
-  R.katei.forEach(k=>ev.push({d:k.from||'',c:'',h:`${k.cycle?esc('期：'+k.cycle+'。'):''}<b>${esc(k.name)}</b>${k.to&&k.to!==k.from?`<span class="note">（〜${esc(jd(k.to))}）</span>`:''}${!k.to&&k.from?'<span class="note">（継続中）</span>':''}　${A(k.url,'資料')}`,cur:!k.to&&k.from}));
+  /* 過程の段階は step の順。from の無い段階は1つ前の段階の直後（最初なら先頭）に置き「日付なし」と示す（§16.2） */
+  let prevKey='';
+  R.katei.slice().sort((a,b)=>(+a.step)-(+b.step)).forEach((k,i)=>{const key=k.from||prevKey;prevKey=key;ev.push({d:k.from||'',k:key,o:i+1,nd:!k.from,c:'',h:`${k.cycle?esc('期：'+k.cycle+'。'):''}<b>${esc(k.name)}</b>${k.to&&k.to!==k.from?`<span class="note">（〜${esc(jd(k.to))}）</span>`:''}${!k.to&&k.from?'<span class="note">（継続中）</span>':''}　${A(k.url,'資料')}`,cur:!k.to&&k.from})});
   D.bills.forEach(b=>ev.push({d:b.date,c:'k-gikai',h:`<span class="tag">議決</span> ${A(b.url,b.title)}　${esc(b.result)}`}));
   exByMeeting().forEach(g=>ev.push({d:g.d,c:'k-gikai',h:`<span class="tag">一般質問</span> ${esc(g.m)}　${exLinks(g)}`}));
   R.kotogara.filter(r=>r.kind==='変更'&&inScope(r)).forEach(r=>ev.push({d:r.source_date,c:'k-change',h:`<span class="tag">予定の変更</span> ${esc(r.point)}：${esc(r.prev)} → ${esc(r.target)}　${A(r.url,'資料')}`}));
-  const list=ev.filter(e=>e.d).sort((a,b)=>a.d.localeCompare(b.d)).concat(ev.filter(e=>!e.d));
-  o.push(sec('経過','検討の段階（太字）と、議決・一般質問・予定の変更を日付順に示します',`<div class="nen">${list.map(e=>`<div class="d">${esc(e.d?jd(e.d):'日付不明')}</div><div class="${e.c}${e.cur?' cur':''}">${e.h}</div>`).join('')}</div>`));
+  ev.forEach(e=>{if(e.k===undefined){e.k=e.d;e.o=e.d?1e6:1e9}});
+  const list=ev.slice().sort((a,b)=>a.k.localeCompare(b.k)||a.o-b.o);
+  o.push(sec('経過','検討の段階（太字）と、議決・一般質問・予定の変更を日付順に示します',`<div class="nen">${list.map(e=>`<div class="d">${esc(e.d?jd(e.d):(e.nd?'日付なし':'日付不明'))}</div><div class="${e.c}${e.cur?' cur':''}">${e.h}</div>`).join('')}</div>`));
   // 施設
   const fs={}; R.shisetsu.forEach(r=>(fs[r.facility]=fs[r.facility]||[]).push(r));
   const fitems=Object.keys(fs).sort((a,b)=>fs[b].length-fs[a].length).map(k=>{const f=(D.names.facilities||{})[k]||{};const rows=fs[k].slice().sort((a,b)=>(a.source_date+a.source).localeCompare(b.source_date+b.source));const st=rows.filter(r=>r.aspect==='状態');const last=st[st.length-1];
@@ -351,13 +356,13 @@ function unei(){
   // 年度ごとの節目
   const fy=s=>{const [y,m]=s.split('-').map(Number);return m>=4?y:y-1};
   const years={}; const add=(d,col,h)=>{if(!d)return;const y=fy(d);(years[y]=years[y]||{step:[],gikai:[],plan:[]})[col].push(h)};
-  R.katei.forEach(k=>add(k.from,'step',`${k.cycle?esc('期：'+k.cycle+'。'):''}${esc(k.name)}　${A(k.url,'資料')}`));
+  R.katei.slice().sort((a,b)=>(+a.step)-(+b.step)).forEach(k=>{const h=`${k.cycle?esc('期：'+k.cycle+'。'):''}${esc(k.name)}　${A(k.url,'資料')}`;if(k.from)add(k.from,'step',h);else (years.nodate=years.nodate||{step:[],gikai:[],plan:[]}).step.push(h)});
   D.bills.forEach(b=>add(b.date,'gikai',`${esc(jd(b.date))} 議決：${A(b.url,b.title)}`));
   exByMeeting().forEach(g=>add(g.d,'gikai',`${esc(g.m)} 一般質問　${exLinks(g)}`));
   R.shitsugi.forEach(q=>add(q.date,'gikai',`${esc(jd(q.date))} 議案質疑（${esc(q.member.name)} 議員）　${A((q.rows[0]||{}).url,'会議録')}`));
   R.kotogara.filter(r=>(r.kind==='予定'||r.kind==='変更')&&inScope(r)).forEach(r=>add(r.source_date,'plan',`${esc(r.point)}：${esc(r.target)}${r.kind==='変更'?'（変更）':''}　${A(r.url,'資料')}`));
   const wa=y=>y>=2019?`令和${y===2019?'元':y-2018}年度`:`${y}年度`;
-  o.push(sec('年度ごとの節目','検討の段階・議会・予定の記載を年度ごとにまとめます',tbl(['年度','検討の段階','議会','予定の記載'],Object.keys(years).sort().map(y=>`<tr><td class="date">${wa(+y)}</td><td>${years[y].step.join('<br>')}</td><td>${years[y].gikai.join('<br>')}</td><td>${[...new Set(years[y].plan)].join('<br>')}</td></tr>`))+
+  o.push(sec('年度ごとの節目','検討の段階・議会・予定の記載を年度ごとにまとめます',tbl(['年度','検討の段階','議会','予定の記載'],Object.keys(years).sort((a,b)=>a==='nodate'?1:b==='nodate'?-1:a.localeCompare(b)).map(y=>`<tr><td class="date">${y==='nodate'?'年度不明':wa(+y)}</td><td>${years[y].step.join('<br>')}</td><td>${years[y].gikai.join('<br>')}</td><td>${[...new Set(years[y].plan)].join('<br>')}</td></tr>`))+
     `${bud?`<p class="note">令和${esc(budFy)}年度の当初予算額は${num(bud.amount)}${esc(bud.unit)}（${A(bud.url,'予算の附表')}）。それより前の年度の予算額は、まだ取り込んでいません。</p>`:''}`));
   return o.join('');
 }
