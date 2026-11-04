@@ -1,4 +1,4 @@
-"""tools/records.py・tools/check_records.py の検査（LINK_SCHEMA.md §1・§11・§12・§15、DESIGN.md ADR-24）。
+"""tools/records.py・tools/check_records.py の検査（LINK_SCHEMA.md §1・§11・§12・§15、DESIGN.md ADR-24・ADR-31）。
 
 実行: python3 -B tools/test_records.py -v
 見本の小さな入力（発言・場面・議会だより・資料のページ・計画）と、§15 の形に合う見本の台帳を作り、
@@ -61,8 +61,15 @@ def inputs():
         doc_text=lambda did, layer: DOCS.get((did, layer)),
         pt_text=lambda pid, name, layer: PTS.get((pid, name, layer)),
         plans={"youho", "jisshi"},
-        nodes={"node:jisshi/e008"},
-        series={"youho"})
+        nodes={"node:jisshi/e008", "node:jisshi/e009", "node:sogo6/e047"},
+        series={"youho"},
+        plans_in_lineage={"youho"})
+
+
+P = "node:jisshi/e008"   # 見本の中心の見方（計画の事業）
+# 見本の views（§12）と、kind 名前の行の note（中心の見方）
+VIEWS = {("事柄", "新こども園の定員"): P, ("事柄", "新こども園の用地"): P}
+NOTES = {"名前": f"中心の見方：{P}。見本"}
 
 
 def theme_rows():
@@ -72,8 +79,8 @@ def theme_rows():
             ("質疑", SQ, "令和7年 2025-01-01 8番 山本秀喜 議第1号 新こども園の用地"),
             ("資料", "doc:teigen", ""), ("事柄", "新こども園の定員", ""), ("事柄", "新こども園の用地", ""),
             ("記載", "再編の方針", ""), ("記載", "提言", ""), ("施設", "fa:a", "")]
-    out = [{"theme": "hoiku", "kind": k, "value": v, "source": s or "見本", "reviewer": "kken78",
-            "date": "2026-10-27", "note": ""} for k, v, s in rows]
+    out = [{"theme": "hoiku", "kind": k, "value": v, "source": s or "見本", "views": VIEWS.get((k, v), ""),
+            "reviewer": "kken78", "date": "2026-10-27", "note": NOTES.get(k, "")} for k, v, s in rows]
     return sorted(out, key=lambda r: (r["theme"], r["kind"], r["value"]))
 
 
@@ -107,13 +114,13 @@ def ledgers():
     s = [row("shitsugi", question=SQ, n="1", row="1", bills=f"gi:{M}/議第1号", side="問い", sid=f"sp:{sid(13)}",
              quote="こども園の土地はどうか。", speaker="議員", round="最初の問い", stage="投入", kind="事実の確認",
              point="新こども園の用地")]
-    k = [row("kotogara", theme="hoiku", point="新こども園の定員", program="node:jisshi/e008", source=f"sp:{sid(4)}",
+    k = [row("kotogara", point="新こども園の定員", source=f"sp:{sid(4)}",
              source_date="2025-01-01", quote="定員は285人です。", kind="いまのこと", yaritori=f"{IQ}/2")]
-    t = [row("tsunagari", theme="hoiku", link="もとにした", upper="提言", upper_ref="doc:teigen/1", lower="再編の方針",
+    t = [row("tsunagari", link="もとにした", upper="提言", upper_ref="doc:teigen/1", lower="再編の方針",
              lower_ref="plan:youho", source="doc:teigen/2", source_date="2024-02", quote="再編の方針がある")]
     p = [row("katei", theme="hoiku", step="1", name="懇話会", **{"from": "2022-07", "to": "2024-01"},
              sources="doc:teigen/1", quote="一頁目の文")]
-    ki = [row("kisai", theme="hoiku", title="計画期間", source="pt:youho/honpen/1", source_date="2025-03",
+    ki = [row("kisai", title="計画期間", source="pt:youho/honpen/1", source_date="2025-03",
               quote="計画期間は令和6年からです。")]
     sh = [row("shisetsu", facility="fa:a", aspect="役割", value="指定避難所", source="doc:teigen/1",
               source_date="2018-04", quote="一頁目の文。", kind="いまのこと")]
@@ -191,6 +198,20 @@ class CommonTest(RecordsTestCase):
                 led = ledgers()
                 led["kisai"][0].update(kw)
                 self.assertErr(run(led), msg)
+
+
+    def test_hantei_after_20261104(self):
+        # date が 2026-11-04 より後の confirmed は、note に「判定：」の出どころが要る（§15.1）
+        led = ledgers()
+        led["kisai"][0]["date"] = "2026-11-05"
+        self.assertErr(run(led), "「判定：」の出どころが無い")
+        led["kisai"][0]["note"] = "下書き：2026-11-05・Opus 5.5（プロンプトの版なし）。判定：行ごと（判定シート K5）"
+        self.assertEqual(run(led).errors, [])
+        led = ledgers()
+        led["kisai"][0]["date"] = "2026-11-04"   # 2026-11-04 以前は止めない
+        self.assertEqual(run(led).errors, [])
+        led["kisai"][0].update(date="2026-11-05", status="rejected", note="下書き：見本。記録しない")
+        self.assertEqual(run(led).errors, [])   # rejected は見ない
 
 
 class QuoteTest(RecordsTestCase):
@@ -311,6 +332,59 @@ class ThemeTest(RecordsTestCase):
     def test_shisetsu_ref(self):
         self.assertErr(run(ref=[dict(shisetsu_ref()[0], key="fa:A")]), "fa の形でない")
 
+    def views(self, kind, views, value=None):
+        rows = theme_rows()
+        for r in rows:
+            if r["kind"] == kind and (value is None or r["value"] == value):
+                r["views"] = views
+                break
+        return rows
+
+    def test_views_ok(self):
+        for kind in ("事柄", "記載", "施設"):
+            with self.subTest(kind=kind):
+                rep = run(themes=self.views(kind, f"{P},plan:youho,fa:a"))
+                self.assertFalse([e for e in rep.errors if "ref/themes.tsv" in e], rep.errors)
+
+    def test_views_errors(self):
+        cases = [("事業", P, "views を持てるのは"),
+                 ("名前", P, "views を持てるのは"),
+                 ("事柄", f"{P},", "空の要素"),
+                 ("事柄", f"{P},,fa:a", "空の要素"),
+                 ("事柄", f"{P},{P}", "同じキーが重なっている"),
+                 ("事柄", f"{P},hoiku", "テーマの id"),
+                 ("事柄", "node:jisshi/e999", "views のキーが入力に無い"),
+                 ("事柄", "plan:nai", "views のキーが入力に無い"),
+                 ("事柄", "plan:jisshi", "views のキーが入力に無い"),   # manifest にあっても系譜表に無い
+                 ("事柄", "fa:b", "views のキーが入力に無い"),
+                 ("事柄", "lin:youho/1", "見方のキー（node・plan・fa）の形でない"),
+                 ("事柄", "kaigo", "見方のキー（node・plan・fa）の形でない")]
+        for kind, views, msg in cases:
+            with self.subTest(kind=kind, views=views):
+                self.assertErr(run(themes=self.views(kind, views)), msg)
+
+    def test_views_shisaku(self):
+        def rows_with(views):
+            rows = theme_rows() + [dict(theme_rows()[0], kind="施策", value="node:sogo6/e047", views=views)]
+            return sorted(rows, key=lambda r: (r["theme"], r["kind"], r["value"]))
+        rep = run(themes=rows_with(P))
+        self.assertFalse([e for e in rep.errors if "ref/themes.tsv" in e], rep.errors)
+        # node:jisshi/e009 は計画の事業にあるが、テーマの kind 事業に無い
+        self.assertErr(run(themes=rows_with("node:jisshi/e009")), "施策の行の views が、同じテーマの kind 事業の行に無い")
+        self.assertErr(run(themes=rows_with("fa:a")), "施策の行の views が node キーでない")
+
+    def test_views_of_and_chushin(self):
+        rows = theme_rows() + [dict(r, theme="kaigo", views="fa:a" if r["kind"] == "事柄" else "", note="")
+                               for r in theme_rows() if r["kind"] in ("名前", "事柄")]
+        rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
+        rep = run(themes=rows)
+        self.assertFalse([e for e in rep.errors if "ref/themes.tsv" in e], rep.errors)
+        theme = rc.check_themes(rows, inputs(), {"fa:a"}, rc.Report())
+        self.assertEqual(theme.views_of("事柄", "新こども園の定員"), {P, "fa:a"})   # テーマをまたいで合わせる
+        self.assertEqual(theme.views_of("記載", "提言"), set())
+        self.assertEqual(theme.chushin("hoiku"), P)
+        self.assertEqual(theme.chushin("kaigo"), "")
+
 
 class OtherLedgersTest(RecordsTestCase):
     def test_kotogara_value(self):
@@ -328,17 +402,28 @@ class OtherLedgersTest(RecordsTestCase):
         led["kotogara"][0]["yaritori"] = f"{IQ}/9"
         self.assertErr(run(led), "yaritori の参照")
         led = ledgers()
-        led["kotogara"].append(dict(led["kotogara"][0], source=f"sp:{sid(4)}", quote="お答えします。",
-                                    program="node:jisshi/e009"))
-        led["kotogara"].sort(key=lambda r: rc.sort_key(r, rc.KEYS["kotogara"]))
-        rep = run(led)
-        self.assertErr(rep, "program が計画の事業に無い")
-        self.assertErr(rep, "program が違う")
+        led["kotogara"][0]["point"] = "提言"   # 記載の値で、事柄の値でない
+        self.assertErr(run(led), "point がどのテーマの kind 事柄の値でもない")
+
+    def test_kotogara_point_any_theme(self):
+        # point は、どれかのテーマの kind 事柄の値にあればよい（テーマは問わない。ADR-31 の2）
+        rows = [r for r in theme_rows() if not (r["kind"] == "事柄" and r["value"] == "新こども園の定員")]
+        rows += [dict(r, theme="kaigo") for r in theme_rows() if r["kind"] == "名前"]
+        rows += [dict(r, theme="kaigo") for r in theme_rows() if r["value"] == "新こども園の定員"]
+        rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
+        led = ledgers()
+        led["yaritori"] = [dict(r, point="") for r in led["yaritori"]]   # やりとりの記録はテーマ hoiku の点だけ
+        self.assertEqual(run(led, themes=rows).errors, [])
+        rows = [r for r in rows if r["value"] != "新こども園の定員"]
+        self.assertErr(run(led, themes=rows), "point がどのテーマの kind 事柄の値でもない")
 
     def test_tsunagari(self):
         led = ledgers()
         led["tsunagari"][0]["upper"] = "知らない記載"
-        self.assertErr(run(led), "upper がそのテーマの kind 記載")
+        self.assertErr(run(led), "upper がどのテーマの kind 記載の値でもない")
+        led = ledgers()
+        led["tsunagari"][0]["upper"] = "新こども園の定員"   # 事柄の値は記載の値でない
+        self.assertErr(run(led), "upper がどのテーマの kind 記載の値でもない")
         led = ledgers()
         led["tsunagari"][0]["lower_ref"] = "plan:nai/hoshin/bullets/3/1"
         self.assertErr(run(led), "lower_ref が入力に無い")
@@ -364,7 +449,15 @@ class OtherLedgersTest(RecordsTestCase):
         led["kisai"][0]["about"] = "提言"
         self.assertEqual(run(led).errors, [])
         led["kisai"][0]["about"] = "知らない"
-        self.assertErr(run(led), "about が")
+        self.assertErr(run(led), "about がどのテーマの")
+
+    def test_kisai_same_title(self):
+        led = ledgers()
+        led["kisai"][0]["about"] = "提言"
+        led["kisai"].append(dict(led["kisai"][0], source="pt:youho/honpen/2", about="再編の方針"))
+        self.assertErr(run(led), "同じ title の about が違う")
+        led["kisai"][1].update(status="rejected", note="下書き：見本。記録しない")   # rejected は除く
+        self.assertFalse([e for e in run(led).errors if "同じ title" in e])
 
     def test_shisetsu(self):
         led = ledgers()
@@ -440,6 +533,59 @@ class QuoteContextTest(RecordsTestCase):
                          ["kotogara", "yaritori"])
 
 
+class SignalTest(RecordsTestCase):
+    """届き先の信号（§11 届き先、DESIGN.md ADR-31 の4）。終了コードは変えない。"""
+
+    def test_todoku(self):
+        rep = run()
+        self.assertEqual(rep.errors, [])
+        # 見本の記載（提言・再編の方針）には views が無い。事柄（新こども園の定員）にはある。kisai の about は空
+        self.assertEqual([(r["ledger"], r["point"]) for r in rep.signal_todoku],
+                         [("tsunagari", "提言"), ("tsunagari", "再編の方針")])
+        self.assertEqual(rep.signal_todoku[0]["key"], "もとにした/提言/再編の方針/doc:teigen/2")
+        self.assertEqual(list(rep.signal_todoku[0]), rc.SIGNAL_TODOKU_COLUMNS)
+        rows = theme_rows()
+        for r in rows:
+            if r["kind"] == "記載":
+                r["views"] = P
+        self.assertEqual(run(themes=rows).signal_todoku, [])
+        led = ledgers()
+        led["kisai"][0]["about"] = "提言"
+        led["tsunagari"][0].update(status="candidate", reviewer="", date="")   # confirmed だけを数える
+        self.assertEqual([(r["ledger"], r["point"]) for r in run(led).signal_todoku], [("kisai", "提言")])
+
+    def test_point(self):
+        led = ledgers()
+        led["yaritori"][2]["point"] = ""
+        led["yaritori"][3].update(status="candidate", reviewer="", date="")
+        rep = run(led)
+        self.assertEqual(rep.signal_point,
+                         [{"ledger": "yaritori", "question": IQ, "rows": 3, "empty": 1, "ratio": "0.3333"},
+                          {"ledger": "shitsugi", "question": SQ, "rows": 1, "empty": 0, "ratio": "0.0000"}])
+
+    def test_chushin(self):
+        rep = run()
+        # 対象：kotogara（新こども園の定員。中心の見方にある）と tsunagari（提言・再編の方針。views 無し）。kisai は about が空
+        self.assertEqual(rep.signal_chushin, [{"theme": "hoiku", "chushin": P, "rows": 2, "hit": 1, "ratio": "0.5000"}])
+        rows = theme_rows()
+        for r in rows:
+            if r["kind"] == "名前":
+                r["note"] = "見本"
+        self.assertEqual(run(themes=rows).signal_chushin,
+                         [{"theme": "hoiku", "chushin": "", "rows": 2, "hit": 0, "ratio": ""}])
+        led = ledgers()
+        led["kotogara"] = []
+        led["tsunagari"] = []
+        self.assertEqual(run(led).signal_chushin[0]["ratio"], "")   # rows が 0
+
+    def test_chushin_note_end(self):
+        rows = theme_rows()
+        for r in rows:
+            if r["kind"] == "名前":
+                r["note"] = "前書き。中心の見方：fa:a"   # 行末まで
+        self.assertEqual(run(themes=rows).signal_chushin[0]["chushin"], "fa:a")
+
+
 class CheckRecordsTest(unittest.TestCase):
     def test_bulletin_texts(self):
         q = {"issue": "30", "member": "松田 洋子", "q_num": "1", "title": "題", "question_text": "問い",
@@ -453,6 +599,9 @@ class CheckRecordsTest(unittest.TestCase):
         rep = run()
         lines = check_records.report_lines(rep)
         self.assertIn("- 誤り：0", lines)
+        self.assertEqual(lines[8:11], ["- 届き先の信号：views の無い点の確定行 2（signal_todoku.tsv）",
+                                       "- 届き先の信号：問いごとの点が空の割合（signal_point.tsv。問い 2）",
+                                       "- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ 1）"])
 
 
 if __name__ == "__main__":

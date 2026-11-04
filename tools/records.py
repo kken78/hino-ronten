@@ -1,5 +1,8 @@
 """記録の台帳（records/）・テーマの定義（ref/themes.tsv）・施設の参照表（ref/shisetsu.tsv）を確かめる関数
-（LINK_SCHEMA.md §1・§2・§11・§12・§15、DESIGN.md ADR-19・ADR-21〜ADR-24）。
+（LINK_SCHEMA.md §1・§2・§11・§12・§15、DESIGN.md ADR-19・ADR-21〜ADR-24・ADR-31）。
+
+kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
+（theme・views）で決める（§15.3・§15.4・§15.6、ADR-31 の2）。届き先の信号（§11、ADR-31 の4）は一覧に出すだけで、止めない。
 
 入力（lock の版の会議録・議会だより・計画・町の公開資料）は Inputs にまとめて渡す。読むのは tools/check_records.py。
 台帳には書かない。誤りは Report.errors に、人が見る一覧は Report の各一覧に入れる。
@@ -20,11 +23,11 @@ COLUMNS = {
                  "point", "bq", "bulletin"] + COMMON,
     "shitsugi": ["question", "n", "row", "bills", "side", "sid", "quote", "speaker", "round", "stage", "kind",
                  "answers", "point"] + COMMON,
-    "kotogara": ["theme", "point", "program", "source", "source_date", "quote", "value", "target", "kind", "prev", "reason",
+    "kotogara": ["point", "source", "source_date", "quote", "value", "target", "kind", "prev", "reason",
                  "yaritori"] + COMMON,
-    "tsunagari": ["theme", "link", "upper", "upper_ref", "lower", "lower_ref", "source", "source_date", "quote"] + COMMON,
+    "tsunagari": ["link", "upper", "upper_ref", "lower", "lower_ref", "source", "source_date", "quote"] + COMMON,
     "katei": ["theme", "step", "cycle", "name", "from", "to", "sources", "quote"] + COMMON,
-    "kisai": ["theme", "title", "about", "source", "source_date", "quote"] + COMMON,
+    "kisai": ["title", "about", "source", "source_date", "quote"] + COMMON,
     "shisetsu": ["facility", "aspect", "value", "source", "source_date", "quote", "target", "kind", "prev"] + COMMON,
     "nozoki": ["question", "n", "sid", "quote", "reason"] + COMMON,
 }
@@ -32,10 +35,10 @@ COLUMNS = {
 KEYS = {
     "yaritori": ("question", "row"),
     "shitsugi": ("question", "row"),
-    "kotogara": ("theme", "point", "source", "quote"),
-    "tsunagari": ("theme", "link", "upper", "lower", "source"),
+    "kotogara": ("point", "source", "quote"),
+    "tsunagari": ("link", "upper", "lower", "source"),
     "katei": ("theme", "step"),
-    "kisai": ("theme", "title", "source"),
+    "kisai": ("title", "source"),
     "shisetsu": ("facility", "aspect", "source", "quote"),
     "nozoki": ("question", "n", "sid", "quote"),
 }
@@ -43,8 +46,10 @@ NUMERIC = ("row", "step")
 LEDGERS = tuple(COLUMNS)          # nozoki は無ければ0行（DESIGN.md ADR-24）
 OPTIONAL = ("nozoki",)
 
-THEME_COLUMNS = ["theme", "kind", "value", "source", "reviewer", "date", "note"]
+THEME_COLUMNS = ["theme", "kind", "value", "source", "views", "reviewer", "date", "note"]
 THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "事柄", "記載", "施設")
+VIEW_KINDS = ("事柄", "記載", "施設", "施策")   # views を持てる kind（§12）
+POINT_KINDS = ("事柄", "記載")                  # 届き先の信号で見る点の kind（§11 届き先）
 SHISETSU_COLUMNS = ["key", "name", "aliases", "district", "source", "reviewer", "date", "note"]
 
 SIDES = ("問い", "答え")
@@ -75,6 +80,9 @@ RE_FA = re.compile(r"fa:[a-z0-9][a-z0-9-]*")
 RE_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 RE_MONTH = re.compile(r"[0-9]{4}-[0-9]{2}(-[0-9]{2})?")
 RE_INT = re.compile(r"[1-9][0-9]*")
+RE_CHUSHIN = re.compile(r"中心の見方：([^。]*)")   # kind 名前の行の note（§12）
+# confirmed の note に「判定：」の出どころを求めるのは、この日より後の date の行（§15.1）
+HANTEI_SINCE = "2026-11-04"
 
 # 引用の前後（§11）：§4 の正規化のあとの頭の指示語。文の終わりの字
 DEMONSTRATIVES = ("その", "この", "これ", "それ", "あの", "こうした", "そうした", "こういった", "そういった", "上記", "前述",
@@ -88,6 +96,9 @@ ROUND_DIFF_COLUMNS = ["ledger", "question", "n", "row", "sid", "round", "turns_r
 QUOTE_MISMATCH_COLUMNS = ["ledger", "key", "status", "source", "quote"]
 TORIKOBOSHI_COLUMNS = ["ledger", "question", "n", "sid", "quote"]
 QUOTE_CONTEXT_COLUMNS = ["ledger", "key", "source", "kind", "quote"]
+SIGNAL_TODOKU_COLUMNS = ["ledger", "key", "point"]
+SIGNAL_POINT_COLUMNS = ["ledger", "question", "rows", "empty", "ratio"]
+SIGNAL_CHUSHIN_COLUMNS = ["theme", "chushin", "rows", "hit", "ratio"]
 
 
 class RecordsError(ValueError):
@@ -108,6 +119,7 @@ class Inputs:
     plans: set                  # manifest の計画の id
     nodes: set                  # node キー（node:<id>/<key>）
     series: set                 # 系譜表の series
+    plans_in_lineage: set = field(default_factory=set)   # 系譜表の plan の列（空でない値）。views の plan キーを照らす
     pos: dict = field(default_factory=dict)
     qturns: dict = field(default_factory=dict)  # 一般質問の問い（q）の最初の発言の sid → 場面の from（§2 の iq）
 
@@ -140,6 +152,9 @@ class Report:
     quote_mismatch: list = field(default_factory=list)
     torikoboshi: list = field(default_factory=list)
     quote_context: list = field(default_factory=list)
+    signal_todoku: list = field(default_factory=list)   # 届き先の信号（§11、ADR-31 の4）。終了コードは変えない
+    signal_point: list = field(default_factory=list)
+    signal_chushin: list = field(default_factory=list)
 
     def err(self, where, msg):
         self.errors.append(f"{where}：{msg}")
@@ -278,6 +293,9 @@ def check_common(name, row, rep):
         rep.err(w, "rejected の note が空")
     if not row["note"].startswith("下書き："):
         rep.err(w, "note の頭が「下書き：」でない（§15.1）")
+    # 2026-11-04 以前の confirmed は「判定：」が無くても止めない（判定シートの番号の有無も見ない。§15.1）
+    if s == "confirmed" and row["date"] > HANTEI_SINCE and "判定：" not in row["note"]:
+        rep.err(w, "confirmed の note に「判定：」の出どころが無い（§15.1）")
 
 
 def is_source_key(key):
@@ -296,6 +314,8 @@ def check_source_date(name, row, rep):
 class Theme:
     rows: list
     by_kind: dict          # (theme, kind) → 値の集まり
+    views: dict = field(default_factory=dict)        # (kind, value) → 全テーマの行の views を合わせた集まり
+    name_notes: dict = field(default_factory=dict)   # theme → kind 名前の行の note
 
     def values(self, theme, *kinds):
         out = set()
@@ -306,11 +326,65 @@ class Theme:
     def themes_of(self, kind, value):
         return sorted({t for (t, k), vs in self.by_kind.items() if k == kind and value in vs})
 
+    def views_of(self, kind, value):
+        """その kind・value を持つ全テーマの行の views を合わせた集まり（テーマは問わない。ADR-31 の2）。"""
+        return set(self.views.get((kind, value), set()))
+
+    def point_views(self, value):
+        """点（kind 事柄・記載の値）の views。§11 届き先の信号で使う。"""
+        out = set()
+        for k in POINT_KINDS:
+            out |= self.views_of(k, value)
+        return out
+
+    def chushin(self, theme):
+        """kind 名前の行の note の「中心の見方：<キー>」の <キー>（「。」か行末まで）。無ければ空（§12）。"""
+        m = RE_CHUSHIN.search(self.name_notes.get(theme, ""))
+        return m.group(1) if m else ""
+
+
+def split_views(views):
+    """views の列 → キーの並び。空なら []。"""
+    return views.split(",") if views else []
+
+
+def check_views(r, inp, shisetsu_keys, w, rep):
+    """views の形（§12）：持てる kind、空の要素・重複、テーマの id、見方のキーの形と入力にあること（§2）。"""
+    vs = split_views(r["views"])
+    if not vs:
+        return
+    if r["kind"] not in VIEW_KINDS:
+        rep.err(w, f"views を持てるのは kind {'・'.join(VIEW_KINDS)} の行だけ")
+        return
+    if "" in vs:
+        rep.err(w, "views に空の要素がある")
+    seen = set()
+    for v in vs:
+        if not v:
+            continue
+        if v in seen:
+            rep.err(w, f"views に同じキーが重なっている（{v}）")
+        seen.add(v)
+        if v == r["theme"]:
+            rep.err(w, "views にテーマの id がある（テーマの id は書かない。常に含む）")
+            continue
+        if RE_NODE.fullmatch(v):
+            ok = v in inp.nodes
+        elif RE_PLAN.fullmatch(v):
+            ok = v[5:] in inp.plans_in_lineage
+        elif RE_FA.fullmatch(v):
+            ok = v in shisetsu_keys
+        else:
+            rep.err(w, f"views のキーが §2 の見方のキー（node・plan・fa）の形でない（{v}）")
+            continue
+        if not ok:
+            rep.err(w, f"views のキーが入力に無い（{v}。node は計画の事業、plan は系譜表、fa は施設の参照表）")
+
 
 def check_themes(rows, inp, shisetsu_keys, rep):
     name = "ref/themes.tsv"
     check_order(rows, ("theme", "kind", "value"), name, rep)
-    by = {}
+    by, views, notes = {}, {}, {}
     for r in rows:
         w = f"{name} {r['theme']}/{r['kind']}/{r['value']}"
         k, v = r["kind"], r["value"]
@@ -351,10 +425,27 @@ def check_themes(rows, inp, shisetsu_keys, rep):
             ok = bool(v)
         if not ok:
             rep.err(w, "value が kind の形に合わないか、lock の版の入力に無い")
+        check_views(r, inp, shisetsu_keys, w, rep)
+        if k in VIEW_KINDS:
+            views.setdefault((k, v), set()).update(x for x in split_views(r["views"]) if x)
+        if k == "名前":
+            notes[r["theme"]] = r["note"]
+    # 施策の行の views は、同じテーマの kind 事業の node キーだけ（§12：基本施策に属する事業）
+    for r in rows:
+        if r["kind"] != "施策":
+            continue
+        progs = by.get((r["theme"], "事業"), set())
+        for v in split_views(r["views"]):
+            if v and RE_NODE.fullmatch(v) and v not in progs:
+                rep.err(f"{name} {r['theme']}/{r['kind']}/{r['value']}",
+                        f"施策の行の views が、同じテーマの kind 事業の行に無い（{v}）")
+            elif v and not RE_NODE.fullmatch(v):
+                rep.err(f"{name} {r['theme']}/{r['kind']}/{r['value']}",
+                        f"施策の行の views が node キーでない（{v}）")
     for t in sorted({r["theme"] for r in rows}):
         if len(by.get((t, "名前"), ())) != 1:
             rep.err(f"{name} {t}", "名前 の行が1行でない")
-    return Theme(rows, by)
+    return Theme(rows, by, views, notes)
 
 
 def member_in(member, source):
@@ -494,19 +585,13 @@ def check_exchange(name, rows, inp, theme, rep):
 
 
 def check_kotogara(rows, inp, theme, yaritori_keys, rep):
+    """事柄の記録（§15.3）。point は、どれかのテーマの kind 事柄の値（テーマは問わない。ADR-31 の2）。"""
     name = "kotogara"
-    prog = {}
     for r in rows:
         w = label(name, r)
         check_common(name, r, rep)
-        if r["point"] not in theme.values(r["theme"], "事柄"):
-            rep.err(w, "point がそのテーマの kind 事柄の値でない")
-        if r["program"]:
-            if r["program"] not in inp.nodes:
-                rep.err(w, f"program が計画の事業に無い（{r['program']}）")
-            prev = prog.setdefault((r["theme"], r["point"]), r["program"])
-            if prev != r["program"]:
-                rep.err(w, f"同じテーマ・同じ point の program が違う（{prev} と {r['program']}）")
+        if not theme.themes_of("事柄", r["point"]):
+            rep.err(w, f"point がどのテーマの kind 事柄の値でもない（{r['point']!r}）")
         if r["kind"] not in TIME_KINDS:
             rep.err(w, f"kind が {TIME_KINDS} のどれでもない")
         if r["kind"] != "変更" and (r["prev"] or r["reason"]):
@@ -543,16 +628,16 @@ def ref_ok(inp, ref):
 
 
 def check_tsunagari(rows, inp, theme, rep):
+    """つながりの記録（§15.4）。upper・lower は、どれかのテーマの kind 記載の値（テーマは問わない）。"""
     name = "tsunagari"
     for r in rows:
         w = label(name, r)
         check_common(name, r, rep)
         if r["link"] not in LINKS:
             rep.err(w, f"link が {LINKS} のどれでもない")
-        kisai = theme.values(r["theme"], "記載")
         for c in ("upper", "lower"):
-            if r[c] not in kisai:
-                rep.err(w, f"{c} がそのテーマの kind 記載の値でない（{r[c]}）")
+            if not theme.themes_of("記載", r[c]):
+                rep.err(w, f"{c} がどのテーマの kind 記載の値でもない（{r[c]}）")
             if not ref_ok(inp, r[f"{c}_ref"]):
                 rep.err(w, f"{c}_ref が入力に無い（{r[c + '_ref']}）")
         check_source(name, r, inp, rep)
@@ -587,14 +672,21 @@ def check_katei(rows, inp, theme, rep):
 
 
 def check_kisai(rows, inp, theme, rep):
+    """構造にしていない記載（§15.6）。about は空か、どれかのテーマの kind 事柄か記載の値。
+    同じ title は1つの about を指す（台帳全体で。rejected の行は除く）。"""
     name = "kisai"
+    about_of = {}
     for r in rows:
         w = label(name, r)
         check_common(name, r, rep)
         if not r["title"]:
             rep.err(w, "title が空")
-        if r["about"] and r["about"] not in theme.values(r["theme"], "事柄", "記載"):
-            rep.err(w, f"about がそのテーマの kind 事柄か記載の値でない（{r['about']}）")
+        if r["about"] and not (theme.themes_of("事柄", r["about"]) or theme.themes_of("記載", r["about"])):
+            rep.err(w, f"about がどのテーマの kind 事柄か記載の値でもない（{r['about']}）")
+        if r["status"] != "rejected":
+            prev = about_of.setdefault(r["title"], r["about"])
+            if prev != r["about"]:
+                rep.err(w, f"同じ title の about が違う（{prev!r} と {r['about']!r}）")
         check_source(name, r, inp, rep)
 
 
@@ -747,6 +839,57 @@ def quote_context(inp, name, rows, rep):
                                       "quote": r["quote"]})
 
 
+# ---- 届き先の信号（§11 届き先、DESIGN.md ADR-31 の4） ----
+
+def row_points(name, r):
+    """記録の行の点：kotogara は point、kisai は about（空なら無し）、tsunagari は upper と lower。"""
+    if name == "kotogara":
+        return [r["point"]]
+    if name == "kisai":
+        return [r["about"]] if r["about"] else []
+    return [r["upper"], r["lower"]]
+
+
+def ratio(a, b):
+    return f"{a / b:.4f}" if b else ""
+
+
+def signals(ledgers, theme, rep):
+    """届き先の信号を3つ作る。一覧に出すだけで、errors には入れない（止める値は幼保と介護で測ってから決める）。"""
+    point_ledgers = ("kotogara", "kisai", "tsunagari")
+    conf = {n: [r for r in ledgers.get(n, []) if r["status"] == "confirmed"] for n in LEDGERS}
+    # (a) views の無い点の確定行
+    for name in point_ledgers:
+        for r in conf[name]:
+            for p in row_points(name, r):
+                if not theme.point_views(p):
+                    rep.signal_todoku.append({"ledger": name, "key": "/".join(r[c] for c in KEYS[name]), "point": p})
+    # (b) 問いごとの点が空の割合（問いと答えの両方の行を数える）
+    for name in ("yaritori", "shitsugi"):
+        by_q = {}
+        for r in conf[name]:
+            c = by_q.setdefault(r["question"], [0, 0])
+            c[0] += 1
+            c[1] += 0 if r["point"] else 1
+        for q, (n, e) in sorted(by_q.items()):
+            rep.signal_point.append({"ledger": name, "question": q, "rows": n, "empty": e, "ratio": ratio(e, n)})
+    # (c) テーマごとに、中心の見方に出る行の割合
+    for t in sorted({r["theme"] for r in theme.rows}):
+        ch = theme.chushin(t)
+        points = theme.values(t, *POINT_KINDS)
+        n = hit = 0
+        for name in point_ledgers:
+            for r in conf[name]:
+                ps = row_points(name, r)
+                if not any(p in points for p in ps):
+                    continue
+                n += 1
+                if ch and any(ch in theme.point_views(p) for p in ps):
+                    hit += 1
+        rep.signal_chushin.append({"theme": t, "chushin": ch, "rows": n, "hit": hit,
+                                   "ratio": ratio(hit, n) if ch else ""})
+
+
 # ---- 全体 ----
 
 def check_all(ledgers, themes_rows, shisetsu_rows, inp):
@@ -773,6 +916,7 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp):
     for name in LEDGERS:
         if name != "nozoki":
             quote_context(inp, name, [r for r in ledgers[name] if r["status"] != "rejected"], rep)
+    signals(ledgers, theme, rep)
     return rep
 
 

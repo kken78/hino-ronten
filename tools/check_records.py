@@ -1,5 +1,6 @@
 """記録の台帳（records/）・テーマの定義（ref/themes.tsv）・施設の参照表（ref/shisetsu.tsv）を確かめる
-（LINK_SCHEMA.md §11 の「テーマの定義」「施設の参照表」「記録の台帳」「発言の取りこぼし」「引用の前後」、DESIGN.md ADR-24）。
+（LINK_SCHEMA.md §11 の「テーマの定義」「施設の参照表」「記録の台帳」「発言の取りこぼし」「引用の前後」「届き先」、
+DESIGN.md ADR-24・ADR-31）。
 
 inputs.lock.json の版の入力（会議録の索引と審議の記録・議案・議会だより・計画・計画の原典の文字・町の公開資料）で照らす。
 台帳には書かない。報告と一覧は build/records/ に書く：
@@ -8,6 +9,9 @@ inputs.lock.json の版の入力（会議録の索引と審議の記録・議案
   quote_mismatch.tsv 引用が資料の本文に無い行（confirmed なら誤り）
   torikoboshi.tsv   発言の取りこぼし（ADR-24。終了コードは変えない）
   quote_context.tsv 引用の前後（指示語で始まる・文の途中で終わる。終了コードは変えない）
+  signal_todoku.tsv  届き先の信号：views の無い点の確定行（ADR-31 の4。終了コードは変えない）
+  signal_point.tsv   届き先の信号：問いごとの点が空の割合（終了コードは変えない）
+  signal_chushin.tsv 届き先の信号：テーマごとの、中心の見方に出る行の割合（終了コードは変えない）
 
 実行: python3 -B tools/check_records.py
 終了コード：0 は合格。1 は止めた（誤りを表示する）。
@@ -100,12 +104,13 @@ def read_inputs(gi):
                             nodes.add(f"node:{plan['id']}/{it['key']}")
     refs = mention.load_refs(gm.LINEAGE, gm.ALIASES)
     series = {r.series for r in refs.lineage}
+    plans_in_lineage = {r.plan for r in refs.lineage if r.plan}   # views の plan キーを照らす（§12）
     return records.Inputs(
         statements=statements, order=[e["sid"] for e in index], segments=segments, gian=gian,
         bulletin=bulletin_texts(questions), docs={r["id"] for r in docs_rows},
         doc_text=lambda did, layer: text_of(gm.TD, f"data/{layer}/{did}.txt", doc_files),
         pt_text=lambda pid, name, layer: text_of(gm.SP, f"data/{layer}/{pid}/{name}.txt", pt_files),
-        plans=plan_ids, nodes=nodes, series=series)
+        plans=plan_ids, nodes=nodes, series=series, plans_in_lineage=plans_in_lineage)
 
 
 def _breakdown(counts):
@@ -127,6 +132,9 @@ def report_lines(rep):
     for r in rep.quote_context:
         by[r["kind"]] = by.get(r["kind"], 0) + 1
     L.append(f"- 引用の前後：{len(rep.quote_context)}（" + (_breakdown(by) + "。" if by else "") + "quote_context.tsv）")
+    L.append(f"- 届き先の信号：views の無い点の確定行 {len(rep.signal_todoku)}（signal_todoku.tsv）")
+    L.append(f"- 届き先の信号：問いごとの点が空の割合（signal_point.tsv。問い {len(rep.signal_point)}）")
+    L.append(f"- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ {len(rep.signal_chushin)}）")
     if rep.errors:
         L += ["", "## 誤り", ""] + [f"- {e}" for e in rep.errors]
     return L
@@ -139,6 +147,9 @@ def write_outputs(outdir, rep):
         "quote_mismatch.tsv": (records.QUOTE_MISMATCH_COLUMNS, rep.quote_mismatch),
         "torikoboshi.tsv": (records.TORIKOBOSHI_COLUMNS, rep.torikoboshi),
         "quote_context.tsv": (records.QUOTE_CONTEXT_COLUMNS, rep.quote_context),
+        "signal_todoku.tsv": (records.SIGNAL_TODOKU_COLUMNS, rep.signal_todoku),
+        "signal_point.tsv": (records.SIGNAL_POINT_COLUMNS, rep.signal_point),
+        "signal_chushin.tsv": (records.SIGNAL_CHUSHIN_COLUMNS, rep.signal_chushin),
     }
     for name, (cols, rows) in files.items():
         with open(os.path.join(outdir, name), "w", encoding="utf-8", newline="\n") as f:
@@ -162,7 +173,7 @@ def main():
         return 1
     rep = records.check_all(ledgers, themes, shisetsu, inp)
     write_outputs(OUT_DIR, rep)
-    print("\n".join(report_lines(rep)[2:8]))
+    print("\n".join(report_lines(rep)[2:11]))
     if rep.errors:
         for e in rep.errors[:EXAMPLES]:
             print(f"  {e}", file=sys.stderr)
