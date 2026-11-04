@@ -8,7 +8,7 @@
     "files": ["public/data/index-manifest.json", "public/data/index/*.json", "public/data/proceedings.json", "public/data/meetings.json", "public/data/gian.json"]
   },
   "shiga-hino-plans": {
-    "sha": "807b168fe8d4ba1724c827a67257c35161d0faa7",
+    "sha": "1c3f21c349cab6127c75ee65d8eff9f598df5bd8",
     "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r8.json", "data/text/*/*.txt", "data/text_raw/*/*.txt"]
   },
   "hino-town-docs": {
