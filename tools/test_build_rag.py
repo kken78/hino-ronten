@@ -30,24 +30,43 @@ def qrow(row, side, quote, layer="確定", **kw):
     return r
 
 
+KOT = [("doc:a/1", "令和10年度の開設を目指します。"), ("doc:b/1", "開園時期を見直しました。"), ("sp:1", "令和10年度の開園をめどに")]
+KADAI = [{"ref": "plan:youho/hoshin/challenges/1/1", "text": "① 出生数の減少", "source": "youho/honpen p.18-19",
+          "url": U + "youho.pdf#page=20"}]
+
+
+def sheet(view, kind, name, **kw):
+    s = {"view": view, "view_kind": kind, "name": name,
+         "vision": [{"text": "めざす姿:どの子も育つまち", "source": U + "sogo.pdf"}], "kadai": KADAI,
+         "cost": [], "desc": [], "tsunagari": [], "kotogara": [], "shisetsu": [], "katei": [], "asked": []}
+    s.update(kw)
+    return s
+
+
 def data(**kw):
     d = {
         "theme": "hoiku", "name": "幼児教育・保育施設の再編",
         "lock": {"hino-council-search": "1af9baa0", "shiga-hino-plans": "807b1680"},
         "programs": [{"key": P, "name": "認定こども園整備事業", "desc": "新こども園を整備する。", "field_no": "分野①",
                       "field_name": "子ども・子育て", "years": ["R8", "R9"], "source": U + "jisshi.pdf",
-                      "cost": {"label": "概算事業費", "amount": 3000000, "unit": "千円"}, "layer": "確定"}],
+                      "cost": {"label": "概算事業費", "amount": 3000000, "unit": "千円"}, "layer": "確定",
+                      "policy": "node:sogo6/e047"}],
         "budget": [{"key": "fh:fuhyo-r8/b010", "program": P, "name": "認定こども園整備事業", "kubun": ["新規"],
                     "amount": 228421, "unit": "千円", "dept": ["子ども支援課"], "url": U + "fuhyo.pdf#page=1"}],
-        "policies": [{"kind": "基本施策", "no": "(3)", "name": "幼児教育・保育の充実", "source": U + "sogo.pdf"}],
+        "policies": [{"key": "node:sogo6/e011", "kind": "分野", "no": "①", "name": "子ども・子育て", "source": U + "sogo.pdf"},
+                     {"key": "node:sogo6/e047", "kind": "基本施策", "no": "(3)", "name": "幼児教育・保育の充実", "source": U + "sogo.pdf"}],
         "plans": [{"key": "plan:youho", "name": "再編整備計画", "start_fy": "2024", "end_fy": "2029", "posted": "",
                    "url": U + "youho"}],
         "docs": [{"category": "koho", "title": "広報ひの", "date": "2026-07", "fiscal_year": "2026", "url": U + "koho.pdf"},
                  {"category": "jigyo", "title": "基本構想", "date": "", "fiscal_year": "2025", "url": "https://web.archive.org/web/20250830131330id_/" + U + "k.pdf",
                   "original_url": U + "k.pdf", "archived": "2025-08-30"}],
-        "sheets": [{"program": P, "vision": [{"text": "めざす姿:どの子も育つまち", "source": U + "sogo.pdf"}],
-                    "kadai": [{"ref": "plan:youho/hoshin/challenges/1/1", "text": "① 出生数の減少",
-                               "source": "youho/honpen p.18-19", "url": U + "youho.pdf#page=20"}]}],
+        "sheets": [sheet(P, "事業", "認定こども園整備事業",
+                         kotogara=[{"ref": f"records/kotogara/開園時期/{s}/{q}"} for s, q in KOT]),
+                   sheet("plan:youho", "期の計画", "再編整備計画"),
+                   sheet("fa:f1", "施設", "日野幼稚園"),
+                   sheet("hoiku", "テーマ", "幼児教育・保育施設の再編",
+                         kotogara=[{"ref": f"records/kotogara/開園時期/{s}/{q}"} for s, q in KOT])],
+        "chushin": P,
         "exchanges": [{"meeting_id": "m", "meeting": "令和7年3月定例会", "date": "2025-03-10", "n": 1, "question": "iq:1",
                        "member": {"key": "k", "name": "日野花子", "seat": 1}, "titles": [{"title": "新こども園について", "n": 1}],
                        "titles_chosen": True,
@@ -55,51 +74,51 @@ def data(**kw):
         "bills": [{"key": "b", "meeting": "令和8年3月定例会議", "date": "2026-03-23", "no": "議案第1号", "title": "予算",
                    "result": "原案可決", "method": "起立", "debates": [], "url": U + "bill"}],
         "issues": [{"type": "予定の変更", "statement": "開園時期は、令和10年度から令和11年度", "layer": "論点の候補",
-                    "refs": [{"ref": "records/kotogara/hoiku/開園時期/doc:a/1/令和10年度の開設を目指します。", "text": "x",
+                    "refs": [{"ref": "records/kotogara/開園時期/doc:a/1/令和10年度の開設を目指します。", "text": "x",
                               "url": U + "a.pdf#page=1", "layer": "確定"},
                              {"ref": "records/yaritori/iq:1/2", "text": "y", "url": U + "q2", "layer": "確定"},
                              {"ref": "どこにも無い", "text": "z", "url": U + "z", "layer": "論点の候補"}]},
                    {"type": "問われていない点", "statement": "「懇話会の設置目的」は、取り上げられていない", "layer": "論点の候補",
-                    "refs": [{"ref": "records/kisai/hoiku/懇話会の設置目的/doc:c/2", "text": "在り方を検討する。",
+                    "refs": [{"ref": "records/kisai/懇話会の設置目的/doc:c/2", "text": "在り方を検討する。",
                               "url": U + "c2", "layer": "確定"},
-                             {"ref": "records/kotogara/hoiku/開園時期/doc:a/1/令和10年度の開設を目指します。", "text": "x",
+                             {"ref": "records/kotogara/開園時期/doc:a/1/令和10年度の開設を目指します。", "text": "x",
                               "url": U + "a.pdf#page=1", "layer": "確定"},
-                             {"ref": "records/kotogara/hoiku/開園時期/doc:b/1/開園時期を見直しました。", "text": "x2",
+                             {"ref": "records/kotogara/開園時期/doc:b/1/開園時期を見直しました。", "text": "x2",
                               "url": U + "b.pdf#page=1", "layer": "確定"},
-                             {"ref": "records/tsunagari/hoiku/目的と手段/持続可能な環境/こども園の新設/doc:a/3", "text": "t",
+                             {"ref": "records/tsunagari/目的と手段/持続可能な環境/こども園の新設/doc:a/3", "text": "t",
                               "url": U + "a3", "layer": "確定"},
                              {"ref": "どこにも無い2", "text": "w", "url": U + "w", "layer": "確定"}]}],
         "records": {
             "kotogara": [
-                {"theme": "hoiku", "point": "開園時期", "program": P, "source": "doc:a/1", "source_date": "2025-03",
+                {"point": "開園時期", "source": "doc:a/1", "source_date": "2025-03",
                  "quote": "令和10年度の開設を目指します。", "value": "", "target": "令和10年度", "kind": "予定",
                  "prev": "", "reason": "", "url": U + "a.pdf#page=1", "layer": "確定"},
-                {"theme": "hoiku", "point": "開園時期", "program": P, "source": "doc:b/1", "source_date": "2026-07",
+                {"point": "開園時期", "source": "doc:b/1", "source_date": "2026-07",
                  "quote": "開園時期を見直しました。", "value": "", "target": "令和11年4月", "kind": "変更",
                  "prev": "令和10年4月", "reason": "安全性を優先する", "url": U + "b.pdf#page=1", "layer": "確定"},
-                {"theme": "hoiku", "point": "開園時期", "program": P, "source": "sp:1", "source_date": "2025-06-13",
+                {"point": "開園時期", "source": "sp:1", "source_date": "2025-06-13",
                  "quote": "令和10年度の開園をめどに", "value": "", "target": "令和10年度", "kind": "予定",
                  "prev": "", "reason": "", "url": U + "sp1", "layer": "論点の候補"}],
-            "shisetsu": [{"facility": "f1", "aspect": "状態", "value": "閉園", "source": "doc:a/2", "source_date": "2025-03",
+            "shisetsu": [{"facility": "fa:f1", "aspect": "状態", "value": "閉園", "source": "doc:a/2", "source_date": "2025-03",
                           "quote": "閉園します。", "target": "令和10年度", "kind": "予定", "prev": "", "url": U + "a2",
                           "layer": "確定"}],
             "yaritori": [q("iq:1", "2025-03-10", "令和7年3月定例会", "日野花子",
                            [qrow(1, "問い", "開園はいつか"), qrow(2, "答え", "今後検討します")])],
             "shitsugi": [],
-            "tsunagari": [{"theme": "hoiku", "link": "目的と手段", "upper": "持続可能な環境", "lower": "こども園の新設",
+            "tsunagari": [{"link": "目的と手段", "upper": "持続可能な環境", "lower": "こども園の新設",
                            "source": "doc:a/3", "source_date": "2025-03", "quote": "新設を進めます。", "url": U + "a3",
                            "layer": "確定"}],
             "katei": [{"theme": "hoiku", "step": "1", "name": "懇話会", "from": "2022-07-12", "to": "2024-01-12",
                        "sources": "doc:c/1", "quote": "令和４年７月１２日", "url": U + "c1", "layer": "確定",
                        "date": "2026-10-28"}],
-            "kisai": [{"theme": "hoiku", "title": "懇話会の設置目的", "about": "懇話会の設置目的", "source": "doc:c/2",
+            "kisai": [{"title": "懇話会の設置目的", "about": "懇話会の設置目的", "source": "doc:c/2",
                        "source_date": "2022-07", "quote": "在り方を検討する。", "url": U + "c2", "layer": "確定",
                        "date": "2026-10-28"}],
         },
         "names": {"sources": {"doc:a/1": "再編整備計画", "doc:b/1": "「広報ひの」", "sp:1": "令和7年6月定例会議の課長の発言",
                               "doc:a/2": "再編整備計画", "doc:a/3": "再編整備計画", "doc:c/2": "懇話会の資料",
                               "doc:c/1": "懇話会の資料（第1回）"},
-                  "facilities": {"f1": {"name": "日野幼稚園", "district": "日野"}}},
+                  "facilities": {"fa:f1": {"name": "日野幼稚園", "district": "日野"}}},
         "theme_questions": 16,
         "hits": {"council": [{"excerpt": "キーワードの一致"}], "docs": []},
     }
@@ -237,7 +256,7 @@ class BuildTest(unittest.TestCase):
         d = json.loads(data())
         sid = "sp:0000008397_20250310_0291"
         d["records"]["yaritori"][0]["rows"][1].update(sid=sid, round="再質問1")
-        d["records"]["kotogara"].append({"theme": "hoiku", "point": "開園時期", "program": P, "source": sid,
+        d["records"]["kotogara"].append({"point": "開園時期", "source": sid,
                                          "source_date": "2025-03-10", "quote": "答えの文。", "value": "", "target": "",
                                          "kind": "いまのこと", "prev": "", "reason": "", "url": U + "sp291", "layer": "確定"})
         d["names"]["sources"][sid] = "令和7年3月定例会の課長の発言"
@@ -275,8 +294,9 @@ class BuildTest(unittest.TestCase):
                          ["2026-04", "2026-06", "2021-03", "2018-03", "2019-05", "", ""])
         d = json.loads(data())
         d["programs"][0]["posted"] = "令和8年4月"
-        d["policies"][0].update(key="node:sogo6/e047", posted="2021年3月発行")
-        d["sheets"][0]["vision"][0]["ref"] = "policies/node:sogo6/e047"
+        for x in d["policies"]:
+            x["posted"] = "2021年3月発行"
+        d["sheets"][0]["vision"] = [dict(d["sheets"][0]["vision"][0], ref="policies/node:sogo6/e011")]
         d["plans"][0]["posted"] = "令和7年3月策定・令和8年6月一部改正"
         honpen = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)[0]
         self.assertIn("［2026年4月］実施計画：事業名：認定こども園整備事業。", honpen)
@@ -316,10 +336,74 @@ class BuildTest(unittest.TestCase):
             br.build(data(), "node:jisshi/e999")
         with self.assertRaises(br.RagError):
             built(sheets=[])
-        d = json.loads(data())
-        del d["names"]
         with self.assertRaises(br.RagError):
-            br.build(json.dumps(d).encode("utf-8"), P)
+            built(programs=[])        # 見方が事業なのに programs に無い
+        for k in ("names", "chushin"):
+            d = json.loads(data())
+            del d[k]
+            with self.assertRaises(br.RagError):
+                br.build(json.dumps(d).encode("utf-8"), P)
+
+    def test_basic_policy_of_program(self):
+        # 基本施策は programs の policy で引く（テーマの最初の1つを出さない。§17.2、DESIGN.md ADR-31 の6）
+        d = json.loads(data())
+        d["policies"].insert(0, {"key": "node:sogo6/e040", "kind": "基本施策", "no": "(1)", "name": "別の施策", "source": U + "s.pdf"})
+        honpen = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)[0]
+        self.assertIn("基本施策(3) 幼児教育・保育の充実", honpen)
+        self.assertNotIn("別の施策", honpen)
+        d["programs"][0]["policy"] = ""
+        honpen = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)[0]
+        self.assertNotIn("総合計画：分野①", honpen)
+
+    def test_other_views(self):
+        # 期の計画・施設・テーマ自体の見方（§17.2 の1）。止まらず、要点の章に名前が出る
+        d = json.loads(data())
+        d["plans"][0]["posted"] = "令和7年3月策定"
+        raw = json.dumps(d, ensure_ascii=False).encode("utf-8")
+        honpen, kiroku = br.build(raw, "plan:youho")
+        self.assertIn("# 再編整備計画（本編）：1 見方の要点", honpen)
+        self.assertIn("［2025年3月］計画：再編整備計画。計画期間：2024〜2029年度。策定・改正：令和7年3月策定（出典：https://example.jp/youho）", honpen)
+        self.assertIn("［2025年3月］再編整備計画 18〜19ページに掲げる課題：「① 出生数の減少」", honpen)
+        self.assertNotIn("当初予算額", honpen)
+        self.assertTrue(kiroku.startswith("# 再編整備計画（記録編）：この資料の読み方"))
+        honpen = br.build(raw, "fa:f1")[0]
+        self.assertIn("# 日野幼稚園（本編）：1 見方の要点", honpen)
+        self.assertIn("施設：日野幼稚園。地区：日野", honpen)
+        self.assertIn("いまの状態：［2025年3月］再編整備計画：資料の種類：町の資料。面：状況。値：閉園。", honpen)
+        honpen = br.build(raw, "hoiku")[0]
+        self.assertIn("# 幼児教育・保育施設の再編（本編）：1 見方の要点", honpen)
+        self.assertIn("系列の計画：再編整備計画（出典：https://example.jp/youho）", honpen)
+        self.assertIn("中心の見方：認定こども園整備事業（node:jisshi/e008）", honpen)
+        d["chushin"] = ""
+        honpen = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), "hoiku")[0]
+        self.assertIn("中心の見方：未記録", honpen)
+
+    def test_point_scope(self):
+        # 主な事項：その見方の事柄 → テーマ全体の事柄。ほかの見方だけの点は出さない（§16.2・§17.2）。記録編は全行（§17.3）
+        d = json.loads(data())
+        extra = [{"point": "用地", "source": "doc:a/4", "source_date": "2025-04", "quote": "用地を決めた。", "value": "",
+                  "target": "", "kind": "済んだこと", "prev": "", "reason": "", "url": U + "a4", "layer": "確定"},
+                 {"point": "定員", "source": "doc:a/5", "source_date": "2025-05", "quote": "定員は285人。", "value": "285人",
+                  "target": "", "kind": "いまのこと", "prev": "", "reason": "", "url": U + "a5", "layer": "確定"}]
+        d["records"]["kotogara"] += extra
+        d["names"]["sources"].update({"doc:a/4": "再編整備計画", "doc:a/5": "再編整備計画"})
+        # 定員は期の計画の見方だけの点。用地はどの見方にも無い（テーマ全体の点）
+        plan = next(x for x in d["sheets"] if x["view"] == "plan:youho")
+        plan["kotogara"] = [{"ref": "records/kotogara/定員/doc:a/5/定員は285人。"}]
+        next(x for x in d["sheets"] if x["view"] == "hoiku")["kotogara"] += [
+            {"ref": "records/kotogara/用地/doc:a/4/用地を決めた。"}, {"ref": "records/kotogara/定員/doc:a/5/定員は285人。"}]
+        raw = json.dumps(d, ensure_ascii=False).encode("utf-8")
+        honpen, kiroku = br.build(raw, P)
+        heads = [h for h in honpen.split("\n") if h.startswith("### 認定こども園整備事業：主な事項：")]
+        self.assertEqual([h.rsplit("：", 1)[1] for h in heads], ["開園時期", "用地"])
+        self.assertIn("### 認定こども園整備事業：記録：事柄：定員", kiroku.replace("## ", "### "))
+        honpen = br.build(raw, "plan:youho")[0]
+        heads = [h for h in honpen.split("\n") if h.startswith("### 再編整備計画：主な事項：")]
+        self.assertEqual([h.rsplit("：", 1)[1] for h in heads], ["定員", "用地"])
+        self.assertNotIn("予定の変更：開園時期", honpen)      # 経過の予定の変更も同じ範囲
+        honpen = br.build(raw, "hoiku")[0]
+        heads = [h for h in honpen.split("\n") if h.startswith("### 幼児教育・保育施設の再編：主な事項：")]
+        self.assertEqual(sorted(h.rsplit("：", 1)[1] for h in heads), ["定員", "用地", "開園時期"])
 
     def test_docx(self):
         honpen = built()[0]

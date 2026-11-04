@@ -110,10 +110,20 @@ def refs():
 
 
 def theme_rows():
+    # 基本施策 e047 の views に、その基本施策に属する事業（§12）
     rows = tr.theme_rows() + [dict(tr.theme_rows()[0], kind="系列", value="kodomo"),
                               dict(tr.theme_rows()[0], kind="施策", value="node:sogo6/e011"),
-                              dict(tr.theme_rows()[0], kind="施策", value="node:sogo6/e047")]
+                              dict(tr.theme_rows()[0], kind="施策", value="node:sogo6/e047", views=tr.P)]
     return sorted(rows, key=lambda r: (r["theme"], r["kind"], r["value"]))
+
+
+def with_views(rows, **views):
+    """(kind, value) を「kind/value」の名前で渡し、views を書き換えたテーマの定義の行。"""
+    out = []
+    for r in rows:
+        k = f"{r['kind']}/{r['value']}"
+        out.append(dict(r, views=views[k]) if k in views else r)
+    return out
 
 
 def build(led=None, rf=None, themes=None, d=None):
@@ -142,8 +152,14 @@ class ItemsTest(unittest.TestCase):
         self.assertEqual(d["theme"], "hoiku")
         self.assertEqual(d["lock"], {"hino-council-search": "a" * 40})
         self.assertEqual(sorted(d["hits"]), ["council", "docs"])
-        self.assertEqual(len(d["sheets"]), 1)
+        # 見方：views に現れる node キー（見本では事柄の行の e008）と、テーマ自体（§13.1）
+        self.assertEqual([(s["view"], s["view_kind"]) for s in d["sheets"]], [(tr.P, "事業"), ("hoiku", "テーマ")])
+        self.assertEqual(d["chushin"], tr.P)
         self.assertEqual(bt.check_no_empty_url(d), [])
+
+    def test_chushin_empty(self):
+        rows = [dict(r, note="") if r["kind"] == "名前" else r for r in theme_rows()]
+        self.assertEqual(build(themes=rows)["chushin"], "")
 
     def test_plans(self):
         p = {x["key"]: x for x in self.data["plans"]}
@@ -160,6 +176,7 @@ class ItemsTest(unittest.TestCase):
         self.assertEqual(self.data["policies"][0]["posted"], "2021年6月")          # 計画の meta の posted（原文のまま）
         pg = self.data["programs"][0]
         self.assertEqual(pg["posted"], "令和8年4月")
+        self.assertEqual(pg["policy"], "node:sogo6/e047")     # その事業を views に持つ基本施策（§13.3）
         self.assertEqual((pg["key"], pg["field_no"], pg["field_name"], pg["cost"]["amount"]),
                          ("node:jisshi/e008", "分野①", "子ども・子育て", 3000000))
         b = self.data["budget"]
@@ -269,8 +286,30 @@ class ItemsTest(unittest.TestCase):
                          (f"iq:{sid(2)}", M, "令和7年3月定例会議", "mb:松田洋子", 4))
         self.assertEqual(y["rows"][0]["url"], bt.SEARCH.format(sid(2), sid(2)))
         self.assertEqual(y["rows"][0]["layer"], "確定")
-        self.assertEqual(r["kisai"][0]["url"], "https://example.jp/youho.pdf#page=1")
+        self.assertEqual(r["kisai"], [])     # about が空で、source の資料（pt）がテーマの kind 資料に無い（§15.6）
         self.assertEqual(r["tsunagari"][0]["url"], "https://example.jp/teigen.pdf#page=2")
+
+    def test_records_kisai_about_empty(self):
+        # about が空の行は、source の資料がテーマの kind 資料（doc:teigen）にあれば入る（§13.4・§15.6）
+        led = tr.ledgers()
+        led["kisai"].append(tr.row("kisai", title="提言の構成", source="doc:teigen/2", source_date="2024-02", quote="再編の方針がある"))
+        led["kisai"].sort(key=lambda r: (r["title"], r["source"]))
+        r = build(led=led)["records"]["kisai"]
+        self.assertEqual([(x["title"], x["url"]) for x in r], [("提言の構成", "https://example.jp/teigen.pdf#page=2")])
+        rows = [r for r in theme_rows() if r["kind"] != "資料"]
+        self.assertEqual(build(led=led, themes=rows)["records"]["kisai"], [])
+        # about があれば、資料にかかわらず about で決める
+        next(x for x in led["kisai"] if x["title"] == "計画期間")["about"] = "再編の方針"
+        self.assertEqual([x["title"] for x in build(led=led, themes=rows)["records"]["kisai"]], ["計画期間"])
+
+    def test_records_by_point(self):
+        # kotogara は point がテーマの kind 事柄の値、tsunagari は upper か lower がテーマの kind 記載の値（§13.4）
+        rows = [r for r in theme_rows() if not (r["kind"] == "事柄" and r["value"] == "新こども園の定員")
+                and not (r["kind"] == "記載" and r["value"] in ("提言", "再編の方針"))]
+        r = build(themes=rows)["records"]
+        self.assertEqual((r["kotogara"], r["tsunagari"]), ([], []))
+        rows = [r for r in theme_rows() if not (r["kind"] == "記載" and r["value"] == "提言")]
+        self.assertEqual(len(build(themes=rows)["records"]["tsunagari"]), 1)   # lower だけテーマの値
 
     def test_records_kotogara_value(self):
         led = tr.ledgers()
@@ -280,7 +319,7 @@ class ItemsTest(unittest.TestCase):
 
     def test_records_status(self):
         led = tr.ledgers()
-        led["kisai"][0].update(status="candidate", reviewer="", date="")
+        led["kisai"][0].update(status="candidate", reviewer="", date="", source="doc:teigen/1", quote="一頁目の文。")
         led["katei"][0].update(status="rejected", note="下書き：見本。違う")
         led["nozoki"] = [tr.row("nozoki", question=tr.IQ, n="1", sid=f"sp:{sid(2)}", quote="前置きです。", reason="前置き")]
         r = build(led=led)["records"]
@@ -367,9 +406,12 @@ class HitsTest(unittest.TestCase):
 
 
 class SheetsTest(unittest.TestCase):
+    def sheets(self, **kw):
+        return {x["view"]: x for x in build(**kw)["sheets"]}
+
     def test_sheet(self):
-        s = build()["sheets"][0]
-        self.assertEqual((s["program"], s["name"]), ("node:jisshi/e008", "認定こども園整備事業"))
+        s = self.sheets()[tr.P]
+        self.assertEqual((s["view"], s["view_kind"], s["name"]), (tr.P, "事業", "認定こども園整備事業"))
         self.assertEqual([(x["ref"], x["text"], x["url"]) for x in s["kadai"]],
                          [("plan:youho/hoshin/challenges/1/1", "① 人口減少", "https://example.jp/youho.pdf#page=20"),
                           ("plan:youho/hoshin/challenges/1/2", "② 保育ニーズの変化", "https://example.jp/youho.pdf#page=20")])
@@ -377,19 +419,62 @@ class SheetsTest(unittest.TestCase):
         self.assertEqual(s["desc"][0]["text"], "新こども園を整備する。")
         self.assertEqual([x["text"] for x in s["vision"]], ["めざす姿:どの子も健やかに"])
         self.assertEqual([x["ref"] for x in s["kotogara"]],
-                         [f"records/kotogara/hoiku/新こども園の定員/sp:{sid(4)}/定員は285人です。"])
+                         [f"records/kotogara/新こども園の定員/sp:{sid(4)}/定員は285人です。"])
         self.assertEqual([x["ref"] for x in s["katei"]], ["records/katei/hoiku/1"])
-        self.assertEqual(s["tsunagari"], [])   # テーマの定義の記載の source に事業の node キーが無い
+        self.assertEqual(s["tsunagari"], [])   # 記載の行の views にこの見方が無い
+        self.assertEqual(s["shisetsu"], [])    # 施設の行の views にこの見方が無い
         a = {x["ref"]: x["value"] for x in s["asked"]}
         self.assertEqual(a[f"records/yaritori/{tr.IQ}"]["結果"], 2)
         self.assertEqual(a[f"records/shitsugi/{tr.SQ}"]["投入"], 1)
         self.assertEqual(len(a[f"records/yaritori/{tr.IQ}"]), 7)
 
-    def test_tsunagari_by_program(self):
-        rows = [dict(r, source="node:jisshi/e008 の記載") if r["kind"] == "記載" and r["value"] == "再編の方針" else r
-                for r in theme_rows()]
-        s = build(themes=rows)["sheets"][0]
-        self.assertEqual([x["ref"] for x in s["tsunagari"]], ["records/tsunagari/hoiku/もとにした/提言/再編の方針/doc:teigen/2"])
+    def test_theme_sheet(self):
+        # テーマ自体の見方：テーマの行を全部。cost・desc は空（§13.1）
+        s = self.sheets()["hoiku"]
+        self.assertEqual((s["view_kind"], s["name"]), ("テーマ", "幼児教育・保育施設の再編"))
+        self.assertEqual((s["cost"], s["desc"]), ([], []))
+        self.assertEqual(len(s["kotogara"]), 1)
+        self.assertEqual([x["ref"] for x in s["tsunagari"]], ["records/tsunagari/もとにした/提言/再編の方針/doc:teigen/2"])
+        self.assertEqual([x["ref"] for x in s["shisetsu"]], ["records/shisetsu/fa:a/役割/doc:teigen/1/一頁目の文。"])
+        self.assertEqual(len(s["kadai"]), 2)
+
+    def test_tsunagari_by_view(self):
+        rows = with_views(theme_rows(), **{"記載/再編の方針": tr.P})
+        s = self.sheets(themes=rows)[tr.P]
+        self.assertEqual([x["ref"] for x in s["tsunagari"]], ["records/tsunagari/もとにした/提言/再編の方針/doc:teigen/2"])
+
+    def test_plan_and_facility_views(self):
+        # 期の計画の見方：その計画の課題だけ。施設の見方：その施設の記録（facility が見方のキーそのもの）（§13.1）
+        d = make_data()
+        d.inp.plans_in_lineage |= {"youho"}
+        rows = with_views(theme_rows(), **{"記載/提言": "plan:youho", "施設/fa:a": "fa:a"})
+        sh = {x["view"]: x for x in build(themes=rows, d=d)["sheets"]}
+        self.assertEqual(list(sh), ["fa:a", tr.P, "plan:youho", "hoiku"])
+        p = sh["plan:youho"]
+        self.assertEqual((p["view_kind"], p["name"], len(p["kadai"]), p["cost"]), ("期の計画", "再編整備計画", 2, []))
+        self.assertEqual(len(p["tsunagari"]), 1)
+        self.assertEqual(p["kotogara"], [])
+        f = sh["fa:a"]
+        self.assertEqual((f["view_kind"], f["name"]), ("施設", "見本園"))
+        self.assertEqual([x["ref"] for x in f["shisetsu"]], ["records/shisetsu/fa:a/役割/doc:teigen/1/一頁目の文。"])
+
+    def test_kadai_only_plan(self):
+        d = make_data()
+        d.plans["kodomo"] = dict(PLAN_YOUHO, id="kodomo")
+        rf = refs()
+        rf["lineage"].append({"series": "kodomo", "edition": "3", "plan": "kodomo", "name": "子ども計画", "start_fy": "2025",
+                              "end_fy": "2029", "source": "", "note": ""})
+        rows = with_views(theme_rows(), **{"記載/提言": "plan:youho"})
+        sh = {x["view"]: x for x in build(themes=rows, d=d, rf=rf)["sheets"]}
+        self.assertEqual({x["ref"].split("/")[0] for x in sh["plan:youho"]["kadai"]}, {"plan:youho"})
+        self.assertEqual({x["ref"].split("/")[0] for x in sh["hoiku"]["kadai"]}, {"plan:youho", "plan:kodomo"})
+
+    def test_unknown_view_stops(self):
+        for views in ({"事柄/新こども園の定員": "node:jisshi/e009"}, {"記載/提言": "plan:kodomo"},
+                      {"記載/提言": "fa:b"}):
+            with self.subTest(views=views):
+                with self.assertRaisesRegex(bt.BuildError, "の views の .* が、テーマの事業／系列の計画／施設に無い"):
+                    build(themes=with_views(theme_rows(), **views))
 
     def test_empty_url(self):
         d = build()
@@ -438,7 +523,13 @@ class IssuesTest(unittest.TestCase):
         self.assertEqual(y[0]["statement"],
                          "新こども園の用地は、2025年3月の「提言」では令和10年度（予定）、2026年6月の「提言」では令和１１年度（予定）、"
                          "2026年7月の「提言」では令和11年4月（変更）。変更理由として「品質を優先して見直しました。」")
-        self.assertEqual((y[0]["scope"], y[0]["program"], len(y[0]["refs"])), ("事業", "node:jisshi/e008", 4))
+        self.assertEqual((y[0]["scope"], y[0]["view"], len(y[0]["refs"])), ("見方", "node:jisshi/e008", 4))
+        # 点の views が1つに決まらなければテーマ（§13.2）
+        d = make_data()
+        d.inp.plans_in_lineage |= {"youho"}
+        rows = with_views(theme_rows(), **{"事柄/新こども園の用地": f"{tr.P},plan:youho", "記載/提言": "plan:youho"})
+        y = [x for x in build(led=led, themes=rows, d=d)["issues"] if x["type"] == "予定の変更"]
+        self.assertEqual((y[0]["scope"], y[0]["view"]), ("テーマ", ""))
 
     def test_yotei_same_year_is_not_change(self):
         led = tr.ledgers()
@@ -493,8 +584,11 @@ class IssuesTest(unittest.TestCase):
         rf = refs()
         rf["fuhyo"] = []
         y = [x for x in issues(rf=rf) if x["type"] == "計画と予算"]
-        self.assertEqual([(x["statement"], x["scope"], x["program"]) for x in y],
-                         [("認定こども園整備事業は実施年度に令和8年度があるが、令和8年度の附表に当たる事業が無い", "事業", "node:jisshi/e008")])
+        self.assertEqual([(x["statement"], x["scope"], x["view"]) for x in y],
+                         [("認定こども園整備事業は実施年度に令和8年度があるが、令和8年度の附表に当たる事業が無い", "見方", "node:jisshi/e008")])
+
+    def test_scope_theme(self):
+        self.assertEqual({(x["scope"], x["view"]) for x in issues()}, {("テーマ", "")})
 
     def test_unconfirmed_prefix(self):
         led = tr.ledgers()

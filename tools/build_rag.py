@@ -1,10 +1,11 @@
-"""持ち込み用の資料 build/rag/<theme>-<事業の番号>-honpen・-kiroku（.md と .docx）と -prompt.md を作る
-（LINK_SCHEMA.md §17、DESIGN.md ADR-26）。
+"""持ち込み用の資料 build/rag/<theme>-<見方の名前>-honpen・-kiroku（.md と .docx）と -prompt.md を作る
+（LINK_SCHEMA.md §17、DESIGN.md ADR-26・ADR-31）。
 
 build/theme/<theme>.json（tools/build_theme.py が作る。§13）だけを読み、lock の版の入力は読まない。
 標準ライブラリだけで作る（DOCX は zipfile と XML で書く。圧縮しない）。同じデータからは、どの環境でも同じファイルができる。
 
-実行: python3 -B tools/build_rag.py <theme> <node キー>（例 hoiku node:jisshi/e008）
+実行: python3 -B tools/build_rag.py <theme> <見方のキー>（例 hoiku node:jisshi/e008）
+見方のキーは node・plan・fa のキーか、テーマの id（テーマ全体）。見方の名前は tools/build_pages.py と同じ（§16）。
 終了コード：0 は作った。1 は止めた（理由を表示する）。
 """
 import hashlib
@@ -16,6 +17,7 @@ import zipfile
 from xml.sax.saxutils import escape
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import build_pages  # noqa: E402
 import records  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,12 +25,13 @@ ROOT = os.path.dirname(HERE)
 THEME_DIR = os.path.join(ROOT, "build", "theme")
 OUT_DIR = os.path.join(ROOT, "build", "rag")
 PROMPT = os.path.join(ROOT, "prompts", "shisaku1-common-v2.md")
-RE_NODE = re.compile(r"node:([a-z0-9_-]+)/(e[0-9]+)")
 RE_DATE = re.compile(r"([0-9]{4})-([0-9]{2})(?:-([0-9]{2}))?")
 RE_YM = re.compile(r"(令和|平成)?(元|[0-9]+)年([0-9]{1,2})月")
 ERA = {"令和": 2018, "平成": 1988}
 CONFIRMED = "確定"
 NONE = "町の資料に記載なし"
+NOREC = "未記録"
+PROGRAM = "事業"
 # 表示の言葉（LINK_SCHEMA §16.3）
 KIND = {"留保": "今後検討", "考えていない": "予定なし", "事実・数字": "事実・数値", "方針・考え": "方針・考え方",
         "数字・見込み": "数値・見込み", "提案への考え": "提案への見解"}
@@ -115,30 +118,48 @@ class Doc:
         return re.sub(r"\n{3,}", "\n\n", out)
 
 
+def kot_ref(r):
+    """事柄の記録の行の参照（LINK_SCHEMA §13.1。行のキーは (point, source, quote)）。"""
+    return "records/kotogara/" + "/".join(str(r[c]) for c in records.KEYS["kotogara"])
+
+
 class Rag:
-    def __init__(self, data, data_bytes, program):
+    def __init__(self, data, data_bytes, view):
         self.d = data
         self.R = data["records"]
+        self.view = view
         self.names = (data.get("names") or {}).get("sources") or {}
         self.fac = (data.get("names") or {}).get("facilities") or {}
-        self.prog = next((p for p in data.get("programs") or [] if p.get("key") == program), None)
-        if self.prog is None:
-            raise RagError(f"テーマ {data.get('theme')} の programs に {program} が無い")
-        self.sheet = next((s for s in data.get("sheets") or [] if s.get("program") == program), None)
-        if self.sheet is None:
-            raise RagError(f"テーマ {data.get('theme')} の sheets に {program} が無い")
-        for k in ("names", "theme_questions"):
+        for k in ("names", "theme_questions", "chushin"):
             if k not in data:
                 raise RagError(f"テーマのノートのデータに {k} が無い（tools/build_theme.py で作り直す）")
+        self.sheet = next((s for s in data.get("sheets") or [] if s.get("view") == view), None)
+        if self.sheet is None:
+            raise RagError(f"テーマ {data.get('theme')} の sheets に見方 {view} が無い")
+        self.view_kind = self.sheet.get("view_kind", "")
+        self.prog = None
+        if self.view_kind == PROGRAM:
+            self.prog = next((p for p in data.get("programs") or [] if p.get("key") == view), None)
+            if self.prog is None:
+                raise RagError(f"テーマ {data.get('theme')} の programs に {view} が無い")
         self.sha = hashlib.sha256(data_bytes).hexdigest()
-        self.pname = self.prog["name"]
-        self.bud = next((b for b in data.get("budget") or [] if b.get("program") == program), None)
-        self.pol = next((p for p in data.get("policies") or [] if p.get("kind") == "基本施策"), None)
-        self.kot = {}
-        for r in self.R.get("kotogara") or []:
-            if r.get("program") in (program, ""):
+        self.pname = self.sheet.get("name") or view
+        self.bud = next((b for b in data.get("budget") or [] if b.get("program") == view), None) if self.prog else None
+        pkey = (self.prog or {}).get("policy")
+        self.pol = next((p for p in data.get("policies") or [] if pkey and p.get("key") == pkey), None)
+        # 事柄の範囲（LINK_SCHEMA §16.2・§17.2）：その見方の事柄と、テーマ全体の事柄（テーマ以外のどの見方のシートにも無い点）
+        refs = {x["ref"] for x in self.sheet.get("kotogara") or []}
+        others = {x["ref"] for s in data.get("sheets") or [] if s.get("view_kind") != "テーマ" for x in s.get("kotogara") or []}
+        rows = self.R.get("kotogara") or []
+        self.view_points = {r["point"] for r in rows if kot_ref(r) in refs}
+        other_points = {r["point"] for r in rows if kot_ref(r) in others}
+        self.theme_points = {r["point"] for r in rows} - other_points - self.view_points
+        self.kot, self.kot_all = {}, {}
+        for r in rows:
+            self.kot_all.setdefault(r["point"], []).append(r)     # 記録編はテーマの全行（§17.3）
+            if self.in_scope(r):
                 self.kot.setdefault(r["point"], []).append(r)
-        for rows in self.kot.values():
+        for rows in list(self.kot.values()) + list(self.kot_all.values()):
             rows.sort(key=lambda r: (r["source_date"], r["source"]))
         # 会議録の発言の回：やりとりの記録の確定した行の round（LINK_SCHEMA §17.1）
         self.rounds = {}
@@ -151,6 +172,10 @@ class Rag:
         self.doc_dates = {x.get("id"): x.get("date") or "" for x in data.get("docs") or [] if x.get("id")}
 
     # ---- 共通 ----
+    def in_scope(self, r):
+        """事柄の記録の行が、この見方の本編に出る範囲か（その見方の事柄か、テーマ全体の事柄）。"""
+        return r["point"] in self.view_points or r["point"] in self.theme_points
+
     def name(self, key):
         return self.names.get(key, key)
 
@@ -228,7 +253,7 @@ class Rag:
 
     def none_text(self, p):
         """町の資料の行が無い事柄（LINK_SCHEMA §17.1）。"""
-        n = sum(1 for r in self.kot.get(p) or [] if r["source"].startswith("sp:"))
+        n = sum(1 for r in self.kot_all.get(p) or [] if r["source"].startswith("sp:"))
         return f"{NONE}（会議録の発言 {n} 件）"
 
     def ref_date(self, r):
@@ -294,12 +319,12 @@ class Rag:
         def key(p):
             d = doc_date(p)
             return (0 if d else 1, "".join(chr(0x10FFFF - ord(c)) for c in d), -len(self.kot[p]), p)
-        prog = sorted({p for p, rows in self.kot.items() if any(r.get("program") for r in rows)}, key=key)
-        theme = sorted({p for p, rows in self.kot.items() if not any(r.get("program") for r in rows)}, key=key)
-        return prog + theme
+        view = sorted((p for p in self.kot if p in self.view_points), key=key)
+        theme = sorted((p for p in self.kot if p not in self.view_points), key=key)
+        return view + theme
 
     def latest(self, p):
-        base = [r for r in self.kot[p] if not r["source"].startswith("sp:")]
+        base = [r for r in self.kot_all[p] if not r["source"].startswith("sp:")]
         if not base:
             return None
         d = base[-1]["source_date"]
@@ -317,26 +342,57 @@ class Rag:
                           [("資料の種類", self.kind_of(r["source"])), ("回", self.round_of(r["source"])), ("値", r.get("value")), ("対象の時期", r.get("target")),
                            ("書き方", r.get("kind")), ("変更前", r.get("prev"))], r.get("layer"))
 
+    def youten(self, doc):
+        """本編の章1：見方の要点（LINK_SCHEMA §14 の overview・§17.2 の1）。どの段落も出典つき。"""
+        P, d = self.prog, self.d
+        if P:
+            doc.h(1, f"{self.pname}（本編）：1 事業の要点")
+            yrs = [int(str(y).lstrip("R")) for y in P.get("years") or [] if str(y).lstrip("R").isdigit()]
+            pd = posted_date(P.get("posted"))
+            doc.p(self.entry(pd, "実施計画", P.get("desc"), P.get("source"),
+                             [("事業名", self.pname), ("分野", f"{P.get('field_no', '')} {P.get('field_name', '')}".strip())]).replace("［日付不明］", ""))
+            if P.get("cost"):
+                c = P["cost"]
+                span = f"令和{yrs[0]}〜{yrs[-1]}年度" if yrs else ""
+                doc.p(f"{'［' + jd(pd) + '］' if pd else ''}実施計画：{c.get('label')}（{span}）：{c.get('amount'):,}{c.get('unit')}（出典：{P.get('source')}）")
+            if self.bud:
+                b = self.bud
+                fy = (re.match(r"fh:fuhyo-r(\d+)/", b["key"]) or [None, ""])[1]
+                doc.p(f"令和{fy}年度当初予算の附表：{b.get('name')}：当初予算額 {b.get('amount'):,}{b.get('unit')}。区分：{'・'.join(b.get('kubun') or []) or 'なし'}。担当課：{'・'.join(b.get('dept') or [])}（出典：{b.get('url')}）")
+            if self.pol:
+                gd = posted_date(self.pol.get("posted"))
+                doc.p(f"{'［' + jd(gd) + '］' if gd else ''}総合計画：{P.get('field_no')} {P.get('field_name')}／基本施策{self.pol.get('no')} {self.pol.get('name')}"
+                      f"（出典：{self.pol.get('source') or self.pol.get('url')}）")
+            return
+        doc.h(1, f"{self.pname}（本編）：1 見方の要点")
+        if self.view_kind == "期の計画":
+            pl = next((x for x in d.get("plans") or [] if x.get("key") == self.view), {})
+            pd = posted_date(pl.get("posted"))
+            doc.p(f"{'［' + jd(pd) + '］' if pd else ''}計画：{pl.get('name')}。計画期間：{pl.get('start_fy')}〜{pl.get('end_fy')}年度"
+                  f"{'。策定・改正：' + pl['posted'] if pl.get('posted') else ''}（出典：{pl.get('url')}）")
+            for k in self.sheet.get("kadai") or []:
+                doc.p(self.kadai_line(k))
+        elif self.view_kind == "施設":
+            f = self.fac.get(self.view) or {}
+            states = sorted((r for r in self.R.get("shisetsu") or [] if r["facility"] == self.view and r.get("aspect") == "状態"),
+                            key=lambda r: (r["source_date"], r["source"]))
+            doc.p(f"施設：{f.get('name') or self.pname}。地区：{f.get('district') or NOREC}")   # 参照表の名前。出典の url は無い
+            if states:
+                doc.p("いまの状態：" + self.shisetsu_entry(states[-1]))
+            else:
+                doc.p(f"いまの状態：{NOREC}")
+        else:
+            plans = "、".join(f"{x.get('name')}（出典：{x.get('url')}）" for x in d.get("plans") or []) or NOREC
+            ch = d.get("chushin") or ""
+            sh = next((s for s in d.get("sheets") or [] if s.get("view") == ch and s.get("view_kind") != "テーマ"), None)
+            doc.p(f"テーマ：{d.get('name')}")   # 参照表の名前。出典の url は無い
+            doc.p(f"系列の計画：{plans}")
+            doc.p(f"中心の見方：{(sh['name'] + '（' + ch + '）') if sh else (ch or NOREC)}")
+
     def honpen(self):
-        doc, P, d = Doc(), self.prog, self.d
+        doc, d = Doc(), self.d
         self.guide(doc, "本編")
-        doc.h(1, f"{self.pname}（本編）：1 事業の要点")
-        yrs = [int(str(y).lstrip("R")) for y in P.get("years") or [] if str(y).lstrip("R").isdigit()]
-        pd = posted_date(P.get("posted"))
-        doc.p(self.entry(pd, "実施計画", P.get("desc"), P.get("source"),
-                         [("事業名", self.pname), ("分野", f"{P.get('field_no', '')} {P.get('field_name', '')}".strip())]).replace("［日付不明］", ""))
-        if P.get("cost"):
-            c = P["cost"]
-            span = f"令和{yrs[0]}〜{yrs[-1]}年度" if yrs else ""
-            doc.p(f"{'［' + jd(pd) + '］' if pd else ''}実施計画：{c.get('label')}（{span}）：{c.get('amount'):,}{c.get('unit')}（出典：{P.get('source')}）")
-        if self.bud:
-            b = self.bud
-            fy = (re.match(r"fh:fuhyo-r(\d+)/", b["key"]) or [None, ""])[1]
-            doc.p(f"令和{fy}年度当初予算の附表：{b.get('name')}：当初予算額 {b.get('amount'):,}{b.get('unit')}。区分：{'・'.join(b.get('kubun') or []) or 'なし'}。担当課：{'・'.join(b.get('dept') or [])}（出典：{b.get('url')}）")
-        if self.pol:
-            gd = posted_date(self.pol.get("posted"))
-            doc.p(f"{'［' + jd(gd) + '］' if gd else ''}総合計画：{P.get('field_no')} {P.get('field_name')}／基本施策{self.pol.get('no')} {self.pol.get('name')}"
-                  f"（出典：{self.pol.get('source') or self.pol.get('url')}）")
+        self.youten(doc)
 
         doc.h(1, f"{self.pname}（本編）：2 概要")
         doc.h(2, f"{self.pname}：主な事項")
@@ -367,7 +423,7 @@ class Rag:
         for x in d.get("exchanges") or []:
             ev.append((x["date"], self.exchange_line(x)))
         for r in self.R.get("kotogara") or []:
-            if r.get("kind") == "変更" and r.get("program") in (P["key"], ""):
+            if r.get("kind") == "変更" and self.in_scope(r):
                 ev.append((r["source_date"], self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
                                                         [("予定の変更", r["point"]), ("変更前", r.get("prev")), ("変更後", r.get("target"))], r.get("layer"))))
         for _, t in sorted(ev, key=lambda e: (e[0] == "", e[0], e[1])):
@@ -472,7 +528,7 @@ class Rag:
         for q in self.R.get("shitsugi") or []:
             add(q["date"], f"議案質疑：{q.get('meeting')}　質問者：{q['member'].get('name')} 議員（出典：{(q.get('rows') or [{}])[0].get('url')}）")
         for r in self.R.get("kotogara") or []:
-            if r.get("kind") in ("予定", "変更") and r.get("program") in (P["key"], ""):
+            if r.get("kind") in ("予定", "変更") and self.in_scope(r):
                 add(r["source_date"], f"予定の記載：{r['point']}：{r.get('target') or r.get('value') or ''}{'（変更）' if r.get('kind') == '変更' else ''}（出典：{r.get('url')}）")
         for y in sorted(years):
             doc.h(3, f"{self.pname}：年度ごとの節目：{fy_name(y)}")
@@ -579,9 +635,9 @@ class Rag:
         for name, label in LEDGER_NAMES:
             doc.h(1, f"{self.pname}（記録編）：{label}")
             if name == "kotogara":
-                for p in sorted(self.kot):
+                for p in sorted(self.kot_all):
                     doc.h(2, f"{self.pname}：記録：事柄：{p}")
-                    for r in self.kot[p]:
+                    for r in self.kot_all[p]:
                         doc.li(self.kot_entry(r))
                     doc.end_list()
             elif name == "shisetsu":
@@ -695,33 +751,34 @@ def prompt_text(path=PROMPT):
     return t.split("\n---\n", 1)[1].lstrip("\n")
 
 
-def build(data_bytes, program):
+def build(data_bytes, view):
     data = json.loads(data_bytes.decode("utf-8"))
-    r = Rag(data, data_bytes, program)
+    r = Rag(data, data_bytes, view)
     return r.honpen().markdown(), r.kiroku().markdown()
 
 
 def main(argv):
     if len(argv) != 3:
-        print("使い方: python3 -B tools/build_rag.py <theme> <node キー>", file=sys.stderr)
+        print("使い方: python3 -B tools/build_rag.py <theme> <見方のキー>（node・plan・fa のキーか、テーマの id）", file=sys.stderr)
         return 1
-    theme, program = argv[1], argv[2]
+    theme, view = argv[1], argv[2]
     src = os.path.join(THEME_DIR, f"{theme}.json")
     try:
-        m = RE_NODE.fullmatch(program)
-        if not m:
-            raise RagError(f"node キーの形でない：{program}")
+        try:
+            vname = build_pages.view_name(theme, view)
+        except build_pages.PageError as e:
+            raise RagError(str(e))
         if not os.path.exists(src):
             raise RagError(f"{os.path.relpath(src, ROOT)} が無い（先に tools/build_theme.py {theme} を動かす）")
         with open(src, "rb") as f:
             data_bytes = f.read()
-        honpen, kiroku = build(data_bytes, program)
+        honpen, kiroku = build(data_bytes, view)
         prompt = prompt_text()
     except RagError as e:
         print(f"止めた：{e}", file=sys.stderr)
         return 1
     os.makedirs(OUT_DIR, exist_ok=True)
-    base = os.path.join(OUT_DIR, f"{theme}-{m.group(2)}")
+    base = os.path.join(OUT_DIR, f"{theme}-{vname}")
     outs = []
     for part, md in (("honpen", honpen), ("kiroku", kiroku)):
         with open(f"{base}-{part}.md", "w", encoding="utf-8", newline="\n") as f:

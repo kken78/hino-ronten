@@ -64,6 +64,22 @@ class RunOyoTest(unittest.TestCase):
         self.assertEqual(e["CLAUDE_CODE_DISABLE_CLAUDE_MDS"], "1")
         self.assertEqual(e["PATH"], "/bin")
 
+    def test_view_option(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "build", "theme"))
+            with open(os.path.join(tmp, "build", "theme", "hoiku.json"), "w") as f:
+                f.write("{}")
+            with mock.patch.object(ro, "ROOT", tmp), mock.patch.object(shutil, "which", return_value="/bin/claude"), \
+                    mock.patch.object(ro.subprocess, "run") as run:
+                run.return_value = mock.Mock(stdout="abc1234\n")
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = ro.main(["run_oyo.py", "--run", "t2", "--dry-run", "--view", "plan:kaigo9", "--convs", "B",
+                                  "--common", os.path.join(ro.HERE, "..", "prompts", "shisaku1-common-v3.md"),
+                                  "--oyo", os.path.join(ro.HERE, "..", "prompts", "shisaku1-oyo-v7.md")])
+            self.assertEqual(rc, 0)
+            self.assertIn("見方 plan:kaigo9", buf.getvalue())
+
     def test_body(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = os.path.join(tmp, "p.md")
@@ -94,6 +110,7 @@ class RunOyoTest(unittest.TestCase):
             for name in ("opus-A", "sonnet-A", "opus-D", "sonnet-D"):
                 self.assertIn(name, out)
             self.assertEqual(run.call_count, 1)          # git rev-parse だけ。claude は呼ばない
+            self.assertIn("見方 node:jisshi/e008", out)   # --view の既定
 
 
 if __name__ == "__main__":

@@ -155,6 +155,25 @@ class ToolTest(unittest.TestCase):
         self.assertIn("- 総合計画のめざす姿：「どの子も育つまち」", text)
         self.assertIn("- 再編整備計画 18〜19ページに掲げる課題：「① 出生数の減少」（出典：https://example.jp/youho.pdf#page=20）", text)
 
+    def test_overview_views(self):
+        # 見方が事業でないときは「見方の要点」（§14）。止まらず、名前が出る
+        for view, want in (("plan:youho", "計画：再編整備計画。計画期間：2024〜2029年度"), ("fa:f1", "施設：日野幼稚園。地区：日野"),
+                           ("hoiku", "中心の見方：認定こども園整備事業（node:jisshi/e008）")):
+            with self.subTest(view=view):
+                text, err = call(mr.Server(data(), view, WORDS, SPEECHES), "overview")
+                self.assertFalse(err)
+                self.assertIn("## 見方の要点\n", text)
+                self.assertNotIn("## 事業の要点", text)
+                self.assertIn(want, text)
+                self.assertNotIn("当初予算額", text)
+        text, _ = call(server(), "overview")
+        self.assertIn("## 事業の要点\n", text)
+
+    def test_tools_list_description(self):
+        r = server().handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        d = r["result"]["tools"][0]["description"]
+        self.assertIn("見方の要点（事業のときは事業名・概算事業費・当初予算額・総合計画の位置）", d)
+
     def test_theme_words(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = os.path.join(tmp, "themes.tsv")

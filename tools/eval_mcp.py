@@ -6,7 +6,7 @@
 道具が返しうる文は、tools/mcp_ronten.py の道具（overview・links・issues・council・topic・speeches と、すべての記載）を
 その場で呼んで集める。標準ライブラリだけ。
 
-実行: python3 -B tools/eval_mcp.py <回の名前> [--theme hoiku] [--program node:jisshi/e008]
+実行: python3 -B tools/eval_mcp.py <回の名前> [--theme hoiku] [--view node:jisshi/e008]（--view は見方のキー）
       → build/eval/<回の名前>/check.md
 終了コード：0 は書いた。1 は止めた。
 """
@@ -41,7 +41,7 @@ def collect(server):
     """道具が返しうる文を1つの文字列にする。"""
     out = [server.t_overview({}), server.t_links({}), server.t_issues({}), server.t_council({})]
     out += [server.t_issues({"type": t}) for t in sorted({x["type"] for x in server.d.get("issues") or []})]
-    names = set(server.r.kot) | {it["key"] for it in server.items.values() if it["key"]}
+    names = set(server.r.kot_all) | {it["key"] for it in server.items.values() if it["key"]}
     for n in sorted(names):
         try:
             out.append(server.t_topic({"name": n}))
@@ -159,7 +159,7 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("run")
     ap.add_argument("--theme", default="hoiku")
-    ap.add_argument("--program", default="node:jisshi/e008")
+    ap.add_argument("--view", default="node:jisshi/e008")
     a = ap.parse_args(argv[1:])
     d = os.path.join(ROOT, "build", "eval", a.run)
     files = sorted(glob.glob(os.path.join(d, "*-*.md")))
@@ -170,7 +170,7 @@ def main(argv):
     try:
         with open(os.path.join(mr.THEME_DIR, f"{a.theme}.json"), "rb") as f:
             raw = f.read()
-        server = mr.Server(raw, a.program, mr.theme_words(mr.THEMES_TSV, a.theme), mr.load_speeches(json.loads(raw)))
+        server = mr.Server(raw, a.view, mr.theme_words(mr.THEMES_TSV, a.theme), mr.load_speeches(json.loads(raw)))
     except (OSError, ValueError) as e:
         print(f"止めた：{e}", file=sys.stderr)
         return 1

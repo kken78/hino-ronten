@@ -5,7 +5,7 @@
 ほかの MCP・ファイル・コマンド・ウェブは使わせない。CLAUDE.md とメモリは読ませない。2つのモデルの会話を同時に進める。
 標準ライブラリだけ。リポジトリの build/ のほかには何も書かない（--copy-to を渡したときの写しを除く）。
 
-実行: python3 -I -B tools/run_oyo.py --run <回の名前> [--models opus,sonnet] [--convs A,B,C,D] [--jobs 4]
+実行: python3 -I -B tools/run_oyo.py --run <回の名前> [--models opus,sonnet] [--convs A,B,C,D] [--jobs 4] [--view <見方のキー>]
           [--common <共通の指示>] [--oyo <応用編の指示>] [--copy-to <まとめの写しを置くフォルダ>] [--dry-run]
       → build/eval/<回の名前>/<モデル>-<会話>.md・.meta.json・.t<番号>.jsonl・.mcp.jsonl、summary.md、all.md
       --dry-run は、行うことを表示するだけで、何も書かない
@@ -122,7 +122,7 @@ def run_conv(a, prompt, reqs, model, conv):
     os.makedirs(work, exist_ok=True)
     with open(cfg, "w", encoding="utf-8") as f:
         json.dump({"mcpServers": {"ronten": {
-            "command": "python3", "args": ["-B", os.path.join(HERE, "mcp_ronten.py"), a.theme, a.program, "--log", out + ".mcp.jsonl"],
+            "command": "python3", "args": ["-B", os.path.join(HERE, "mcp_ronten.py"), a.theme, a.view, "--log", out + ".mcp.jsonl"],
             "env": {"HINO_RONTEN_INPUTS": INPUTS}}}}, f, ensure_ascii=False)
     turns, sid, t_all = [], None, time.time()
     for k, (req, text) in enumerate(reqs, 1):
@@ -164,7 +164,7 @@ def main(argv):
     ap.add_argument("--convs", default="")
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--theme", default="hoiku")
-    ap.add_argument("--program", default="node:jisshi/e008")
+    ap.add_argument("--view", default="node:jisshi/e008")
     ap.add_argument("--common", default=os.path.join(ROOT, "prompts", "shisaku1-common-v3.md"))
     ap.add_argument("--oyo", default=os.path.join(ROOT, "prompts", "shisaku1-oyo-v7.md"))
     ap.add_argument("--copy-to", default="")
@@ -196,7 +196,7 @@ def main(argv):
     with open(theme, "rb") as f:
         theme_sha = sha(f.read())
     info = [f"# {a.run}：応用編の確かめ（docs/eval-shisaku1.md §8）", "",
-            f"- hino-ronten {head}、build/theme/{a.theme}.json {theme_sha[:12]}、事業 {a.program}",
+            f"- hino-ronten {head}、build/theme/{a.theme}.json {theme_sha[:12]}、見方 {a.view}",
             f"- 指示：{os.path.relpath(a.common, ROOT)}（{sha(body(a.common))[:12]}）＋ {os.path.relpath(a.oyo, ROOT)}（{sha(body(a.oyo))[:12]}）",
             f"- 会話：{'・'.join(c + '（' + '→'.join(r for r, _ in all_convs[c]) + '）' for c in convs)}。モデル：{'・'.join(models)}。同時に {a.jobs}",
             "- どの会話も新しい会話で始め、使える道具は ronten の MCP の道具だけ。CLAUDE.md とメモリは読ませない", ""]

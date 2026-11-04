@@ -1,7 +1,10 @@
-"""テーマのノートのデータ build/theme/<theme>.json を作る（LINK_SCHEMA.md §13・§13.3、DESIGN.md ADR-12・ADR-19・ADR-24）。
+"""テーマのノートのデータ build/theme/<theme>.json を作る（LINK_SCHEMA.md §13・§13.3、DESIGN.md ADR-12・ADR-19・ADR-24・ADR-31）。
 
 確定の層の9つの項目（plans・policies・programs・budget・council・exchanges・bills・docs・records）と、
 語の一致（hits）・整理シート（sheets）・論点の候補（issues）を作る（§13.1・§13.2・§13.4）。
+データはテーマの単位で1つ作る。sheets と issues の scope は見方（§2 の見方のキー）の単位で持つ。見方は、
+テーマの定義の kind 事柄・記載・施設の行の views に現れるキーと、テーマ自体である（§13.1、DESIGN.md ADR-31）。
+kotogara・tsunagari・kisai のテーマへの帰属は、テーマの定義の kind 事柄・記載・資料の値で決める（§13.4・§15.6）。
 
 先に tools/records.py の検査（LINK_SCHEMA §11 のテーマの定義・施設の参照表・記録の台帳）をかけ、誤りがあれば作らない。
 入力は inputs.lock.json の版だけを git で読む。台帳と参照表は作業ツリーの版を読み、その sha256 を ledgers に書く。
@@ -273,7 +276,9 @@ def build_policies(d, keys):
     return out
 
 
-def build_programs(d, keys):
+def build_programs(d, keys, policy_of=None):
+    """policy_of：事業の node キー → その事業を views に持つ基本施策の node キー（§13.3。無ければ空）。"""
+    policy_of = policy_of or {}
     out = []
     for key in sorted(keys):
         pid, k = key[5:].split("/")
@@ -284,7 +289,7 @@ def build_programs(d, keys):
             out.append(dict(key=key, plan=f"plan:{pid}", field_no=g.get("no", ""), field_name=g.get("name", ""),
                             name=it.get("name", ""), desc=it.get("desc", ""), years=it.get("years") or [],
                             cost=it.get("cost") or {}, source=plan_pdf(plan), posted=(plan.get("meta") or {}).get("posted", ""),
-                            url=PLAN_PAGE.format(pid), layer=CONFIRMED))
+                            url=PLAN_PAGE.format(pid), layer=CONFIRMED, policy=policy_of.get(key, "")))
     return out
 
 
@@ -438,10 +443,32 @@ def row_out(d, name, r):
     return x
 
 
+def doc_of(key):
+    """資料のキー（doc:<id> か doc:<id>/<ページ>）→ doc:<id>。doc でなければ空。"""
+    m = records.RE_DOC_PAGE.fullmatch(key or "") or records.RE_DOC.fullmatch(key or "")
+    return f"doc:{m.group(1)}" if m else ""
+
+
+def in_theme(name, r, theme, tkeys):
+    """記録の行がテーマに属するか（§13.4）。katei は theme の列、kotogara は point がテーマの kind 事柄の値、
+    tsunagari は upper か lower がテーマの kind 記載の値、kisai は about がテーマの kind 事柄か記載の値。
+    about が空の kisai の行は、source の資料がテーマの kind 資料にあれば属する（§15.6）。"""
+    if name == "katei":
+        return r["theme"] == theme
+    if name == "kotogara":
+        return r["point"] in tkeys["事柄"]
+    if name == "tsunagari":
+        return r["upper"] in tkeys["記載"] or r["lower"] in tkeys["記載"]
+    if r["about"]:
+        return r["about"] in tkeys["事柄"] or r["about"] in tkeys["記載"]
+    return doc_of(r["source"]) in tkeys["資料"]
+
+
 def build_records(d, ledgers, theme, tkeys):
     out = {}
     for name in ("katei", "kotogara", "tsunagari", "kisai"):
-        out[name] = [row_out(d, name, r) for r in ledgers[name] if r["theme"] == theme and r["status"] != "rejected"]
+        out[name] = [row_out(d, name, r) for r in ledgers[name]
+                     if r["status"] != "rejected" and in_theme(name, r, theme, tkeys)]
     out["shisetsu"] = [row_out(d, "shisetsu", r) for r in ledgers["shisetsu"]
                        if r["facility"] in tkeys["施設"] and r["status"] != "rejected"]
     for name, kind in (("yaritori", "問い"), ("shitsugi", "質疑")):
@@ -625,10 +652,11 @@ def plan_source_url(plan, source):
     return page_url(s.get("url"), int(m.group(2)) + int(s.get("pdf_page_offset") or 0)) if s else ""
 
 
-def challenges_of(d, plans):
+def challenges_of(d, plans, only=""):
+    """系列の計画の課題のブロックの項目（§13.1）。only に plan キーを渡すと、その計画だけ。"""
     out = []
     for p in plans:
-        if not p["key"].startswith("plan:"):
+        if not p["key"].startswith("plan:") or only and p["key"] != only:
             continue
         pid = p["key"][5:]
         plan = d.plans.get(pid) or {}
@@ -654,10 +682,45 @@ def rec_ref(name, r):
                 (r.get("sources") or "").split(",")[0], url=r["url"], layer=r["layer"])
 
 
-def program_names(themes_rows, theme, program):
-    """テーマの定義の kind 事柄・記載のうち、source にこの事業の node キーを書いた値（§13.1 の「この事業にかかわる」）。"""
-    return {r["value"] for r in themes_rows if r["theme"] == theme and r["kind"] in ("事柄", "記載")
-            and program in r["source"]}
+VIEW_KINDS = {"事業": records.RE_NODE, "期の計画": records.RE_PLAN, "施設": records.RE_FA}
+THEME_VIEW = "テーマ"
+
+
+def theme_views(themes_rows, theme):
+    """そのテーマの定義の行の views：(kind, value) → 見方のキーの集まり（§12。テーマの id は含めない）。"""
+    out = {}
+    for r in themes_rows:
+        if r["theme"] == theme and r["kind"] in records.VIEW_KINDS:
+            out.setdefault((r["kind"], r["value"]), set()).update(v for v in records.split_views(r.get("views", "")) if v)
+    return out
+
+
+def view_kind(key, theme):
+    """見方のキーの種類（§2・§13.3）：「事業」「期の計画」「施設」「テーマ」。どれでもなければ空。"""
+    if key == theme:
+        return THEME_VIEW
+    for kind, rx in VIEW_KINDS.items():
+        if rx.fullmatch(key):
+            return kind
+    return ""
+
+
+def sheet_views(views):
+    """見方の並び（§13.1）：kind 事柄・記載・施設の行の views に現れるキー（文字コード順）。テーマ自体は呼ぶ側で最後に足す。"""
+    return sorted({v for (k, _), vs in views.items() if k in ("事柄", "記載", "施設") for v in vs})
+
+
+def program_policies(themes_rows, theme, policies):
+    """事業の node キー → その事業を views に持つ基本施策の node キー（§13.3）。基本施策が2つ以上なら止める。"""
+    kihon = {p["key"] for p in policies if p["kind"] == "基本施策"}
+    out = {}
+    for r in themes_rows:
+        if r["theme"] != theme or r["kind"] != "施策" or r["value"] not in kihon:
+            continue
+        for v in records.split_views(r.get("views", "")):
+            if v and out.setdefault(v, r["value"]) != r["value"]:
+                raise BuildError(f"テーマ {theme} の事業 {v} を views に持つ基本施策が2つ以上ある（{out[v]}・{r['value']}）")
+    return out
 
 
 def stage_counts(rows):
@@ -672,12 +735,38 @@ def group_layer(rows):
     return CONFIRMED if all(r["layer"] == CONFIRMED for r in rows) else UNCONFIRMED
 
 
-SHEET_COLUMNS = ("kadai", "cost", "desc", "vision", "tsunagari", "kotogara", "katei", "asked")
+SHEET_COLUMNS = ("kadai", "cost", "desc", "vision", "tsunagari", "kotogara", "shisetsu", "katei", "asked")
 
 
-def build_sheets(d, data, themes_rows, theme):
+def view_names(d, data, views, theme, tkeys, shisetsu_rows):
+    """見方のキー → (view_kind, name)。views に書いたキーが、テーマの事業・系列の計画・施設に無ければ止める（§13.1）。"""
+    programs = {p["key"]: p["name"] for p in data["programs"]}
+    plans = {p["key"]: p["name"] for p in data["plans"]}
+    fac = {r["key"]: r.get("name", "") for r in shisetsu_rows}
+    out = {}
+    for v in views:
+        kind = view_kind(v, theme)
+        if kind == "事業" and v in programs:
+            out[v] = (kind, programs[v])
+        elif kind == "期の計画" and v in plans:
+            out[v] = (kind, plans[v])
+        elif kind == "施設" and v in tkeys["施設"]:
+            out[v] = (kind, fac.get(v, ""))
+        else:
+            raise BuildError(f"テーマ {theme} の views の {v} が、テーマの事業／系列の計画／施設に無い")
+    out[theme] = (THEME_VIEW, data["name"])
+    return out
+
+
+def build_sheets(d, data, themes_rows, theme, tkeys=None, shisetsu_rows=()):
+    """見方ごとの整理シート（§13.1・§13.3）。"""
+    tkeys = tkeys or theme_keys(themes_rows, theme)
+    for kind in ("施設",):
+        tkeys.setdefault(kind, set())
     R = data["records"]
-    kadai = challenges_of(d, data["plans"])
+    tv = theme_views(themes_rows, theme)
+    views = sheet_views(tv)
+    names = view_names(d, data, views, theme, tkeys, shisetsu_rows)
     vision = [dict(ref=f"policies/{p['key']}", text=line, source=p["source"], url=p["url"], layer=p["layer"])
               for p in data["policies"] if p["kind"] == "分野" for line in p["desc"].split("\n") if line.startswith("めざす姿:")]
     katei = [rec_ref("katei", r) for r in sorted(R["katei"], key=lambda r: int(r["step"]))]
@@ -687,20 +776,31 @@ def build_sheets(d, data, themes_rows, theme):
             asked.append(dict(ref=f"records/{name}/{q['question']}", text=f"{q['date']} {q['meeting']}",
                               value=stage_counts(q["rows"]), source=q["question"], url=d.key_url("sp:" + q["question"][3:]),
                               layer=group_layer(q["rows"])))
+    programs = {p["key"]: p for p in data["programs"]}
     out = []
-    for p in data["programs"]:
-        cost = [dict(ref=f"programs/{p['key']}", value=dict(years=p["years"], cost=p["cost"]), source=p["source"],
-                     url=p["url"], layer=p["layer"])]
-        cost += [dict(ref=f"budget/{b['key']}", value=dict(amount=b["amount"], unit=b["unit"], category=b["category"]),
-                      source=b["key"], url=b["url"], layer=b["layer"]) for b in data["budget"] if b["program"] == p["key"]]
-        desc = [dict(ref=f"programs/{p['key']}", text=p["desc"], source=p["source"], url=p["url"], layer=p["layer"])] \
-            if p["desc"] else []
-        names = program_names(themes_rows, theme, p["key"])
-        tsunagari = [rec_ref("tsunagari", r) for r in R["tsunagari"] if r["upper"] in names or r["lower"] in names]
-        kotogara = [rec_ref("kotogara", r) for r in sorted((r for r in R["kotogara"] if r["program"] == p["key"]),
+    for v in views + [theme]:
+        kind, name = names[v]
+        whole = kind == THEME_VIEW
+
+        def has(k, value):
+            return whole or v in tv.get((k, value), set())
+        kadai = challenges_of(d, data["plans"], v if kind == "期の計画" else "")
+        cost, desc = [], []
+        if kind == "事業":
+            p = programs[v]
+            cost = [dict(ref=f"programs/{p['key']}", value=dict(years=p["years"], cost=p["cost"]), source=p["source"],
+                         url=p["url"], layer=p["layer"])]
+            cost += [dict(ref=f"budget/{b['key']}", value=dict(amount=b["amount"], unit=b["unit"], category=b["category"]),
+                          source=b["key"], url=b["url"], layer=b["layer"]) for b in data["budget"] if b["program"] == p["key"]]
+            desc = [dict(ref=f"programs/{p['key']}", text=p["desc"], source=p["source"], url=p["url"], layer=p["layer"])] \
+                if p["desc"] else []
+        tsunagari = [rec_ref("tsunagari", r) for r in R["tsunagari"] if has("記載", r["upper"]) or has("記載", r["lower"])]
+        kotogara = [rec_ref("kotogara", r) for r in sorted((r for r in R["kotogara"] if has("事柄", r["point"])),
                                                            key=lambda r: (r["point"], r["source_date"], r["source"]))]
-        out.append(dict(program=p["key"], name=p["name"], kadai=kadai, cost=cost, desc=desc, vision=vision,
-                        tsunagari=tsunagari, kotogara=kotogara, katei=katei, asked=asked))
+        shisetsu = [rec_ref("shisetsu", r) for r in sorted((r for r in R["shisetsu"] if has("施設", r["facility"]) or r["facility"] == v),
+                                                           key=lambda r: (r["facility"], r["aspect"], r["source_date"], r["source"]))]
+        out.append(dict(view=v, view_kind=kind, name=name, kadai=kadai, cost=cost, desc=desc, vision=vision,
+                        tsunagari=tsunagari, kotogara=kotogara, shisetsu=shisetsu, katei=katei, asked=asked))
     return out
 
 
@@ -765,10 +865,15 @@ def q_ref(L, name, q):
                 url=L.d.key_url("sp:" + q["question"][3:]), layer=group_layer(q["rows"]))
 
 
-def issue(type_, statement, refs, scope="テーマ", program=""):
+SCOPE_VIEW = "見方"
+SCOPE_THEME = "テーマ"
+
+
+def issue(type_, statement, refs, scope=SCOPE_THEME, view=""):
+    """論点の候補（§13.2・§13.3）。scope は「見方」か「テーマ」、view は scope が見方のときの見方のキー。"""
     if any(r["layer"] == UNCONFIRMED for r in refs):
         statement = "記録（未確認）による。" + statement
-    return dict(type=type_, scope=scope, program=program, statement=statement, refs=refs, layer=ISSUE)
+    return dict(type=type_, scope=scope, view=view, statement=statement, refs=refs, layer=ISSUE)
 
 
 def changed_rows(rows):
@@ -793,7 +898,9 @@ def changed_rows(rows):
     return (picked, rows) if hit else ([], rows)
 
 
-def issues_yotei(L, R):
+def issues_yotei(L, R, views=None):
+    """views：(kind, value) → そのテーマの定義の行の views（theme_views）。"""
+    views = views or {}
     out = []
     groups = {}
     for r in R["kotogara"]:
@@ -810,10 +917,11 @@ def issues_yotei(L, R):
         reasons = [r["reason"] for r in picked if r.get("reason")]
         if reasons:
             s += "。変更理由として「" + "」「".join(reasons) + "」"
-        programs = {r.get("program") for r in rows} if name == "kotogara" else {""}
-        program = programs.pop() if len(programs) == 1 else ""
+        # 事柄の点の views がちょうど1つの見方に決まるときは、その見方。ほかはテーマ（§13.2）
+        vs = views.get(("事柄", k), set()) if name == "kotogara" else set()
+        view = next(iter(vs)) if len(vs) == 1 else ""
         out.append(issue("予定の変更", s, [ref_of(name, r) for r in considered],
-                         scope="事業" if program else "テーマ", program=program))
+                         scope=SCOPE_VIEW if view else SCOPE_THEME, view=view))
     return out
 
 
@@ -982,7 +1090,7 @@ def issues_yosan(data, fuhyo_years):
                 continue
             out.append(issue("計画と予算", f"{p['name']}は実施年度に令和{fy}年度があるが、令和{fy}年度の附表に当たる事業が無い",
                              [dict(ref=f"programs/{p['key']}", text=p["name"], url=p["url"], layer=p["layer"])],
-                             scope="事業", program=p["key"]))
+                             scope=SCOPE_VIEW, view=p["key"]))
     return out
 
 
@@ -990,7 +1098,7 @@ def build_issues(d, data, tk, themes_rows, theme, shisetsu_rows):
     L = Labels(d, shisetsu_rows)
     R = data["records"]
     fuhyo_years = sorted(int(k[len("fuhyo-r"):]) for k in d.fuhyo)
-    return (issues_yotei(L, R) + issues_ryuho(L, R) + issues_kurikaeshi(L, R) + issues_kubun(L, R, tk)
+    return (issues_yotei(L, R, theme_views(themes_rows, theme)) + issues_ryuho(L, R) + issues_kurikaeshi(L, R) + issues_kubun(L, R, tk)
             + issues_toware(L, R, tk, themes_rows, theme) + issues_mokuteki(R) + issues_yakuwari(L, R)
             + issues_yosan(data, fuhyo_years))
 
@@ -1028,6 +1136,7 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
     for kind in records.THEME_KINDS:
         tk.setdefault(kind, set())
     plans = build_plans(d, tk["系列"], refs["lineage"])
+    policies = build_policies(d, tk["施策"])
     plan_keys = {p["key"] for p in plans}
     council = build_council(d, plan_keys, refs["links"])
     exchanges = build_exchanges(d, council, tk["問い"], ledgers["yaritori"])
@@ -1038,8 +1147,8 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
         "lock": {repo: lock[repo]["sha"] for repo in sorted(lock)},
         "ledgers": hashes,
         "plans": plans,
-        "policies": build_policies(d, tk["施策"]),
-        "programs": build_programs(d, tk["事業"]),
+        "policies": policies,
+        "programs": build_programs(d, tk["事業"], program_policies(themes_rows, theme, policies)),
         "budget": build_budget(d, tk["事業"], refs["fuhyo"]),
         "council": council,
         "exchanges": exchanges,
@@ -1048,16 +1157,26 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
         "records": build_records(d, ledgers, theme, tk),
         "hits": {"council": build_hits_council(d, words, council, exchanges, tk), "docs": build_hits_docs(d, words)},
     }
-    data["sheets"] = build_sheets(d, data, themes_rows, theme)
+    data["sheets"] = build_sheets(d, data, themes_rows, theme, tk, shisetsu_rows)
     data["issues"] = build_issues(d, data, tk, themes_rows, theme, shisetsu_rows)
     data["names"] = build_names(d, data, shisetsu_rows)
     data["theme_questions"] = len(tk["問い"])
+    data["chushin"] = chushin(themes_rows, theme)
     archived = archived_sources(d.docs, d.sources_index)
     for x in data["docs"]:
         if x["url"] in archived:
             x["original_url"], x["archived"] = x["url"], archived[x["url"]][1]
     use_archive(data, archived)
     return data
+
+
+def chushin(themes_rows, theme):
+    """題材の中心の見方のキー：kind 名前の行の note の「中心の見方：<キー>」。無ければ空（§12・§13.3）。"""
+    for r in themes_rows:
+        if r["theme"] == theme and r["kind"] == "名前":
+            m = records.RE_CHUSHIN.search(r.get("note") or "")
+            return m.group(1) if m else ""
+    return ""
 
 
 def build_names(d, data, shisetsu_rows):
@@ -1100,7 +1219,7 @@ def check_no_empty_url(data):
         for col in SHEET_COLUMNS:
             for x in sh[col]:
                 if not x["url"]:
-                    bad.append(f"sheets/{sh['program']}/{col}：{x['ref']}")
+                    bad.append(f"sheets/{sh['view']}/{col}：{x['ref']}")
     for i in data["issues"]:
         for x in i["refs"]:
             if not x["url"]:

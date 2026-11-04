@@ -1,11 +1,12 @@
 """MCP の道具：テーマのノートのデータ（build/theme/<theme>.json）を生成AIに読ませる、読み取り専用の stdio サーバー
-（LINK_SCHEMA §14、DESIGN.md ADR-27）。
+（LINK_SCHEMA §14、DESIGN.md ADR-27・ADR-31）。
 
 読むものは、テーマのノートのデータ（§13）、ref/themes.tsv（テーマの語）、lock の版の hino-council-search の
 public/data/index/<年>.json（会議録の本文）だけ。ネットワークを使わない。標準ライブラリだけ。
 記載の書き方は持ち込み用の資料（§17.1、tools/build_rag.py）と同じ。
 
-実行: python3 -B tools/mcp_ronten.py <theme> <node キー> [--log <jsonl>]（例 hoiku node:jisshi/e008）
+実行: python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]（例 hoiku node:jisshi/e008）
+1つのサーバーが1つの見方を扱う。見方のキーは node・plan・fa のキーか、テーマの id（テーマ全体）。
 """
 import csv
 import json
@@ -50,9 +51,9 @@ def theme_words(path, theme):
 
 
 class Server:
-    def __init__(self, data_bytes, program, words=(), speeches=None, log=None):
+    def __init__(self, data_bytes, view, words=(), speeches=None, log=None):
         self.d = json.loads(data_bytes.decode("utf-8"))
-        self.r = br.Rag(self.d, data_bytes, program)
+        self.r = br.Rag(self.d, data_bytes, view)
         self.log = log
         self.items = {}
         self.questions = {}
@@ -128,11 +129,12 @@ class Server:
     # ---- 道具 ----
     def t_overview(self, _):
         d, r = self.d, self.r
+        head = "事業の要点" if r.prog else "見方の要点"
         out = [f"{r.pname}（テーマ「{d.get('name')}」）の資料。{NOTE}",
                f"取り込んだ資料のうち、いちばん新しい記載の資料の日付：{br.jd(r.latest_date())}。それより後のことは資料に無い。", "",
-               "## 事業の要点"]
+               f"## {head}"]
         md = r.honpen().markdown()
-        s = md.index("：1 事業の要点")
+        s = md.index(f"：1 {head}")
         out.append(md[s:md.index("\n# ", s)].split("\n", 1)[1].strip())
         T = d["records"].get("tsunagari") or []
         names = [r.pname]
@@ -215,7 +217,7 @@ class Server:
     def t_topic(self, a):
         name = (a.get("name") or "").strip()
         r, out = self.r, []
-        if name in r.kot:
+        if name in r.kot_all:     # 事柄はテーマの全行から引く（search・fetch と同じ範囲）
             c = r.latest(name)
             out.append(f"## 事柄：{name}")
             if c:
@@ -223,7 +225,7 @@ class Server:
                 out.append(f"町の資料の最新の記載（{br.jd(c['source_date'])}、{r.name(c['source'])}）：{v}（出典：{c.get('url')}）")
                 out.append(f"いまの町の説明（原文。答弁や文書ではこの言い回しを使う）：{r.kot_entry(c)}")
                 if c["source"].startswith(KOHO):
-                    base = [x for x in r.kot[name] if not x["source"].startswith(("sp:", KOHO))]
+                    base = [x for x in r.kot_all[name] if not x["source"].startswith(("sp:", KOHO))]
                     if base:
                         out.append("上は広報ひのの記載。広報ひの以外でいちばん新しい町の資料の記載（時期や数字の書き方が違うときは、両方を資料の日付とともに示す）："
                                    + r.kot_entry(base[-1]))
@@ -295,7 +297,7 @@ class Server:
         return "\n".join(out)
 
     TOOLS = [
-        ("overview", "最初に呼ぶ。事業の要点（事業名・概算事業費・当初予算額・総合計画の位置）、資料の時点、正式な名前、目的の原文、"
+        ("overview", "最初に呼ぶ。見方の要点（事業のときは事業名・概算事業費・当初予算額・総合計画の位置）、資料の時点、正式な名前、目的の原文、"
          "いまの段階、事項・施設・記載の見出し・照合結果の一覧を返す。", {}, "t_overview"),
         ("search", "記載を語で探す。語は空白で区切る（例「開園時期 令和11年」）。kind で種類を絞れる（事柄・施設・つながり・過程・記載・"
          "一般質問・議案質疑・一般質問の一覧・会議録の本文・議案・照合結果）。返すのは id と抜粋。全文は fetch で取る。",
@@ -382,13 +384,14 @@ def main(argv):
         log = args[i + 1]
         del args[i:i + 2]
     if len(args) != 2:
-        print("使い方: python3 -B tools/mcp_ronten.py <theme> <node キー> [--log <jsonl>]", file=sys.stderr)
+        print("使い方: python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]（見方のキーは node・plan・fa のキーか、テーマの id）",
+              file=sys.stderr)
         return 1
-    theme, program = args
+    theme, view = args
     try:
         with open(os.path.join(THEME_DIR, f"{theme}.json"), "rb") as f:
             raw = f.read()
-        server = Server(raw, program, theme_words(THEMES_TSV, theme), load_speeches(json.loads(raw)), log)
+        server = Server(raw, view, theme_words(THEMES_TSV, theme), load_speeches(json.loads(raw)), log)
     except (OSError, br.RagError, ValueError) as e:
         print(f"止めた：{e}", file=sys.stderr)
         return 1

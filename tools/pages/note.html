@@ -159,7 +159,7 @@ td.date,.date{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-s
 </style>
 <div class="wrap">
 <header class="hero">
-  <div class="eyebrow">日野町　事業ノート（試作・非公開）</div>
+  <div class="eyebrow">日野町　ノート（試作・非公開）</div>
   <h1 id="h1"></h1>
   <p class="sub" id="desc"></p>
   <div class="facts" id="facts"></div>
@@ -183,8 +183,9 @@ td.date,.date{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-s
 const RAW=document.getElementById('data').textContent.trim();
 if(RAW==='__DA'+'TA__'){document.querySelector('main').innerHTML='<p class="intro">このファイルは画面のひな形で、データが入っていません。</p>';return;}
 const D=JSON.parse(RAW), P=JSON.parse(document.getElementById('page').textContent), R=D.records;
-const PROG=D.programs.find(p=>p.key===P.program);
-const SHEET=D.sheets.find(s=>s.program===PROG.key);
+/* 見方（LINK_SCHEMA §2・§16）：事業・期の計画・施設・テーマ。PROG は見方が事業のときだけ */
+const SHEET=D.sheets.find(s=>s.view===P.view);
+const PROG=P.view_kind==='事業'?D.programs.find(p=>p.key===P.view):null;
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const A=(url,t)=>url?`<a href="${esc(url)}" target="_blank" rel="noopener">${esc(t)}</a>`:esc(t);
 const lab=k=>(D.names.sources||{})[k]||k;
@@ -199,28 +200,54 @@ const pickers=[];
 function picker(id,items){pickers.push({id,items});return `<div class="picker" role="tablist" id="${id}">${items.map((it,i)=>`<button role="tab" aria-selected="${i===0}" data-i="${i}"><span class="t">${esc(it.title)}</span><span class="v${it.none?' none':''}${it.meta?' meta':''}">${esc(it.value)}</span></button>`).join('')}</div><div class="panel" id="${id}-panel">${items[0]?items[0].render():''}</div>`}
 function bindPickers(){pickers.forEach(p=>{const el=document.getElementById(p.id);if(!el)return;el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-selected',x===b));document.getElementById(p.id+'-panel').innerHTML=p.items[+b.dataset.i].render()})})}
 
-/* 見出し */
-const bud=D.budget.find(b=>b.program===PROG.key);
+/* 見出し：見方の名前と要点（LINK_SCHEMA §16.1） */
+const NOREC='未記録';
+const bud=PROG?D.budget.find(b=>b.program===PROG.key):null;
 const budFy=bud?((bud.key.match(/^fh:fuhyo-r(\d+)\//)||[])[1]||''):'';
-const pol=D.policies.find(p=>p.kind==='基本施策');
-const yrs=(PROG.years||[]).map(y=>+String(y).replace(/^R/,'')).filter(n=>n);
-document.title=`${PROG.name}ノート`;
-document.getElementById('h1').textContent=PROG.name;
-document.getElementById('desc').textContent=PROG.desc||'';
-document.getElementById('facts').innerHTML=
-  (PROG.cost?`<div><span>${esc(PROG.cost.label)}（実施計画${yrs.length?` 令和${yrs[0]}〜${yrs[yrs.length-1]}年度`:''}）</span> <b>${num(PROG.cost.amount)}</b> ${esc(PROG.cost.unit)} ${A(PROG.source,'出典')}</div>`:'')+
-  (bud?`<div><span>令和${esc(budFy)}年度当初予算額</span> <b>${num(bud.amount)}</b> ${esc(bud.unit)} ${A(bud.url,'出典')}</div>`+
-  `<div><span>担当課</span> ${esc((bud.dept||[]).join('・'))} ${A(bud.url,'出典')}</div>`:'')+
-  `<div><span>総合計画</span> ${esc(PROG.field_no)} ${esc(PROG.field_name)}${pol?`／基本施策${esc(pol.no)} ${esc(pol.name)} ${A(pol.url,'出典')}`:''}</div>`;
+document.title=`${P.name}ノート`;
+document.getElementById('h1').textContent=P.name;
+const fact=(label,body)=>`<div><span>${esc(label)}</span> ${body}</div>`;
+let facts='';
+if(PROG){
+  const pol=D.policies.find(p=>p.key===PROG.policy);
+  const yrs=(PROG.years||[]).map(y=>+String(y).replace(/^R/,'')).filter(n=>n);
+  document.getElementById('desc').textContent=PROG.desc||'';
+  facts=(PROG.cost?`<div><span>${esc(PROG.cost.label)}（実施計画${yrs.length?` 令和${yrs[0]}〜${yrs[yrs.length-1]}年度`:''}）</span> <b>${num(PROG.cost.amount)}</b> ${esc(PROG.cost.unit)} ${A(PROG.source,'出典')}</div>`:'')+
+    (bud?`<div><span>令和${esc(budFy)}年度当初予算額</span> <b>${num(bud.amount)}</b> ${esc(bud.unit)} ${A(bud.url,'出典')}</div>`+
+    fact('担当課',`${esc((bud.dept||[]).join('・'))} ${A(bud.url,'出典')}`):'')+
+    fact('総合計画',`${esc(PROG.field_no)} ${esc(PROG.field_name)}${pol?`／基本施策${esc(pol.no)} ${esc(pol.name)} ${A(pol.url,'出典')}`:''}`);
+}else if(P.view_kind==='期の計画'){
+  const pl=D.plans.find(p=>p.key===P.view)||{};
+  facts=fact('計画期間',`${esc(pl.start_fy)}〜${esc(pl.end_fy)}年度 ${A(pl.url,'出典')}`)+
+    fact('策定・改正',esc(pl.posted||NOREC))+
+    fact('課題の記載',SHEET.kadai.length?SHEET.kadai.map(x=>esc(x.text)).join('、')+` ${A(SHEET.kadai[0].url,'出典')}`:NOREC);
+}else if(P.view_kind==='施設'){
+  const f=(D.names.facilities||{})[P.view]||{};
+  const st=R.shisetsu.filter(r=>r.facility===P.view&&r.aspect==='状態').sort((a,b)=>(a.source_date+a.source).localeCompare(b.source_date+b.source)).pop();
+  facts=fact('地区',esc(f.district||NOREC))+
+    fact('状況',st?`${esc(st.value)}${st.target?`（${esc(st.target)}）`:''}${st.kind==='予定'?'（予定）':''}　${esc(jd(st.source_date))} ${A(st.url,lab(st.source))}`:NOREC);
+}else{
+  const ch=D.sheets.find(s=>s.view===D.chushin&&s.view!==D.theme);
+  facts=fact('系列の計画',D.plans.map(p=>A(p.url,p.name)).join('、')||NOREC)+
+    fact('中心の見方',D.chushin?esc(ch?`${ch.name}（${D.chushin}）`:D.chushin):NOREC);
+}
+document.getElementById('facts').innerHTML=facts;
 
 /* 共通：事項ごとの記載 */
-const kot={}; R.kotogara.filter(r=>r.program===PROG.key||!r.program).forEach(r=>(kot[r.point]=kot[r.point]||[]).push(r));
+/* 事柄の範囲（LINK_SCHEMA §16.2）：その見方の事柄と、テーマ全体の事柄（テーマ以外のどの見方のシートにも無い点）。ほかの見方だけの点は出さない */
+const kotRef=r=>['records/kotogara',r.point,r.source,r.quote].join('/');
+const pointsIn=sheets=>{const refs=new Set(sheets.flatMap(sh=>sh.kotogara.map(x=>x.ref)));return new Set(R.kotogara.filter(r=>refs.has(kotRef(r))).map(r=>r.point))};
+const VIEW_POINTS=pointsIn([SHEET]);
+const OTHER_POINTS=pointsIn(D.sheets.filter(sh=>sh.view_kind!=='テーマ'));
+const THEME_POINTS=new Set(R.kotogara.map(r=>r.point).filter(p=>!OTHER_POINTS.has(p)&&!VIEW_POINTS.has(p)));
+const inScope=r=>VIEW_POINTS.has(r.point)||THEME_POINTS.has(r.point);
+const kot={}; R.kotogara.filter(inScope).forEach(r=>(kot[r.point]=kot[r.point]||[]).push(r));
 Object.values(kot).forEach(a=>a.sort((x,y)=>(x.source_date+x.source).localeCompare(y.source_date+y.source)));
-/* 主な事項の並び（LINK_SCHEMA §16.2）：事業の事柄、テーマの単位の事柄の順。それぞれ町の資料の最新の記載の日付が新しい順、同じなら行の数が多い順、それも同じならテーマの定義の順。町の資料の記載が無い事柄は最後 */
+/* 主な事項の並び（LINK_SCHEMA §16.2）：その見方の事柄、テーマ全体の事柄の順。それぞれ町の資料の最新の記載の日付が新しい順、同じなら行の数が多い順、それも同じならテーマの定義の順。町の資料の記載が無い事柄は最後 */
 const docDate=p=>(kot[p]||[]).filter(r=>!r.source.startsWith('sp:')).map(r=>r.source_date).sort().pop()||'';
 const cmpPoint=(a,b)=>{const da=docDate(a),db=docDate(b);if(!da!==!db)return da?-1:1;if(da!==db)return da<db?1:-1;if(kot[a].length!==kot[b].length)return kot[b].length-kot[a].length;return a<b?-1:a>b?1:0};
 const pointsOf=f=>[...new Set(R.kotogara.filter(f).map(r=>r.point))].sort(cmpPoint);
-const ORDER=pointsOf(r=>r.program===PROG.key).concat(pointsOf(r=>!r.program));
+const ORDER=pointsOf(r=>VIEW_POINTS.has(r.point)).concat(pointsOf(r=>THEME_POINTS.has(r.point)));
 /* カードの値：町の資料の最新の記載の value（無ければ target）。町の資料の記載が無ければ null */
 function latest(p){const base=(kot[p]||[]).filter(r=>!r.source.startsWith('sp:'));if(!base.length)return null;const d=base[base.length-1].source_date;const last=base.filter(r=>r.source_date===d);return last.find(r=>(r.value||r.target)&&r.kind!=='変更')||last.find(r=>r.value||r.target)||last[last.length-1]}
 const NONE='町の資料に記載なし';
@@ -251,7 +278,7 @@ function gaiyo(){
   R.katei.forEach(k=>ev.push({d:k.from||'',c:'',h:`${k.cycle?esc('期：'+k.cycle+'。'):''}<b>${esc(k.name)}</b>${k.to&&k.to!==k.from?`<span class="note">（〜${esc(jd(k.to))}）</span>`:''}${!k.to&&k.from?'<span class="note">（継続中）</span>':''}　${A(k.url,'資料')}`,cur:!k.to&&k.from}));
   D.bills.forEach(b=>ev.push({d:b.date,c:'k-gikai',h:`<span class="tag">議決</span> ${A(b.url,b.title)}　${esc(b.result)}`}));
   exByMeeting().forEach(g=>ev.push({d:g.d,c:'k-gikai',h:`<span class="tag">一般質問</span> ${esc(g.m)}　${exLinks(g)}`}));
-  R.kotogara.filter(r=>r.kind==='変更').forEach(r=>ev.push({d:r.source_date,c:'k-change',h:`<span class="tag">予定の変更</span> ${esc(r.point)}：${esc(r.prev)} → ${esc(r.target)}　${A(r.url,'資料')}`}));
+  R.kotogara.filter(r=>r.kind==='変更'&&inScope(r)).forEach(r=>ev.push({d:r.source_date,c:'k-change',h:`<span class="tag">予定の変更</span> ${esc(r.point)}：${esc(r.prev)} → ${esc(r.target)}　${A(r.url,'資料')}`}));
   const list=ev.filter(e=>e.d).sort((a,b)=>a.d.localeCompare(b.d)).concat(ev.filter(e=>!e.d));
   o.push(sec('経過','検討の段階（太字）と、議決・一般質問・予定の変更を日付順に示します',`<div class="nen">${list.map(e=>`<div class="d">${esc(e.d?jd(e.d):'日付不明')}</div><div class="${e.c}${e.cur?' cur':''}">${e.h}</div>`).join('')}</div>`));
   // 施設
@@ -304,16 +331,16 @@ function unei(){
   const mt=R.tsunagari.filter(r=>r.link==='目的と手段');
   const edges={}; mt.forEach(r=>{const k=r.upper+'\u0000'+r.lower;(edges[k]=edges[k]||{u:r.upper,l:r.lower,rows:[]}).rows.push(r)});
   const E=Object.values(edges); const lowers=new Set(E.map(e=>e.l));
-  let mine=null; SHEET.tsunagari.forEach(x=>{const r=R.tsunagari.find(t=>['records/tsunagari',t.theme,t.link,t.upper,t.lower,t.source].join('/')===x.ref);if(r){const s=new Set([r.upper,r.lower]);mine=mine?new Set([...mine].filter(v=>s.has(v))):s}}); mine=mine||new Set();
+  let mine=null; SHEET.tsunagari.forEach(x=>{const r=R.tsunagari.find(t=>['records/tsunagari',t.link,t.upper,t.lower,t.source].join('/')===x.ref);if(r){const s=new Set([r.upper,r.lower]);mine=mine?new Set([...mine].filter(v=>s.has(v))):s}}); mine=mine||new Set();
   let chain='';const seen=new Set();
-  function walk(n,lv,via){chain+=(via?`<div class="arrow lv${lv}">↓ 手段（記載：${A(via.rows[0].url,lab(via.rows[0].source))}${via.rows.length>1?` ほか${via.rows.length-1}件`:''}）</div>`:'')+`<div class="node lv${lv}${mine.has(n)?' mine':''}">${esc(n)}${mine.has(n)?'<small>本事業</small>':''}</div>`;if(seen.has(n))return;seen.add(n);E.filter(e=>e.u===n).forEach(e=>walk(e.l,Math.min(lv+1,4),e))}
+  function walk(n,lv,via){chain+=(via?`<div class="arrow lv${lv}">↓ 手段（記載：${A(via.rows[0].url,lab(via.rows[0].source))}${via.rows.length>1?` ほか${via.rows.length-1}件`:''}）</div>`:'')+`<div class="node lv${lv}${mine.has(n)?' mine':''}">${esc(n)}${mine.has(n)?'<small>このノート</small>':''}</div>`;if(seen.has(n))return;seen.add(n);E.filter(e=>e.u===n).forEach(e=>walk(e.l,Math.min(lv+1,4),e))}
   [...new Set(E.map(e=>e.u))].filter(u=>!lowers.has(u)).sort().forEach(u=>{chain+='<div style="height:4px"></div>';walk(u,1,null)});
   const kref=(SHEET.kadai[0]||{}).ref||'';const kplan=D.plans.find(p=>kref.startsWith(p.key+'/'));
   const kadaiPlan=kplan?kplan.name:'計画';
   const kpg=(((SHEET.kadai[0]||{}).source||'').match(/p\.(\d+)(?:-(\d+))?/)||[]);
   const kadaiSrc=kadaiPlan+(kpg[1]?` ${kpg[1]}${kpg[2]?'〜'+kpg[2]:''}ページ`:'');
   const vision=SHEET.vision.map(v=>`<p class="q" style="margin:0">${esc(v.text.replace(/^めざす姿:/,''))}</p><div class="note">${A(v.source,'総合計画')}</div>`).join('');
-  const kadai=`<ul class="plain">${SHEET.kadai.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul><div class="note">${A(SHEET.kadai[0].url,kadaiSrc)}</div>`;
+  const kadai=SHEET.kadai.length?`<ul class="plain">${SHEET.kadai.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul><div class="note">${A(SHEET.kadai[0].url,kadaiSrc)}</div>`:`<p class="note">${NOREC}</p>`;
   const up=D.issues.filter(x=>x.type==='つながりの記録に無い目的');
   o.push(sec('目的と手段','資料に記載された関係のみを示し、記載のない関係は加えていません',
     `<div class="two"><div class="box"><h3>総合計画のめざす姿</h3>${vision}</div><div class="box"><h3>${esc(kadaiPlan)}に掲げる課題</h3>${kadai}</div></div>`+
@@ -326,7 +353,7 @@ function unei(){
   D.bills.forEach(b=>add(b.date,'gikai',`${esc(jd(b.date))} 議決：${A(b.url,b.title)}`));
   exByMeeting().forEach(g=>add(g.d,'gikai',`${esc(g.m)} 一般質問　${exLinks(g)}`));
   R.shitsugi.forEach(q=>add(q.date,'gikai',`${esc(jd(q.date))} 議案質疑（${esc(q.member.name)} 議員）　${A((q.rows[0]||{}).url,'会議録')}`));
-  R.kotogara.filter(r=>r.kind==='予定'||r.kind==='変更').forEach(r=>add(r.source_date,'plan',`${esc(r.point)}：${esc(r.target)}${r.kind==='変更'?'（変更）':''}　${A(r.url,'資料')}`));
+  R.kotogara.filter(r=>(r.kind==='予定'||r.kind==='変更')&&inScope(r)).forEach(r=>add(r.source_date,'plan',`${esc(r.point)}：${esc(r.target)}${r.kind==='変更'?'（変更）':''}　${A(r.url,'資料')}`));
   const wa=y=>y>=2019?`令和${y===2019?'元':y-2018}年度`:`${y}年度`;
   o.push(sec('年度ごとの節目','検討の段階・議会・予定の記載を年度ごとにまとめます',tbl(['年度','検討の段階','議会','予定の記載'],Object.keys(years).sort().map(y=>`<tr><td class="date">${wa(+y)}</td><td>${years[y].step.join('<br>')}</td><td>${years[y].gikai.join('<br>')}</td><td>${[...new Set(years[y].plan)].join('<br>')}</td></tr>`))+
     `${bud?`<p class="note">令和${esc(budFy)}年度の当初予算額は${num(bud.amount)}${esc(bud.unit)}（${A(bud.url,'予算の附表')}）。それより前の年度の予算額は、まだ取り込んでいません。</p>`:''}`));

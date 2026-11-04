@@ -73,6 +73,16 @@ class EvalMcpTest(unittest.TestCase):
         self.assertEqual(em.quotes("「外「内」側」と「次」"), ["外「内」側", "次"])
         self.assertEqual(em.quotes("閉じない「かっこ"), [])
 
+    def test_view_option(self):
+        # --program は --view に替えた（見方のキー）。答えの無い回は止まる（終了コード 1）
+        import contextlib
+        import io
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(em.main(["eval_mcp.py", "test-none-xyz", "--view", "plan:kaigo9"]), 1)
+            with self.assertRaises(SystemExit):
+                em.main(["eval_mcp.py", "test-none-xyz", "--program", "node:jisshi/e008"])
+
     def test_report(self):
         r = em.check("「自分で作った問い」", self.corpus)
         s = em.report("t", [("opus-A", "依頼1", r)])
