@@ -23,7 +23,7 @@ COLUMNS = {
     "kotogara": ["theme", "point", "program", "source", "source_date", "quote", "value", "target", "kind", "prev", "reason",
                  "yaritori"] + COMMON,
     "tsunagari": ["theme", "link", "upper", "upper_ref", "lower", "lower_ref", "source", "source_date", "quote"] + COMMON,
-    "katei": ["theme", "step", "name", "from", "to", "sources", "quote"] + COMMON,
+    "katei": ["theme", "step", "cycle", "name", "from", "to", "sources", "quote"] + COMMON,
     "kisai": ["theme", "title", "about", "source", "source_date", "quote"] + COMMON,
     "shisetsu": ["facility", "aspect", "value", "source", "source_date", "quote", "target", "kind", "prev"] + COMMON,
     "nozoki": ["question", "n", "sid", "quote", "reason"] + COMMON,
@@ -568,6 +568,8 @@ def check_katei(rows, inp, theme, rep):
             rep.err(w, "step が1からの整数でない")
         else:
             steps.setdefault(r["theme"], []).append(int(r["step"]))
+        if r["cycle"] != r["cycle"].strip():
+            rep.err(w, "cycle の前後に空白がある")
         for c in ("from", "to"):
             if r[c] and not RE_MONTH.fullmatch(r[c]):
                 rep.err(w, f"{c} が YYYY-MM-DD か YYYY-MM でない")

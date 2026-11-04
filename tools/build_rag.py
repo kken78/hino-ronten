@@ -78,6 +78,11 @@ NOT_CHECKED = "どの問いに当たるかは確かめていない"
 ARCHIVE_NOTE = "出典の url のうち web.archive.org のものは、町のサイトに載らなくなった資料の、Webアーカイブの保存版です"
 
 
+def cycle_of(k):
+    """過程の記録の期（LINK_SCHEMA §15.5、DESIGN.md ADR-30）。期の無い行は空。"""
+    return f"期：{k['cycle']}。" if k.get("cycle") else ""
+
+
 def bulletin_titles(x):
     """一般質問の議会だよりの見出しの部分（LINK_SCHEMA §17.1、DESIGN.md ADR-28）。見出しが無ければ空。"""
     ts = x.get("titles") or []
@@ -198,7 +203,7 @@ class Rag:
         sd = self.source_date(src)
         rd = self.round_of(src)
         q = f"「{k.get('quote')}」" if k.get("quote") else ""
-        return (f"{head}検討の段階：段階：{k.get('name')}。期間：{self.katei_span(k)}。資料：{self.name(src)}"
+        return (f"{head}検討の段階：{cycle_of(k)}段階：{k.get('name')}。期間：{self.katei_span(k)}。資料：{self.name(src)}"
                 f"{'（' + jd(sd) + '）' if sd else ''}。資料の種類：{self.kind_of(src)}。{'回：' + rd + '。' if rd else ''}"
                 f"{q}（出典：{k.get('url') or '出典なし'}）")
 
@@ -459,7 +464,7 @@ class Rag:
                 years.setdefault(fiscal_year(date), []).append((date, text, bracket))
         for k in self.R.get("katei") or []:
             # 過程の記録は資料の日付が無いので［ ］を付けない（LINK_SCHEMA §17.1）
-            add(k.get("from"), f"検討の段階：{k.get('name')}。期間：{self.katei_span(k)}（出典：{k.get('url')}）", bracket=False)
+            add(k.get("from"), f"検討の段階：{cycle_of(k)}{k.get('name')}。期間：{self.katei_span(k)}（出典：{k.get('url')}）", bracket=False)
         for b in d.get("bills") or []:
             add(b["date"], f"議決：{b.get('meeting')}の{b.get('no')} {b.get('title')}（出典：{b.get('url')}）")
         for x in d.get("exchanges") or []:

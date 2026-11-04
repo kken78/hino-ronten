@@ -225,6 +225,14 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(span({"from": "2026-01-14", "to": "2026-01-14"}), "2026年1月14日")
         self.assertEqual(span({"from": "", "to": ""}), br.jd(""))
 
+    def test_katei_cycle(self):
+        # 期のある過程の行は、段階の名前の前に期を書く（§15.5、DESIGN.md ADR-30）
+        d = json.loads(data())
+        d["records"]["katei"][0]["cycle"] = "第9期"
+        honpen, kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        self.assertIn("- 検討の段階：期：第9期。段階：懇話会。期間：2022年7月12日〜2024年1月12日。", kiroku)
+        self.assertIn("- 検討の段階：期：第9期。懇話会。期間：2022年7月12日〜2024年1月12日（出典：", honpen)
+
     def test_round_and_source_date(self):
         d = json.loads(data())
         sid = "sp:0000008397_20250310_0291"

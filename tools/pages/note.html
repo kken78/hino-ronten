@@ -248,7 +248,7 @@ function gaiyo(){
   o.push(sec('主な事項','項目を選ぶと、最新の記載と記載の推移を表示します',picker('pk-jiko',items)));
   // 経過
   const ev=[];
-  R.katei.forEach(k=>ev.push({d:k.from||'',c:'',h:`<b>${esc(k.name)}</b>${k.to&&k.to!==k.from?`<span class="note">（〜${esc(jd(k.to))}）</span>`:''}${!k.to&&k.from?'<span class="note">（継続中）</span>':''}　${A(k.url,'資料')}`,cur:!k.to&&k.from}));
+  R.katei.forEach(k=>ev.push({d:k.from||'',c:'',h:`${k.cycle?esc('期：'+k.cycle+'。'):''}<b>${esc(k.name)}</b>${k.to&&k.to!==k.from?`<span class="note">（〜${esc(jd(k.to))}）</span>`:''}${!k.to&&k.from?'<span class="note">（継続中）</span>':''}　${A(k.url,'資料')}`,cur:!k.to&&k.from}));
   D.bills.forEach(b=>ev.push({d:b.date,c:'k-gikai',h:`<span class="tag">議決</span> ${A(b.url,b.title)}　${esc(b.result)}`}));
   exByMeeting().forEach(g=>ev.push({d:g.d,c:'k-gikai',h:`<span class="tag">一般質問</span> ${esc(g.m)}　${exLinks(g)}`}));
   R.kotogara.filter(r=>r.kind==='変更').forEach(r=>ev.push({d:r.source_date,c:'k-change',h:`<span class="tag">予定の変更</span> ${esc(r.point)}：${esc(r.prev)} → ${esc(r.target)}　${A(r.url,'資料')}`}));
@@ -322,7 +322,7 @@ function unei(){
   // 年度ごとの節目
   const fy=s=>{const [y,m]=s.split('-').map(Number);return m>=4?y:y-1};
   const years={}; const add=(d,col,h)=>{if(!d)return;const y=fy(d);(years[y]=years[y]||{step:[],gikai:[],plan:[]})[col].push(h)};
-  R.katei.forEach(k=>add(k.from,'step',`${esc(k.name)}　${A(k.url,'資料')}`));
+  R.katei.forEach(k=>add(k.from,'step',`${k.cycle?esc('期：'+k.cycle+'。'):''}${esc(k.name)}　${A(k.url,'資料')}`));
   D.bills.forEach(b=>add(b.date,'gikai',`${esc(jd(b.date))} 議決：${A(b.url,b.title)}`));
   exByMeeting().forEach(g=>add(g.d,'gikai',`${esc(g.m)} 一般質問　${exLinks(g)}`));
   R.shitsugi.forEach(q=>add(q.date,'gikai',`${esc(jd(q.date))} 議案質疑（${esc(q.member.name)} 議員）　${A((q.rows[0]||{}).url,'会議録')}`));

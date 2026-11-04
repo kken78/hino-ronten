@@ -353,6 +353,11 @@ class OtherLedgersTest(RecordsTestCase):
         led = ledgers()
         led["katei"][0]["sources"] = "doc:teigen/1,doc:nai/1"
         self.assertErr(run(led), "sources の資料が入力に無い")
+        led = ledgers()
+        led["katei"][0]["cycle"] = "第9期"   # 期ごとに繰り返す計画の期（§15.5、DESIGN.md ADR-30）
+        self.assertEqual(run(led).errors, [])
+        led["katei"][0]["cycle"] = "第9期 "
+        self.assertErr(run(led), "cycle の前後に空白がある")
 
     def test_kisai_about(self):
         led = ledgers()
