@@ -373,6 +373,22 @@ class ThemeTest(RecordsTestCase):
         self.assertErr(run(themes=rows_with("node:jisshi/e009")), "施策の行の views が、同じテーマの kind 事業の行に無い")
         self.assertErr(run(themes=rows_with("fa:a")), "施策の行の views が node キーでない")
 
+    def test_views_shisaku_same_program(self):
+        # 同じテーマで、同じ事業を views に持つ施策の行が2行あれば誤り（§11）。2行目に出す
+        def rows_with(views2):
+            base = theme_rows()
+            rows = base + [dict(base[0], kind="事業", value="node:jisshi/e009", views=""),
+                           dict(base[0], kind="施策", value="node:sogo6/e047", views=P),
+                           dict(base[0], kind="施策", value="node:jisshi/e009", views=views2)]
+            return sorted(rows, key=lambda r: (r["theme"], r["kind"], r["value"]))
+        rep = run(themes=rows_with(P))
+        errs = [e for e in rep.errors if "施策の行の views に同じ事業がある" in e]
+        self.assertEqual(len(errs), 1, rep.errors)
+        self.assertIn("hoiku/施策/node:sogo6/e047", errs[0])     # 文字コード順で2行目
+        self.assertIn(f"（{P}。node:jisshi/e009）", errs[0])
+        rep = run(themes=rows_with("node:jisshi/e009"))
+        self.assertFalse([e for e in rep.errors if "ref/themes.tsv" in e], rep.errors)
+
     def test_views_of_and_chushin(self):
         rows = theme_rows() + [dict(r, theme="kaigo", views="fa:a" if r["kind"] == "事柄" else "", note="")
                                for r in theme_rows() if r["kind"] in ("名前", "事柄")]

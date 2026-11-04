@@ -430,7 +430,9 @@ def check_themes(rows, inp, shisetsu_keys, rep):
             views.setdefault((k, v), set()).update(x for x in split_views(r["views"]) if x)
         if k == "名前":
             notes[r["theme"]] = r["note"]
-    # 施策の行の views は、同じテーマの kind 事業の node キーだけ（§12：基本施策に属する事業）
+    # 施策の行の views は、同じテーマの kind 事業の node キーだけ（§12：基本施策に属する事業）。
+    # 1つの事業を views に持つ施策の行は、同じテーマで1行まで（§11。§13.3 の programs の policy が1つに決まるため）
+    first = {}
     for r in rows:
         if r["kind"] != "施策":
             continue
@@ -442,6 +444,12 @@ def check_themes(rows, inp, shisetsu_keys, rep):
             elif v and not RE_NODE.fullmatch(v):
                 rep.err(f"{name} {r['theme']}/{r['kind']}/{r['value']}",
                         f"施策の行の views が node キーでない（{v}）")
+            if v and RE_NODE.fullmatch(v):
+                if (r["theme"], v) in first:
+                    rep.err(f"{name} {r['theme']}/{r['kind']}/{r['value']}",
+                            f"施策の行の views に同じ事業がある（{v}。{first[(r['theme'], v)]}）")
+                else:
+                    first[(r["theme"], v)] = r["value"]
     for t in sorted({r["theme"] for r in rows}):
         if len(by.get((t, "名前"), ())) != 1:
             rep.err(f"{name} {t}", "名前 の行が1行でない")

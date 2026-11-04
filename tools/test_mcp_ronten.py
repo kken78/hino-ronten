@@ -169,6 +169,28 @@ class ToolTest(unittest.TestCase):
         text, _ = call(server(), "overview")
         self.assertIn("## 事業の要点\n", text)
 
+    def test_overview_other_points(self):
+        # ほかの見方だけに属する事項の行（§14）。見本の「開園時期」は事業の見方の点で、ほかの見方だけの点は無い
+        text, _ = call(server(), "overview")
+        self.assertNotIn("ほかの見方の事項", text)
+        d = json.loads(data())
+        d["records"]["kotogara"] += [
+            {"point": p, "source": s, "source_date": "2025-05", "quote": q, "value": "", "target": "", "kind": "いまのこと",
+             "prev": "", "reason": "", "url": U + s, "layer": "確定"}
+            for p, s, q in (("定員", "doc:a/5", "定員は285人。"), ("定員", "doc:a/6", "定員を見直す。"), ("園庭", "doc:a/7", "園庭を設ける。"))]
+        plan = next(x for x in d["sheets"] if x["view"] == "plan:youho")
+        plan["kotogara"] = [{"ref": "records/kotogara/定員/doc:a/5/定員は285人。"},
+                            {"ref": "records/kotogara/定員/doc:a/6/定員を見直す。"}]
+        fa = next(x for x in d["sheets"] if x["view"] == "fa:f1")
+        fa["kotogara"] = [{"ref": "records/kotogara/園庭/doc:a/7/園庭を設ける。"}]
+        raw = json.dumps(d, ensure_ascii=False).encode("utf-8")
+        text, _ = call(mr.Server(raw, P, WORDS, SPEECHES), "overview")
+        self.assertIn("- 開園時期（3件）\n- ほかの見方の事項（topic で取れる）：園庭（1件）、定員（2件）\n", text)
+        # 期の計画の見方では、定員はその見方の点で、開園時期と園庭がほかの見方の点
+        text, _ = call(mr.Server(raw, "plan:youho", WORDS, SPEECHES), "overview")
+        self.assertIn("- ほかの見方の事項（topic で取れる）：園庭（1件）、開園時期（3件）\n", text)
+        self.assertIn("- 定員（2件）\n", text)
+
     def test_tools_list_description(self):
         r = server().handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         d = r["result"]["tools"][0]["description"]

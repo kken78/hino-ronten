@@ -161,6 +161,7 @@ class ScriptTest(unittest.TestCase):
         # 主な事項：その見方の事柄を先に、テーマ全体の事柄を後に（§16.2）
         g = r["gaiyo"]
         self.assertLess(g.index("新こども園の定員"), g.index("新こども園の用地"))
+        self.assertIn("から本事業に関する記載を抜き出し", g)      # 事業の見方は「本事業」（§16.4）
 
     def test_plan(self):
         r = self.run_view("plan:youho")
@@ -172,6 +173,9 @@ class ScriptTest(unittest.TestCase):
         # e008 の見方だけの事柄は出さない。テーマ全体の事柄は出す
         self.assertNotIn("新こども園の定員", r["gaiyo"])
         self.assertIn("新こども園の用地", r["gaiyo"])
+        # 「本事業」は見方の種類で言い換える（§16.4）
+        self.assertIn("から本計画に関する記載を抜き出し", r["gaiyo"])
+        self.assertNotIn("本事業", "".join(r.values()))
 
     def test_facility(self):
         r = self.run_view("fa:a")

@@ -152,6 +152,10 @@ class Server:
         out += ["", "## いまの段階（政策の過程のうち新しいもの。原文）"] + [f"- {r.katei_entry(k)}" for k in K[-3:]]
         out += ["", "## 事項（topic で取る。事項ごとに「いまの町の説明」の原文を返す）"]
         out += [f"- {p}（{len(r.kot[p])}件）" for p in r.ordered_points()]
+        # ほかの見方だけに属する事項（この見方の本編の範囲に入らない点。§14）
+        others = sorted(p for p in r.kot_all if p not in r.view_points and p not in r.theme_points)
+        if others:
+            out.append("- ほかの見方の事項（topic で取れる）：" + "、".join(f"{p}（{len(r.kot_all[p])}件）" for p in others))
         fs = {}
         for x in d["records"].get("shisetsu") or []:
             fs[self.facility(x["facility"])] = fs.get(self.facility(x["facility"]), 0) + 1
