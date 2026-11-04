@@ -443,7 +443,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | programs | key・plan・field_no・field_name・name・desc・years・cost（label・amount・unit）・source・posted（その計画の meta の posted を原文のまま）・url |
 | budget | key（fh のキー）・program（当たる事業の node キー）・category（附表の台帳の区分）・name・desc・kan・kubun・amount・unit（千円）・dept・page・url |
 | council | from・to・to_label・method・date・kind（sp か bq）・speaker（議員・当局・議長・その他）・role・scene・excerpt・url |
-| exchanges | meeting_id・meeting・date・n（問いの番号）・question（iq のキー）・member（mb のキー・名前・議席）・titles（議会だよりの題名とテーマ）・turns（sid・side（問い・答え）・speaker・role・excerpt・url の並び）・mentions（この問いの中の council の from） |
+| exchanges | meeting_id・meeting・date・n（問いの番号）・question（iq のキー）・member（mb のキー・名前・議席）・titles（議会だよりの見出しの並び。title・theme・issue（号）・n（議会だよりの問番号）。§13.4）・titles_chosen（titles をやりとりの記録の bq で選んだか）・turns（sid・side（問い・答え）・speaker・role・excerpt・url の並び）・mentions（この問いの中の council の from） |
 | bills | key・meeting_id・meeting・date・no・kind・title・committee・result・method（gian.json の議案の値）・debates（date・member（mb のキー・名前・議席）・stance・sid・url の並び。審議の記録の討論（kind が debate）のうち、bills にこの議案を含むもの）・url |
 | docs | id・category・title・fiscal_year・date・pages・check・text_layers（原典の文字・OCR の下書きのどれがあるか）・url |
 | records | yaritori・shitsugi・katei・kotogara・tsunagari・kisai・shisetsu の7つ。それぞれ §15 の行の列と、資料の url・layer。yaritori は問いの単位、shitsugi は質疑の単位にまとめ、問いと質疑に member（mb のキー・名前・議席）を持たせる |
@@ -467,7 +467,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - policies・programs：計画の programs の事業（key がテーマの kind 施策・事業）。policies の kind は、desc に「めざす姿:」で始まる行があれば分野、無ければ基本施策（§13.1 のめざす姿と同じ見分け方）。source は計画の原典の PDF（計画の JSON の sources の1つめ）。事業ごとのページは計画の JSON に無いので付けない。posted は、その計画の meta の posted（無ければ空）
 - budget：附表の台帳の confirmed の行のうち、to がテーマの事業のもの。category は note の「メモ：区分：<区分>」。url は附表の原典の PDF にページを付けたもの
 - council：言及の台帳（mention・relink）の confirmed の行のうち、to がテーマの plans の key のもの。会議録の言及の scene は審議の記録の場面（どの場面にも入らない発言は「範囲外」）。議会だよりの言及は、date を号の公表日（pub_date）、scene を「議会だより」とし、speaker は問いの欄（title・question_text）なら議員、答えの欄（answer_title・answers）なら当局
-- exchanges：問いの単位は、審議の記録の turns の問番号（機械の値。やりとりの記録の n とは違うことがある）。question は、その問番号の最初の q の発言。titles は、審議の記録の topics のうち議会だよりのもの。会議録の言及（sp）を含む問いと、テーマの問いから作る。議会だよりの言及（bq）からは作らない（議会だよりの問いと会議録の問いのつなぎを、問いごとに確かめていないため。暫定で、あとで決める。DESIGN.md 判断事項25）
+- exchanges：問いの単位は、審議の記録の turns の問番号（機械の値。やりとりの記録の n とは違うことがある）。question は、その問番号の最初の q の発言。titles は DESIGN.md ADR-28 による。やりとりの記録にその問いの行（rejected を除く）があり bq が入っていれば、その bq の議会だよりの問い（questions.json の title・theme・issue・q_num）とし、titles_chosen を true にする。bq の議員が問いの議員と違えば作らない。bq が無ければ、審議の記録の topics のうちその質問の議会だよりのものを問番号の順にすべてとし、titles_chosen を false にする。会議録の言及（sp）を含む問いと、テーマの問いから作る。議会だよりの言及（bq）からは作らない（議会だよりの問いと会議録の問いのつなぎを、問いごとに確かめていないため。暫定で、あとで決める。DESIGN.md 判断事項25）
 - bills：結果と採決の方法は gian.json（§15.7）。date は採決の日（審議の記録の採決。無ければ会議の日）。debates は、審議の記録の討論のうち bills にその議案を含むもの
 - docs：text_layers は、「原典の文字」（data/text か data/text_raw がある）と「OCR の下書き」（data/ocr がある）のある方
 - records：やりとりの記録と質疑の記録は、問い（question）の単位にまとめ、meeting_id・meeting・date（question の発言の日）・member と、行（rows）を持つ。ほかの台帳は行の並び。どの行にも資料の url と layer（confirmed は確定、candidate は記録（未確認））を付ける。rejected と、記録しない文の台帳（§15.9）は入れない
@@ -501,7 +501,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | search | query（空白で区切った語）・kind（記載の種類。省ける）・limit（省くと20） | 記載の id・種類・抜粋（160字まで）。合う語の数の多い順、同じなら資料の日付順。語は NFKC にそろえ空白を除いて比べる |
 | fetch | ids | 記載の全文。`yaritori:<問いのキー>`・`shitsugi:<キー>` は記録した質問・質疑の全行、`issue:<番号>` は照合結果と比べた記載 |
 | topic | name（事項・施設・記載の見出しの名前） | 事項：町の資料の最新の記載（§16.2 と同じ選び方。町の資料の行が無いときは「町の資料に記載なし（会議録の発言 N 件）」）、いまの町の説明（その記載の原文）、当局の答弁のうち新しい3つ（原文）、記載の推移（資料の日付順）、この事項についての質問・答弁。いまの町の説明が広報ひのの記載のときは、広報ひの以外でいちばん新しい町の資料の記載も並べ、時期や数字の書き方が違うときは両方を資料の日付とともに示すことを書く（DESIGN.md ADR-14・ADR-27）。施設・記載の見出し：その記載を資料の日付順に |
-| council | from_date・to_date（YYYY-MM-DD。省ける） | 関連する一般質問（日付・会議・質問者・議会だよりの見出し）と関係議案（議決結果・採決方法・討論）、項目ごとに記録した質問・質疑の一覧 |
+| council | from_date・to_date（YYYY-MM-DD。省ける） | 関連する一般質問（日付・会議・質問者・議会だよりの見出し。見出しの示し方は §17.1）と関係議案（議決結果・採決方法・討論）、項目ごとに記録した質問・質疑の一覧 |
 | speeches | exchange（council が返す `exchange:<番号>`） | その一般質問の会議録の本文のうち、テーマの語（ref/themes.tsv の kind 語）のある発言の全文（質問か答弁か・発言者・url）。頭に、資料そのもので項目ごとの記録ではないことを書く |
 | issues | type（比べ方。省ける） | 省いたとき：照合結果の id と文の一覧（文の後ろに比べた記載の出典。§17.1）。指定したとき：その比べ方の照合結果と比べた記載（§17.1 と同じ書き方。問われていない点は記録の節と件数） |
 | links | なし | つながりの記録の全行、過程の記録（期間の始まりの順）、総合計画のめざす姿と計画に掲げる課題（課題は §17.1 の書き方で、資料の日付と計画の名前を付ける） |
@@ -739,6 +739,7 @@ DESIGN.md ADR-25 による。事業（テーマの定義の kind 事業）ごと
 
 - 主な事項・施設の再編・事項ごとの質問・答弁は「選ぶ→全幅で開く」で示す
 - 資料の名前と施設の名前は names から示す
+- 関連する一般質問の議会だよりの見出しは、問番号を付けて「問2「新こども園の大きさは」」と示し、2つ以上は「、」で並べる。titles_chosen が false で見出しが2つ以上のときは、後ろに「（どの問いに当たるかは確かめていない）」と書く（DESIGN.md ADR-28）
 - 欄に項目が無いときは「未記録」と示す（資料に無いのか、まだ記録していないのかを分けられないため。§13.1）
 
 ### 16.2 主な事項
@@ -797,6 +798,7 @@ DESIGN.md ADR-26 による。議員や職員が、各自の生成AI（LoGoAIア�
 - 会議録の発言（sp）を資料とする記録の行（事柄・施設・つながり・過程・構造にしていない記載。過程は sources の1つめが sp の行）には、欄「回」を足す。その発言の sid が、やりとりの記録（§15.2）の確定した行の sid にあれば、その行の round を書く（2つ以上の round があれば「・」で並べる）。無ければ「未記録」と書く。審議の記録の turns から機械で求めた回は書かない（turns の順は回を表さないことがあり、round は人が決めるため。§15.2）。やりとりの記録と質疑の記録の行は、いまのとおり、その行の round を「回」の欄に書く（2026-10-31。過程の行は同じ日に足した。検討の段階の記載から引いた課長の答弁に回が無く、住民向けの文にかぎかっこのまま入った例が、版 3 の確かめで Sonnet 5.5 にあった）
 - 計画の posted から資料の日付を求めるときは、posted の文のうち最後に出る年月（「令和8年6月」「2021年3月」など）を YYYY-MM にする。年月の無い posted と、空の posted は書かない。計画に掲げる課題（sheets の kadai）は、その計画（plans）の posted で同じように求め、「［<資料の日付>］<計画の名前> <ページ>に掲げる課題：「引用」（出典：url）」と書く。総合計画のめざす姿は、policies の posted で求め、「［<資料の日付>］総合計画のめざす姿：「引用」（出典：url）」と書く（2026-11-01。事業の要点と課題に資料の日付が無く、生成AIが、実施計画の概算事業費と計画の改正のどちらが新しいかを決められない例があった）
 - 主な事項で町の資料の行が無い事柄（§16.2）は、「町の資料に記載なし（会議録の発言 N 件）」と書く。記載が無いことを言う文で、付けられる url が無いため。N はその事柄の事柄の記録のうち資料が会議録の発言（sp）の行の数
+- 一般質問の行は「［日付］一般質問：<会議>　質問者：<名前> 議員　議会だよりの見出し：問<n>「<見出し>」（出典：url）」とする。見出しが2つ以上なら「、」で並べ、titles_chosen が false で見出しが2つ以上のときは「議会だよりの見出し（どの問いに当たるかは確かめていない）：」とする。見出しが無ければ、議会だよりの見出しの部分を書かない（DESIGN.md ADR-28）
 - キーワード検索の結果（hits）は入れない（DESIGN.md ADR-26）
 - 文は、決まった文（見出し・読み方・節の説明）とデータの項目だけで作る。生成AIの補足を入れない（DESIGN.md ADR-17）。評価や結論を書かない
 - 序列化しない（CLAUDE.md 不変の制約6）。議員の名前は、問いの単位で「質問者」として書く（§13.3）
