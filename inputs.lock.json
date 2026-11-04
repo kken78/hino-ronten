@@ -12,7 +12,7 @@
     "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r8.json", "data/text/*/*.txt", "data/text_raw/*/*.txt"]
   },
   "hino-town-docs": {
-    "sha": "e00f5d6dfc2a0722427566a7225f4bc268f78bb3",
+    "sha": "c1de9d46eef7797274de0f6c7e0d40347f77ed4f",
     "files": ["data/sources.tsv", "data/text/*.txt", "data/text_raw/*.txt", "data/ocr/*.txt"]
   }
 }
