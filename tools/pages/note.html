@@ -342,12 +342,11 @@ function unei(){
   let chain='';const seen=new Set();
   function walk(n,lv,via){chain+=(via?`<div class="arrow lv${lv}">↓ 手段（記載：${A(via.rows[0].url,lab(via.rows[0].source))}${via.rows.length>1?` ほか${via.rows.length-1}件`:''}）</div>`:'')+`<div class="node lv${lv}${mine.has(n)?' mine':''}">${esc(n)}${mine.has(n)&&P.view_kind!=='テーマ'?`<small>${SELF}</small>`:''}</div>`;if(seen.has(n))return;seen.add(n);E.filter(e=>e.u===n).forEach(e=>walk(e.l,Math.min(lv+1,4),e))}
   [...new Set(E.map(e=>e.u))].filter(u=>!lowers.has(u)).sort().forEach(u=>{chain+='<div style="height:4px"></div>';walk(u,1,null)});
-  const kref=(SHEET.kadai[0]||{}).ref||'';const kplan=D.plans.find(p=>kref.startsWith(p.key+'/'));
-  const kadaiPlan=kplan?kplan.name:'計画';
-  const kpg=(((SHEET.kadai[0]||{}).source||'').match(/p\.(\d+)(?:-(\d+))?/)||[]);
-  const kadaiSrc=kadaiPlan+(kpg[1]?` ${kpg[1]}${kpg[2]?'〜'+kpg[2]:''}ページ`:'');
+  /* 計画に掲げる課題：計画ごとに分け、計画の名前と出典のページを付ける（§16.1） */
+  const kgroups=[]; SHEET.kadai.forEach(x=>{const kplan=D.plans.find(p=>(x.ref||'').startsWith(p.key+'/'));const name=kplan?kplan.name:'計画';let g=kgroups.find(g=>g.name===name);if(!g){const kpg=((x.source||'').match(/p\.(\d+)(?:-(\d+))?/)||[]);g={name,url:x.url,src:name+(kpg[1]?` ${kpg[1]}${kpg[2]?'〜'+kpg[2]:''}ページ`:''),items:[]};kgroups.push(g)}g.items.push(x)});
+  const kadaiPlan=kgroups.length===1?kgroups[0].name:'計画';
   const vision=SHEET.vision.map(v=>`<p class="q" style="margin:0">${esc(v.text.replace(/^めざす姿:/,''))}</p><div class="note">${A(v.source,'総合計画')}</div>`).join('');
-  const kadai=SHEET.kadai.length?`<ul class="plain">${SHEET.kadai.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul><div class="note">${A(SHEET.kadai[0].url,kadaiSrc)}</div>`:`<p class="note">${NOREC}</p>`;
+  const kadai=kgroups.length?kgroups.map(g=>`${kgroups.length>1?`<div class="note"><b>${esc(g.name)}</b></div>`:''}<ul class="plain">${g.items.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul><div class="note">${A(g.url,g.src)}</div>`).join(''):`<p class="note">${NOREC}</p>`;
   const up=D.issues.filter(x=>x.type==='つながりの記録に無い目的');
   o.push(sec('目的と手段','資料に記載された関係のみを示し、記載のない関係は加えていません',
     `<div class="two"><div class="box"><h3>総合計画のめざす姿</h3>${vision}</div><div class="box"><h3>${esc(kadaiPlan)}に掲げる課題</h3>${kadai}</div></div>`+

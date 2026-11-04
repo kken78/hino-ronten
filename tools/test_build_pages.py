@@ -197,6 +197,23 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("新こども園の用地", r["gaiyo"])
         self.assertTrue(r["ronten"] and r["unei"])
 
+    def test_kadai_by_plan(self):
+        # 課題が1つの計画だけ：箱の見出しは「<計画の名前>に掲げる課題」（§16.1）
+        r = self.run_view("hoiku")
+        self.assertIn("再編整備計画に掲げる課題", r["unei"])
+        # 複数の計画にわたる：見出しは「計画に掲げる課題」、計画ごとの小見出しと出典
+        d = json.loads(self.bytes.decode("utf-8"))
+        d["plans"].append(dict(d["plans"][0], key="plan:other", name="別の計画"))
+        sh = next(s for s in d["sheets"] if s["view"] == "hoiku")
+        sh["kadai"].append({"ref": "plan:other/kadai/challenges/1/1", "text": "別の課題", "source": "other/honpen p.5",
+                            "url": "https://example.invalid/other.pdf", "layer": "確定"})
+        r2 = run_page(bp.render(template(), json.dumps(d, ensure_ascii=False).encode("utf-8"), "hoiku"))
+        u = r2["unei"]
+        self.assertIn("<h3>計画に掲げる課題</h3>", u)
+        self.assertIn("<b>別の計画</b>", u)
+        self.assertIn("別の計画 5ページ", u)
+        self.assertIn("再編整備計画 18〜19ページ", u)
+
     def test_latest_all_and_katei_order(self):
         r = self.run_view("hoiku")
         g = r["gaiyo"]
