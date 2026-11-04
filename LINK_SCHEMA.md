@@ -355,13 +355,14 @@ semantic：使う時点で、この節と §3 に規則を追加する。
   "hits": {"council": [], "docs": []},
   "sheets": [], "issues": [],
   "names": {"sources": {"<資料のキー>": "<資料の名前>"}, "facilities": {"<fa キー>": {"name": "", "district": ""}}},
-  "theme_questions": 16
+  "theme_questions": 16,
+  "chushin": "node:jisshi/e008"
 }
 ```
 
 - 各項目に `layer` を付ける。値は「確定」（確定した台帳の行と、入力の構造データ。records は confirmed の行）、「語の一致（未確認）」、「OCR の下書き」、「記録（未確認）」（records の candidate の行）、「論点の候補（未確認）」（13.2）のどれか。画面と MCP の道具は、layer の違う項目をまぜずに示す
 - 各項目に、出典の `url` を付ける（下の表）。出典の無い項目は作らない
-- names と theme_questions は、項目を示すための名前と数で、項目ではない。layer と url を付けない（§13.3）
+- names・theme_questions・chushin は、項目を示すための名前と数と、題材の中心の見方のキーで、項目ではない。layer と url を付けない（§13.3）
 - 抜粋（`excerpt`）は、照合の語や一致した語を中心に前後あわせて200字までとする（不変の制約9）。会議録の発言は、台帳の context か、入力の発言の本文から切り出す
 - 日付は YYYY-MM-DD。並びは、council・exchanges・bills・hits は日付の順（同じ日付は from のキーの文字コード順）、ほかはキーの順（§1。records の row と step は数の順）
 - 序列化しない（不変の制約6）：議員ごとの件数や順位を作らない
@@ -459,6 +460,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | issues | type（13.2 の比べ方）・scope（「見方」か「テーマ」）・view（scope が見方のときの見方のキー）・statement・refs（比べた項目への参照・text か value・url・layer の並び）・layer |
 | names | sources（records・council・issues の refs に出る資料のキーごとの、§13.4 の資料の名前）・facilities（records.shisetsu に出る施設ごとの、ref/shisetsu.tsv の name と district）。layer と url は付けない |
 | theme_questions | テーマの定義（§12）の kind 問いの行の数（数だけ。layer と url は付けない） |
+| chushin | 題材の中心の見方のキー（テーマの定義の kind 名前の行の note の「中心の見方：<キー>」。無ければ空。layer と url は付けない）。テーマ自体の見方の要点（§14・§16.1）に出す |
 
 - hits.council の単位は3つとする。一般質問の問い（turns の問番号の単位。exchanges に無いもの）、議案の質疑のまとまり（テーマの質疑に無く、council の発言を含まないもの）、議会だよりの問い（council に無いもの）。委員長報告・提案説明・討論など、問いと答えの形でない発言は入れない
 - 議会だよりの問いは、題名・問い・答えの題名・答えの順に探し、最初に一致した欄から抜粋する。date は号の公表日とし、meeting_id・meeting・first_sid は空、member の議席は空とする
@@ -477,7 +479,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - bills：結果と採決の方法は gian.json（§15.7）。date は採決の日（審議の記録の採決。無ければ会議の日）。debates は、審議の記録の討論のうち bills にその議案を含むもの
 - docs：text_layers は、「原典の文字」（data/text か data/text_raw がある）と「OCR の下書き」（data/ocr がある）のある方
 - 出典の url：hino-town-docs の台帳の note に「取得元：Webアーカイブの保存版（保存日時、保存版の url）」がある資料は、すべての項目の url の欄を保存版の url にする（ページの指定はそのまま。shiga-hino-plans の計画の原典で同じ url のものも同じ）。docs の項目には original_url と archived を入れる。note の書き方が読めない、保存版の元の url が台帳の url と違う、同じ url の計画の原典と sha256 が違うときは作らない（DESIGN.md ADR-29）
-- records：やりとりの記録と質疑の記録は、問い（question）の単位にまとめ、meeting_id・meeting・date（question の発言の日）・member と、行（rows）を持つ。ほかの台帳は行の並び。どの行にも資料の url と layer（confirmed は確定、candidate は記録（未確認））を付ける。rejected と、記録しない文の台帳（§15.9）は入れない
+- records：テーマの行は、katei は theme の列がテーマのもの、kotogara は point がテーマの kind 事柄の値のもの、tsunagari は upper か lower がテーマの kind 記載の値のもの、kisai は about がテーマの kind 事柄か記載の値のもの（about が空の行は §15.6 の決まりで決める）、shisetsu は facility がテーマの kind 施設の値のもの。やりとりの記録と質疑の記録は、問い（question）の単位にまとめ、meeting_id・meeting・date（question の発言の日）・member と、行（rows）を持つ。ほかの台帳は行の並び。どの行にも資料の url と layer（confirmed は確定、candidate は記録（未確認））を付ける。rejected と、記録しない文の台帳（§15.9）は入れない
 - ledgers：§13 の台帳と参照表に、系譜表（plans を作るため）、別名辞書（言及の台帳を作ったときの参照表）、記録しない文の台帳（検査に使うため）を入れる
 - hits・sheets：§13 と §13.1・§13.3 の決まりによる
 - issues の予定の変更：対象の時期は、元号と年の数で比べる（「令和10年度」と「令和10年4月」はどちらも令和10とする。表記の読み替えはせず、字の並びの「令和N年」「平成N年」などから取り出す。取り出せない行は比べない）。施設の記録は、施設・面・値（value）が同じ行どうしで比べる（同じ施設の「休園」と「開設」の時期を比べないため）。statement には、最初の予定の行と、年の数が前の予定の行と変わった予定の行と、変更の行を書き、refs には比べた予定と変更の行をすべて入れる
@@ -630,7 +632,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | quote | 引用 | |
 | status・reviewer・date・note | §15.1 | |
 
-- 行のキーは (title, source)。テーマへの帰属は about の点（テーマの定義の kind 事柄・記載の行）で決める。同じ title は1つの about を指す（§11 の検査）
+- 行のキーは (title, source)。テーマへの帰属は about の点（テーマの定義の kind 事柄・記載の行）で決める。about が空の行は、source の資料（doc のキーの id）がテーマの定義の kind 資料にあるテーマに属する（2026-11-04。合う事柄・記載の名前が無い行を、判定を変えずにテーマに残すため）。同じ title は1つの about を指す（§11 の検査）
 - 欄に分けず、出典つきの文として残す。分けられるものは、ほかの台帳に記録する
 - about に、ほかの台帳の point・upper・lower と同じ名前を書くと、テーマのノートで、その事柄や記載の経緯として、ほかの台帳の行と資料の日付の順に並べられる（DESIGN.md ADR-21）
 
