@@ -42,7 +42,9 @@ def data(**kw):
         "policies": [{"kind": "基本施策", "no": "(3)", "name": "幼児教育・保育の充実", "source": U + "sogo.pdf"}],
         "plans": [{"key": "plan:youho", "name": "再編整備計画", "start_fy": "2024", "end_fy": "2029", "posted": "",
                    "url": U + "youho"}],
-        "docs": [{"category": "koho", "title": "広報ひの", "date": "2026-07", "fiscal_year": "2026", "url": U + "koho.pdf"}],
+        "docs": [{"category": "koho", "title": "広報ひの", "date": "2026-07", "fiscal_year": "2026", "url": U + "koho.pdf"},
+                 {"category": "jigyo", "title": "基本構想", "date": "", "fiscal_year": "2025", "url": "https://web.archive.org/web/20250830131330id_/" + U + "k.pdf",
+                  "original_url": U + "k.pdf", "archived": "2025-08-30"}],
         "sheets": [{"program": P, "vision": [{"text": "めざす姿:どの子も育つまち", "source": U + "sogo.pdf"}],
                     "kadai": [{"ref": "plan:youho/hoshin/challenges/1/1", "text": "① 出生数の減少",
                                "source": "youho/honpen p.18-19", "url": U + "youho.pdf#page=20"}]}],
@@ -175,6 +177,9 @@ class BuildTest(unittest.TestCase):
         self.assertIn("### 認定こども園整備事業：施設の再編：日野幼稚園（日野地区）", honpen)
         self.assertIn("### 認定こども園整備事業：年度ごとの節目：令和7年度", honpen)
         self.assertIn("一般質問：令和7年3月定例会　質問者：日野花子 議員　議会だよりの見出し：問1「新こども園について」", honpen)
+        self.assertIn("出典の url のうち web.archive.org のものは、町のサイトに載らなくなった資料の、Webアーカイブの保存版です", honpen)
+        self.assertIn("事業資料：基本構想（出典：https://web.archive.org/web/20250830131330id_/" + U + "k.pdf）。町のサイトに載らなくなったため、"
+                      "Webアーカイブの保存版（2025年8月30日保存）を示す。町の元の url：" + U + "k.pdf", honpen)
 
     def test_bulletin_titles(self):
         # 議会だよりの見出し（LINK_SCHEMA §17.1、DESIGN.md ADR-28）

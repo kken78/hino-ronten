@@ -6,6 +6,7 @@
 """
 import os
 import sys
+import json
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -209,6 +210,35 @@ class ItemsTest(unittest.TestCase):
         q1 = ex[f"iq:{sid(2)}"]
         self.assertEqual([(t["n"], t["title"]) for t in q1["titles"]], [(1, "定員は"), (2, "用地は")])
         self.assertFalse(q1["titles_chosen"])
+
+    def test_archived_sources(self):
+        # 町のサイトから外れた資料は保存版の url を出す（§13.4、DESIGN.md ADR-29）
+        orig = "https://example.jp/teigen.pdf"
+        arc = "https://web.archive.org/web/20250830131330id_/" + orig
+        d = make_data()
+        d.docs["teigen"]["note"] = f"取得元：Webアーカイブの保存版（2025-08-30 13:13:30 UTC、{arc}）。町のページは作り直された"
+        data = build(d=d)
+        doc = data["docs"][0]
+        self.assertEqual((doc["url"], doc["original_url"], doc["archived"]), (arc, orig, "2025-08-30"))
+        self.assertEqual({x["url"] for x in data["hits"]["docs"]}, {arc + "#page=1", arc + "#page=2"})
+        self.assertNotIn(f'"{orig}', json.dumps(data, ensure_ascii=False).replace(f'"original_url": "{orig}', ""))
+
+    def test_archived_sources_stop(self):
+        orig = "https://example.jp/teigen.pdf"
+        for note, msg in (("取得元：Webアーカイブの保存版（2025-08-30）", "書き方が読めない"),
+                          ("取得元：Webアーカイブの保存版（2025-08-30 13:13:30 UTC、https://web.archive.org/web/20250830131330id_/"
+                           "https://example.jp/other.pdf）", "台帳の url と違う")):
+            with self.subTest(note=note):
+                d = make_data()
+                d.docs["teigen"]["note"] = note
+                with self.assertRaisesRegex(bt.BuildError, msg):
+                    build(d=d)
+        d = make_data()
+        d.docs["teigen"].update(note=f"取得元：Webアーカイブの保存版（2025-08-30 13:13:30 UTC、https://web.archive.org/web/20250830131330id_/{orig}）",
+                                sha256="a" * 64)
+        d.sources_index.append({"id": "x", "file": "x.pdf", "url": orig, "sha256": "b" * 64})
+        with self.assertRaisesRegex(bt.BuildError, "sha256 が"):
+            build(d=d)
 
     def test_exchanges_titles_member_differs(self):
         d = make_data()

@@ -100,6 +100,46 @@ def page_url(url, page):
     return f"{url}#page={page}" if url else ""
 
 
+RE_ARCHIVE = re.compile(r"取得元：Webアーカイブの保存版（([0-9]{4}-[0-9]{2}-[0-9]{2}) [0-9:]{8} UTC、"
+                        r"(https://web\.archive\.org/web/[0-9]{14}id_/(https://[^\s）]+))）")
+
+
+def archived_sources(docs, sources_index):
+    """hino-town-docs の台帳で取得元が Webアーカイブの保存版の資料：町の元の url → (保存版の url, 保存日)（§13.4、DESIGN.md ADR-29）。
+    note の形が崩れているとき、保存版の元の url が台帳の url と違うとき、同じ url の shiga-hino-plans の行と sha256 が違うときは止める。"""
+    out = {}
+    for did, r in docs.items():
+        note = r.get("note") or ""
+        if "Webアーカイブ" not in note:
+            continue
+        m = RE_ARCHIVE.search(note)
+        if not m:
+            raise BuildError(f"資料 {did} の note の保存版の書き方が読めない")
+        if m.group(3) != r.get("url"):
+            raise BuildError(f"資料 {did} の保存版の元の url が台帳の url と違う（{m.group(3)}）")
+        out[r["url"]] = (m.group(2), m.group(1), r.get("sha256", ""))
+    for r in sources_index:
+        a = out.get(r.get("url"))
+        if a and r.get("sha256") and a[2] and r["sha256"] != a[2]:
+            raise BuildError(f"計画の原典 {r.get('id')}/{r.get('file')} の sha256 が、同じ url の町の資料の保存版と違う")
+    return {u: (a, day) for u, (a, day, _) in out.items()}
+
+
+def use_archive(obj, archived):
+    """データの中の url の欄で、町のサイトから外れた資料の元の url を、保存版の url に置き換える（#page はそのまま）。"""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "url" and isinstance(v, str) and v:
+                base, sep, frag = v.partition("#")
+                if base in archived:
+                    obj[k] = archived[base][0] + sep + frag
+            else:
+                use_archive(v, archived)
+    elif isinstance(obj, list):
+        for v in obj:
+            use_archive(v, archived)
+
+
 # ---- 入力 ----
 
 class Data:
@@ -385,7 +425,7 @@ def build_docs(d, keys):
             layers.append("OCR の下書き")
         out.append(dict(id=did, category=r.get("category", ""), title=r.get("title", ""), fiscal_year=r.get("fiscal_year", ""),
                         date=r.get("date", ""), pages=r.get("pages", ""), check=r.get("check", ""), text_layers=layers,
-                        url=r.get("url", ""), layer=CONFIRMED))
+                        url=r.get("url", ""), original_url="", archived="", layer=CONFIRMED))
     return out
 
 
@@ -1012,6 +1052,11 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=()):
     data["issues"] = build_issues(d, data, tk, themes_rows, theme, shisetsu_rows)
     data["names"] = build_names(d, data, shisetsu_rows)
     data["theme_questions"] = len(tk["問い"])
+    archived = archived_sources(d.docs, d.sources_index)
+    for x in data["docs"]:
+        if x["url"] in archived:
+            x["original_url"], x["archived"] = x["url"], archived[x["url"]][1]
+    use_archive(data, archived)
     return data
 
 

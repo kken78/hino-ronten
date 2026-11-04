@@ -261,7 +261,7 @@ function gaiyo(){
   o.push(sec('施設の再編','施設を選ぶと、種別・運営・役割・状況の記載を表示します',picker('pk-fac',fitems)));
   const docs=D.docs.slice().sort((a,b)=>(b.date||b.fiscal_year).localeCompare(a.date||a.fiscal_year));
   const CAT={koho:'広報ひの',shingi:'懇話会・審議会',jigyo:'事業資料',yosan:'予算',kessan:'決算',kofukin:'交付金',bosai:'防災'};
-  o.push(sec('資料','',`<details><summary>参照資料（${docs.length}件）</summary>${tbl(['日付','種別','資料名'],docs.map(x=>`<tr><td class="date">${esc(x.date?jd(x.date):x.fiscal_year+'年度')}</td><td>${esc(CAT[x.category]||x.category)}</td><td>${A(x.url,x.title)}</td></tr>`))}</details>`+
+  o.push(sec('資料','',`<details><summary>参照資料（${docs.length}件）</summary>${tbl(['日付','種別','資料名'],docs.map(x=>`<tr><td class="date">${esc(x.date?jd(x.date):x.fiscal_year+'年度')}</td><td>${esc(CAT[x.category]||x.category)}</td><td>${A(x.url,x.title)}${x.archived?`<div class="note">町のサイトに載らなくなったため、Webアーカイブの保存版（${esc(jd(x.archived))}保存）を開きます。町の元の url：${esc(x.original_url)}</div>`:''}</td></tr>`))}</details>`+
     `<details><summary>関連計画（${D.plans.length}件）</summary>${tbl(['計画','計画期間','策定・改正'],D.plans.map(p=>`<tr><td>${A(p.url,p.name)}</td><td>${esc(p.start_fy)}〜${esc(p.end_fy)}年度</td><td>${esc(p.posted)}</td></tr>`))}</details>`));
   return o.join('');
 }

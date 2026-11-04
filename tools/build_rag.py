@@ -75,6 +75,7 @@ def fiscal_year(d):
 
 
 NOT_CHECKED = "どの問いに当たるかは確かめていない"
+ARCHIVE_NOTE = "出典の url のうち web.archive.org のものは、町のサイトに載らなくなった資料の、Webアーカイブの保存版です"
 
 
 def bulletin_titles(x):
@@ -275,6 +276,7 @@ class Rag:
         doc.li("欄「資料の種類」は、会議録（会議録の発言）、広報ひの、町の資料（広報ひののほかの町の公開資料と計画）の別です。"
                "会議録の発言の記載には、欄「回」（最初の問い・再質問1…。やりとりの記録に無いときは「未記録」）を書いています")
         doc.li("「【未確認】」の段落と「照合結果（未確認）」の節は、機械による照合の結果か、人による確認が済んでいない記録です")
+        doc.li(ARCHIVE_NOTE)
         doc.li("評価や判断は加えていません。議員ごとの件数や順位は示していません")
         doc.end_list()
 
@@ -380,7 +382,9 @@ class Rag:
 
         doc.h(2, f"{self.pname}：資料と関連計画")
         for x in sorted(d.get("docs") or [], key=lambda x: (x.get("date") or x.get("fiscal_year") or ""), reverse=True):
-            doc.li(f"［{jd(x['date']) if x.get('date') else (x.get('fiscal_year') or '') + '年度'}］{CATEGORY.get(x.get('category'), x.get('category'))}：{x.get('title')}（出典：{x.get('url')}）")
+            doc.li(f"［{jd(x['date']) if x.get('date') else (x.get('fiscal_year') or '') + '年度'}］{CATEGORY.get(x.get('category'), x.get('category'))}：{x.get('title')}（出典：{x.get('url')}）"
+                   + (f"。町のサイトに載らなくなったため、Webアーカイブの保存版（{jd(x['archived'])}保存）を示す。町の元の url：{x.get('original_url')}"
+                      if x.get("archived") else ""))
         for x in d.get("plans") or []:
             doc.li(f"関連計画：{x.get('name')}（計画期間 {x.get('start_fy')}〜{x.get('end_fy')}年度{'、' + x['posted'] if x.get('posted') else ''}）（出典：{x.get('url')}）")
         doc.end_list()
