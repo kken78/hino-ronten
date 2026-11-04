@@ -413,7 +413,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 
 ### 13.1 整理シート（sheets）
 
-整理シートは、テーマの見方（テーマの定義の views に現れる見方のキーと、kind 施設・地区・組織の value と、テーマ自体）ごとに1つ作る（DESIGN.md ADR-19・ADR-31・ADR-32）。地区・組織の見方は、施設の見方と同じ形（その見方に属する点の並び。事業費と予算・事業の説明は空）。記載をロジックモデルの区分に置くことはしない。
+整理シートは、テーマの見方（テーマの定義の views に現れる見方のキーと、kind 地区・組織の value と、テーマ自体）ごとに1つ作る（DESIGN.md ADR-19・ADR-31・ADR-32）。施設は、その施設の行の views に自身の fa キーを書いたときだけ見方になる（判定シート K4-0）。地区・組織の見方は、施設の見方と同じ形（その見方に属する点の並び。事業費と予算・事業の説明は空）。記載をロジックモデルの区分に置くことはしない。
 
 | 欄 | 入れるもの |
 | --- | --- |
@@ -480,7 +480,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | hits.docs | doc・title・category・fiscal_year・date（資料の日付。並べるため）・page・words・text_layer（「原典の文字」か「OCR の下書き」）・excerpt・unexpected・url |
 | sheets | view（見方のキー。テーマ自体はテーマの id）・view_kind（「事業」「期の計画」「施設」「地区」「組織」「テーマ」）・name（見方の名前）・kadai（課題の記載）・cost（事業費と予算）・desc（事業の説明）・vision（めざす姿）・tsunagari・kotogara・shisetsu・katei・asked（やりとりの記録と質疑の記録への参照と、問いの行の区分ごとの数）。どれも、項目への参照（ref）・text か value・source・url・layer の並び。asked は、問いと質疑のまとまりごとに1項目とし、value を区分ごとの問いの行の数（7つの区分。0も書く）とする |
 | issues | type（13.2 の比べ方）・scope（「見方」か「テーマ」）・view（scope が見方のときの見方のキー）・statement・refs（比べた項目への参照・text か value・url・layer の並び）・layer |
-| names | sources（records・council・issues の refs に出る資料のキーごとの、§13.4 の資料の名前）・facilities（records.shisetsu に出る施設ごとの、ref/shisetsu.tsv の name と district）・views（テーマの定義の views と kind 施設・地区・組織の value に出る見方のキーごとの、名前。地区と組織は参照表の name、施設は ref/shisetsu.tsv の name）。layer と url は付けない |
+| names | sources（records・council・issues の refs に出る資料のキーごとの、§13.4 の資料の名前）・facilities（records.shisetsu に出る施設ごとの、ref/shisetsu.tsv の name と district）・views（テーマの定義の views と kind 施設・地区・組織の value に出る見方のキーごとの名前。事業と期の計画は {name}、施設は {name, district}（ref/shisetsu.tsv）、地区と組織は {name, aliases}（参照表の name と、「;」で区切った aliases の並び））。layer と url は付けない |
 | theme_questions | テーマの定義（§12）の kind 問いの行の数（数だけ。layer と url は付けない） |
 | chushin | 題材の中心の見方のキー（テーマの定義の kind 名前の行の note の「中心の見方：<キー>」。無ければ空。layer と url は付けない）。テーマ自体の見方の要点（§14・§16.1）に出す |
 
