@@ -1,8 +1,9 @@
 """附表と計画の事業の対応の候補を作る（LINK_SCHEMA.md §2・§3・§7 fuhyo・§10、DESIGN.md ADR-10・§5 工程5）。
 
-inputs.lock.json の shiga-hino-plans の files に名指しした附表（data/fuhyo/<附表id>.json）と、突き合わせる計画
-（FUHYO_PLANS。令和8年度の附表は jisshi）の data/plans/<計画id>.json、data/manifest.json を git show で読み、
-§7 fuhyo の決まりで候補を作って build/fuhyo/ に書く。台帳（links/）には書かない。
+inputs.lock.json の shiga-hino-plans の files に名指しした附表（data/fuhyo/<附表id>.json）のうち、突き合わせる計画を
+決めた附表（FUHYO_PLANS。令和8年度の附表は jisshi）と、その計画の data/plans/<計画id>.json、data/manifest.json を
+git show で読み、§7 fuhyo の決まりで候補を作って build/fuhyo/ に書く。突き合わせる計画の無い附表（令和3〜7年度）は
+読まない（DESIGN.md ADR-33。年度をまたぐ対応は tools/gen_fuhyo_years.py）。台帳（links/）には書かない。
 ツールが作るのは candidate まで（DESIGN.md ADR-2）。会議録・議会だよりの入力は読まない。
 
 実行: python3 -B tools/gen_fuhyo.py
@@ -53,27 +54,38 @@ class FuhyoInputs:
     plans: dict   # 計画id → 計画の JSON
 
 
-def read_fuhyo_inputs(gi, lock):
-    """lock の files に名指しした附表と、FUHYO_PLANS の計画、manifest を読む。附表を「*」で指していれば止める（§10）。"""
-    files = lock[gm.SP]["files"]
-    named = [p for p in files if p.startswith(FUHYO_DIR)]
+def named_fuhyo(lock):
+    """lock の files に名指しした附表の（附表id、パス）の一覧。附表を「*」で指していれば止める（§10）。"""
+    named = [p for p in lock[gm.SP]["files"] if p.startswith(FUHYO_DIR)]
     gm._fail("lock の files で附表を「*」で指している（年度ごとのファイルを名指しする。LINK_SCHEMA §10）",
              [p for p in named if "*" in p])
     gm._fail("lock の files の附表のパスが data/fuhyo/<附表id>.json の形でない",
              [p for p in named if not FUHYO_PATH.fullmatch(p)])
     if not named:
         raise gm.GenError(f"lock の {gm.SP} の files に附表（{FUHYO_DIR}<附表id>.json）が無い")
+    return [(FUHYO_PATH.fullmatch(p).group(1), p) for p in named]
+
+
+def read_fuhyo_json(gi, fid, path):
+    """附表の JSON を読み、id がファイル名と同じことを確かめる。"""
+    data = gi.read_json(gm.SP, path)
+    if data.get("id") != fid:
+        raise gm.GenError(f"{path}: id がファイル名と違う（{data.get('id')!r}）")
+    return data
+
+
+def read_fuhyo_inputs(gi, lock):
+    """lock の files に名指しした附表のうち FUHYO_PLANS にあるものと、その計画、manifest を読む（§7 fuhyo・§10）。
+    突き合わせる計画の無い附表は読まない。名指しした附表のどれにも突き合わせる計画が無ければ止める。"""
+    named = [(fid, p) for fid, p in named_fuhyo(lock) if fid in FUHYO_PLANS]
+    if not named:
+        raise gm.GenError(f"lock の files に、突き合わせる計画を決めた附表（{'・'.join(sorted(FUHYO_PLANS))}）が無い")
     manifest = gi.read_json(gm.SP, "data/manifest.json")
     ids = {p.get("id") for p in manifest["plans"]}
     fuhyo, plans = {}, {}
-    for p in named:
-        fid = FUHYO_PATH.fullmatch(p).group(1)
-        data = gi.read_json(gm.SP, p)
-        if data.get("id") != fid:
-            raise gm.GenError(f"{p}: id がファイル名と違う（{data.get('id')!r}）")
-        pid = FUHYO_PLANS.get(fid)
-        if pid is None:
-            raise gm.GenError(f"{p}: 突き合わせる計画が FUHYO_PLANS に無い（{fid}）")
+    for fid, p in named:
+        data = read_fuhyo_json(gi, fid, p)
+        pid = FUHYO_PLANS[fid]
         if pid not in ids:
             raise gm.GenError(f"{p}: 突き合わせる計画 {pid} が manifest に無い")
         fuhyo[fid] = data

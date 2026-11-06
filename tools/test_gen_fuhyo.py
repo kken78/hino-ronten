@@ -333,17 +333,28 @@ class TestReadInputs(unittest.TestCase):
         base = ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv"]
         other = copy.deepcopy(FUHYO)
         other["id"] = "fuhyo-r7"
-        files = dict(self.FILES, **{"data/fuhyo/fuhyo-r7.json": other, "data/fuhyo/fuhyo-r9.json": FUHYO})
+        files = dict(self.FILES, **{"data/fuhyo/fuhyo-r7.json": other})
         cases = {"「*」で指す": (base + ["data/fuhyo/*.json"], "「*」"),
                  "見本のファイル": (base + ["data/fuhyo/_fuhyotest.json"], "の形でない"),
                  "附表が無い": (base, "附表"),
-                 "id がファイル名と違う": (base + ["data/fuhyo/fuhyo-r9.json"], "id がファイル名と違う"),
-                 "突き合わせる計画が無い": (base + ["data/fuhyo/fuhyo-r7.json"], "FUHYO_PLANS に無い")}
+                 "id がファイル名と違う": (base + [FUHYO_FILE], "id がファイル名と違う"),
+                 "突き合わせる計画が無い": (base + ["data/fuhyo/fuhyo-r7.json"], "突き合わせる計画を決めた附表")}
         for name, (lock_files, needle) in cases.items():
             with self.subTest(name=name):
+                wrong = dict(files, **{FUHYO_FILE: other}) if name == "id がファイル名と違う" else files
                 with self.assertRaises(gm.GenError) as cm:
-                    gf.read_fuhyo_inputs(FakeInputs(files), self.lock_with(lock_files))
+                    gf.read_fuhyo_inputs(FakeInputs(wrong), self.lock_with(lock_files))
                 self.assertIn(needle, str(cm.exception))
+
+    def test_skip_fuhyo_without_plan(self):
+        # 突き合わせる計画の無い附表（令和7年度）は読まない（§7 fuhyo、DESIGN.md ADR-33）
+        other = copy.deepcopy(FUHYO)
+        other["id"] = "fuhyo-r7"
+        gi = FakeInputs(dict(self.FILES, **{"data/fuhyo/fuhyo-r7.json": other}))
+        lock = self.lock_with(["data/manifest.json", "data/plans/*.json", "data/fuhyo/fuhyo-r7.json", FUHYO_FILE])
+        inp = gf.read_fuhyo_inputs(gi, lock)
+        self.assertEqual(sorted(inp.fuhyo), [FID])
+        self.assertNotIn(("shiga-hino-plans", "data/fuhyo/fuhyo-r7.json"), gi.read)
 
     def test_plan_not_in_manifest(self):
         files = dict(self.FILES, **{"data/manifest.json": {"schema": 1, "plans": [{"id": "kodomo", "name": "見本"}]}})
