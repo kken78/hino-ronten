@@ -2,7 +2,8 @@
 
 台帳（links/<method>.tsv）の形を確かめて読み書きし、§5 の照合と §6 の併合、§11 の sentinel を行う関数を置く。
 人が付け替えた行の台帳（links/relink.tsv）は、付け替えの元と付け替えの重なり（§6・§11）も確かめる。
-附表の台帳（links/fuhyo.tsv）は、附表の分類（§11）も確かめる。
+附表の台帳（links/fuhyo.tsv）は、附表の分類（§11）も確かめる。年度の台帳（links/fuhyo-years.tsv）は、行の method が
+name・manual で、from も to も fh（§3・§11）。年度の対応（§11）は tools/gen_fuhyo_years.py で確かめる。
 入力のリポジトリは読まない。読むのは tools/update_links.py・tools/check_links.py が gen_mentions・gen_fuhyo で
 lock の版から作ったデータだけ（§10）。機械は status を confirmed・rejected にしない（DESIGN.md ADR-2）。
 """
@@ -25,7 +26,8 @@ RELINK_CONFLICT_COLUMNS = ["from", "to", "relink_status", "mention_status", "con
 
 CANDIDATE, CONFIRMED, REJECTED = "candidate", "confirmed", "rejected"
 STATUSES = (CANDIDATE, CONFIRMED, REJECTED)
-METHODS = ("mention", "program", "semantic", "relink", "fuhyo")
+METHODS = ("mention", "program", "semantic", "relink", "fuhyo", "fuhyo-years")  # 台帳のファイル名（links/<method>.tsv）
+ROW_METHODS = {"fuhyo-years": ("name", "manual")}  # §11 方法の制限の例外：行の method が台帳のファイル名と違う台帳
 MATCH, MOVED, STOPPED = "一致", "移動", "停止"
 NEIGHBORS = 5  # §5：連番の前後5以内
 SENTINEL_MARKS = ("〓", "※")  # §11：context に「〓」が含まれるときは「※」
@@ -40,12 +42,13 @@ KEY_FORMS = {
     "node": re.compile(r"node:[a-z0-9][a-z0-9-]*/e[0-9]{3,}"),
     "none": re.compile(r"none:[a-z0-9][a-z0-9-]*"),
 }
-FROM_KINDS, TO_KINDS = ("bq", "sp", "fh"), ("plan", "lin", "node", "none")
-# §11：台帳ごとの from・to の種類。mention と relink は from が bq・sp、to が plan・lin。fuhyo は from が fh、to が node・none
-FROM_KINDS_OF = {"fuhyo": ("fh",)}
-TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none")}
+FROM_KINDS, TO_KINDS = ("bq", "sp", "fh"), ("plan", "lin", "node", "none", "fh")
+# §11：台帳ごとの from・to の種類。mention と relink は from が bq・sp、to が plan・lin。fuhyo は from が fh、to が node・none。
+# fuhyo-years は from も to も fh
+FROM_KINDS_OF = {"fuhyo": ("fh",), "fuhyo-years": ("fh",)}
+TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none"), "fuhyo-years": ("fh",)}
 DEFAULT_FROM_KINDS, DEFAULT_TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")  # program・semantic（§3）
-HUMAN_ONLY = ("relink",)  # §6：機械が作らない台帳。candidate を置かない
+HUMAN_ONLY = ("relink", "manual")  # §6：機械が作らない行の method（relink の台帳、年度の台帳の manual）。candidate を置かない
 WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",), "fh": ("name",)}
 
 
@@ -81,8 +84,11 @@ def _row_errors(n, r, method):
         errs.append(f"to の形が違う（{r['to']!r}）")
     elif tk not in TO_KINDS_OF.get(method, DEFAULT_TO_KINDS):
         errs.append(f"{method} の台帳の to に {tk} は使えない（{r['to']}）")
-    if r["method"] != method:
+    allowed = ROW_METHODS.get(method)
+    if allowed is None and r["method"] != method:
         errs.append(f"method が台帳のファイル（{method}）と違う（{r['method']!r}）")
+    elif allowed is not None and r["method"] not in allowed:
+        errs.append(f"method が {'・'.join(allowed)} でない（{r['method']!r}。台帳 {method}）")
     if fk == "sp" and KEY_FORMS["sp"].fullmatch(r["from"]):
         try:
             gm._split_sid(r["from"][3:])
@@ -91,8 +97,8 @@ def _row_errors(n, r, method):
     st = r["status"]
     if st not in STATUSES:
         errs.append(f"status が {'・'.join(STATUSES)} でない（{st!r}）")
-    elif st == CANDIDATE and method in HUMAN_ONLY:
-        errs.append(f"{method} の台帳に candidate は置かない（status は confirmed か rejected）")
+    elif st == CANDIDATE and r["method"] in HUMAN_ONLY:
+        errs.append(f"method が {r['method']} の行に candidate は置かない（status は confirmed か rejected）")
     elif st == CANDIDATE:
         if r["reviewer"] or r["date"]:
             errs.append("candidate に reviewer か date がある")
@@ -258,8 +264,16 @@ def match_row(row, corpus, context=None):
 
 
 def match_label(row, corpus):
-    """to の照合（§5）。plan・lin は名称、node は計画の事業の有無と事業名、none は「記載なし」と manifest の id。"""
+    """to の照合（§5）。plan・lin は名称、node は計画の事業の有無と事業名、none は「記載なし」と manifest の id、
+    fh（年度の台帳）は附表の事業の有無と事業名。"""
     kind = _kind(row["to"])
+    if kind == "fh":
+        item = corpus.fuhyo.get(tuple(row["to"][3:].split("/", 1)))
+        if item is None:
+            return Match(STOPPED, reason="to の附表の事業が無い")
+        if item["name"] != row["to_label"]:
+            return Match(STOPPED, reason=f"to の事業名が違う（いまの事業名：{item['name']}）")
+        return Match(MATCH)
     if kind == "node":
         item = corpus.programs.get(tuple(row["to"][5:].split("/", 1)))
         if item is None:
@@ -399,7 +413,7 @@ def merge(ledger_rows, gen_rows, corpus, relink_rows=()):
             out.rows.append(g)
             continue
         out.rows.append(r)
-        if k in gen:
+        if k in gen or r["method"] in HUMAN_ONLY:  # 人が足した行（年度の台帳の manual）は生成の結果に無くてよい
             continue
         if k in found:
             if dests.get(k) in suppressed:

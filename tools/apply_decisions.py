@@ -13,9 +13,15 @@ lock の版だけを読む。§10）。
 --ledger fuhyo のときは、附表の台帳 links/fuhyo.tsv に書き写す（§7 fuhyo）。判定の一覧は8列だけを受け付け
 （付け替えは使わない。§6）、範囲には附表の事業ごとにその事業の candidate の行をすべて入れる。書き写したあとの
 台帳に附表の分類（§11）の誤りが出るなら書かない。書き写す前の件数は、to の種類（node・none）と status ごとに表示する。
+--ledger fuhyo-years のときは、年度の台帳 links/fuhyo-years.tsv に書き写す（§6・§7 fuhyo-years、DESIGN.md ADR-33）。
+判定の一覧は8列だけを受け付ける。method が name の行は台帳の candidate の行に書き写し、method が manual の行は、
+台帳に同じ組の行が無ければ confirmed の行として足し（evidence・context・to_label は lock の附表から作る）、
+confirmed の manual の行があれば rejected の判定だけを受け付けて取り消す。書き写したあとの台帳に年度の対応（§11）の
+誤りが出るなら書かない。書き写す前の件数は、method（name・manual）と status ごとに表示する。
 
 実行: python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger fuhyo --keys <判定した範囲の TSV> <判定の一覧の TSV>
+      python3 -B tools/apply_decisions.py --ledger fuhyo-years --keys <判定した範囲の TSV> <判定の一覧の TSV>
 終了コード：0 は書き写し、確かめも合格。1 は止めた（使い方の誤り、入力の読み込み、範囲の一覧・判定の一覧の誤り、
 範囲と判定の一覧の食い違い、附表の分類の誤りで止めたときは台帳に書かない。書いたあとの確かめで合格しなかったときは、
 台帳は書いたまま、件数と該当を表示する）。
@@ -31,6 +37,7 @@ sys.path.insert(0, HERE)
 
 import check_links  # noqa: E402
 import gen_fuhyo  # noqa: E402
+import gen_fuhyo_years  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
@@ -38,12 +45,14 @@ import mention  # noqa: E402
 METHOD = "mention"
 RELINK = check_links.RELINK
 FUHYO = check_links.FUHYO
+YEARS = check_links.YEARS
 DECISION_COLUMNS = ["from", "to", "method", "context", "status", "reviewer", "date", "note"]
 RELINK_TO = "relink_to"
 HEADERS = (DECISION_COLUMNS, DECISION_COLUMNS + [RELINK_TO])  # いまの8列か、relink_to を足した9列
 KEY_COLUMNS = ["from", "to", "method"]  # 判定した範囲の一覧（--keys）の列
 DECIDED = (ledger.CONFIRMED, ledger.REJECTED)
-USAGE = "使い方：python3 -B tools/apply_decisions.py [--ledger fuhyo] --keys <判定した範囲の TSV> <判定の一覧の TSV>"
+USAGE = ("使い方：python3 -B tools/apply_decisions.py [--ledger fuhyo | --ledger fuhyo-years] "
+         "--keys <判定した範囲の TSV> <判定の一覧の TSV>")
 COUNT_PREFIX = "書き写す前の件数："
 REJECT_PREFIX, REJECT_BASIS = "却下：", "。判別の根拠："  # decided_note の rejected の形
 
@@ -141,6 +150,13 @@ def fuhyo_count_lines(decisions):
     counts = Counter((d["to"].partition(":")[0], d["status"]) for _, d in decisions)
     return [f"{COUNT_PREFIX}{kind} {ledger.CONFIRMED} {counts[(kind, ledger.CONFIRMED)]}・"
             f"{ledger.REJECTED} {counts[(kind, ledger.REJECTED)]}" for kind in ("node", "none")]
+
+
+def years_count_lines(decisions):
+    """年度の台帳の書き写す前の件数の行（§11 判定の範囲）。method の name・manual の順に confirmed・rejected の件数（0件も書く）。"""
+    counts = Counter((d["method"], d["status"]) for _, d in decisions)
+    return [f"{COUNT_PREFIX}{m} {ledger.CONFIRMED} {counts[(m, ledger.CONFIRMED)]}・"
+            f"{ledger.REJECTED} {counts[(m, ledger.REJECTED)]}" for m in (gen_fuhyo_years.NAME, gen_fuhyo_years.MANUAL)]
 
 
 def incomplete_scope_errors(keys, ledger_rows):
@@ -321,6 +337,89 @@ def run_fuhyo(decisions_path, keys_path, ledger_path, fbuilt, outdir, out=None):
     return code, applied, rows, rep
 
 
+def apply_years(ledger_rows, decisions, ybuilt):
+    """年度の台帳に判定を書き写した新しい台帳の行を返す（§6・§7 fuhyo-years）。name の行は apply と同じ（candidate の行に
+    書き写す）。manual の行は、台帳に無ければ confirmed の行を足し、confirmed の manual の行があれば rejected で取り消す。
+    合わない行が1行でもあれば、すべて示して止める。"""
+    by_key = {(r["from"], r["to"], r["method"]): r for r in ledger_rows}
+    names = [(n, d) for n, d in decisions if d["method"] == gen_fuhyo_years.NAME]
+    errs, added, cancelled = [], [], {}
+    for n, d in decisions:
+        if d["method"] == gen_fuhyo_years.NAME:
+            continue
+        at = f"{n}行目 {d['from']} {d['to']}"
+        if d["method"] != gen_fuhyo_years.MANUAL:
+            errs.append(f"{at}：method が name・manual でない（{d['method']!r}）")
+            continue
+        k = (d["from"], d["to"], d["method"])
+        r = by_key.get(k)
+        bad = []
+        if not d["reviewer"]:
+            bad.append("reviewer が空")
+        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", d["date"]):
+            bad.append(f"date が YYYY-MM-DD でない（{d['date']!r}）")
+        if not d["note"]:
+            bad.append("note が空（manual の行は根拠、取り消しは理由を書く）")
+        if r is None:
+            if d["status"] != ledger.CONFIRMED:
+                bad.append(f"台帳に無い manual の行は confirmed でだけ足せる（{d['status']!r}）")
+            row, more = gen_fuhyo_years.manual_row(ybuilt, d["from"], d["to"], d)
+            bad += more
+            if not bad:
+                added.append(row)
+        elif r["status"] == ledger.CONFIRMED and d["status"] == ledger.REJECTED:
+            if d["context"] != r["context"]:
+                bad.append("context が台帳の行と違う")
+            cancelled[k] = {"status": ledger.REJECTED, "reviewer": d["reviewer"], "date": d["date"],
+                            "note": decided_note(ledger.REJECTED, r["note"], d["note"])}
+        else:
+            bad.append(f"台帳に同じ組の manual の行がある（{r['status']}。取り消しは rejected の判定だけ）")
+        errs += [f"{at}：{b}" for b in bad]
+    _fail("判定の一覧に台帳と合わない行がある（台帳には書いていない）", errs)
+    rows, _ = apply(ledger_rows, names) if names else (list(ledger_rows), [])
+    rows = [dict(r, **cancelled[k]) if (k := (r["from"], r["to"], r["method"])) in cancelled else r for r in rows]
+    return sorted(rows + added, key=lambda r: (r["from"], r["to"], r["method"]))
+
+
+def write_years(decisions_path, keys_path, ledger_path, ybuilt, out=None):
+    """判定の一覧を年度の台帳に書き写して書く（§6・§7 fuhyo-years）。返り値は書き写した行の数（(method, status) の Counter）。"""
+    with open(decisions_path, "rb") as f:
+        decisions = parse_decisions(f.read(), relink=False)
+    with open(keys_path, "rb") as f:
+        keys = parse_keys(f.read())
+    _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", scope_errors(keys, decisions))
+    current = ledger.read_ledger(ledger_path, YEARS)
+    rows = apply_years(current, decisions, ybuilt)
+    ledger.parse_ledger(ledger.format_ledger(rows), YEARS)  # 書く前に台帳の形（§1・§3・§11）を確かめる
+    _fail("書き写したあとの台帳に年度の対応の誤りがある（台帳には書いていない）",
+          gen_fuhyo_years.years_errors(rows, ybuilt))
+    print("\n".join(years_count_lines(decisions)), file=out or sys.stdout)
+    ledger.write_ledger(ledger_path, rows)
+    old = {(r["from"], r["to"], r["method"]): r for r in current}
+    return Counter((r["method"], r["status"]) for r in rows if old.get((r["from"], r["to"], r["method"])) != r)
+
+
+def run_years(decisions_path, keys_path, ledger_path, ybuilt, outdir, out=None):
+    """年度の台帳に書き写してから check_links.run_years で確かめる。返り値は（終了コード、書き写した数、台帳の行、Report、誤り）。"""
+    applied = write_years(decisions_path, keys_path, ledger_path, ybuilt, out)
+    code, rows, rep, errors = check_links.run_years(ybuilt, ledger_path, outdir)
+    return code, applied, rows, rep, errors
+
+
+def main_years(keys_path, decisions_path):
+    try:
+        ybuilt = gen_fuhyo_years.load_built()
+        code, applied, rows, rep, errors = run_years(decisions_path, keys_path, check_links.YEARS_PATH, ybuilt,
+                                                     check_links.YEARS_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print("書き写した：" + "・".join(f"{m} {s} {applied[(m, s)]}" for m in (gen_fuhyo_years.NAME, gen_fuhyo_years.MANUAL)
+                                    for s in DECIDED))
+    print("\n".join(check_links.years_report_lines(rows, rep, errors, ybuilt)[2:]), file=sys.stderr if code else sys.stdout)
+    return code
+
+
 def main_fuhyo(keys_path, decisions_path):
     try:
         code, applied, rows, rep = run_fuhyo(decisions_path, keys_path, check_links.FUHYO_PATH, gen_fuhyo.load_built(),
@@ -336,6 +435,8 @@ def main_fuhyo(keys_path, decisions_path):
 def main(argv):
     if len(argv) == 6 and argv[1:3] == ["--ledger", FUHYO] and argv[3] == "--keys":
         return main_fuhyo(argv[4], argv[5])
+    if len(argv) == 6 and argv[1:3] == ["--ledger", YEARS] and argv[3] == "--keys":
+        return main_years(argv[4], argv[5])
     if len(argv) != 4 or argv[1] != "--keys":
         print(USAGE, file=sys.stderr)
         return 1

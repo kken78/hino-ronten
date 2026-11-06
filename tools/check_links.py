@@ -1,24 +1,28 @@
-"""台帳 links/mention.tsv・links/relink.tsv・links/fuhyo.tsv を確かめる（LINK_SCHEMA.md §5・§6・§11、
-DESIGN.md §5 工程4-4・工程5）。ビルドのたびに動かす。
+"""台帳 links/mention.tsv・links/relink.tsv・links/fuhyo.tsv・links/fuhyo-years.tsv を確かめる（LINK_SCHEMA.md §5・§6・§11、
+DESIGN.md §5 工程4-4・工程5・ADR-33）。ビルドのたびに動かす。
 
 inputs.lock.json の版の入力で、台帳の形（§11）・§5 の照合・根拠の消失・台帳と lock の版・sentinel を確かめる。
 links/relink.tsv（人が付け替えた行。無ければ0行）には、台帳の形・§5 の照合・sentinel・付け替えの元・
 付け替えの重なりをかける（台帳と lock の版・根拠の消失はかけない。機械が作らないため）。
 links/fuhyo.tsv（附表の台帳）には、mention と同じ検査と、附表の分類（§11）をかける。無ければ、
 tools/update_links.py --ledger fuhyo を先に動かすよう示して止める。
+links/fuhyo-years.tsv（年度の台帳）には、mention と同じ検査と、年度の対応（§11）をかける。manual の行（人が足した行）は、
+生成の結果に無くても根拠の消失に数えない（§6）。無ければ、tools/update_links.py --ledger fuhyo-years を先に動かすよう示して止める。
 台帳には書かない。一覧と報告は build/links/mention/ に、relink の一覧は build/links/relink/ に、
-附表の一覧と報告は build/links/fuhyo/ に書く。
+附表の一覧と報告は build/links/fuhyo/ に、年度の台帳の一覧と報告は build/links/fuhyo-years/ に書く。
 
 実行: python3 -B tools/check_links.py
 終了コード：0 は合格（移動・移動先が見つからない rejected は一覧に出すだけ）。1 は止めた（件数と該当を表示する）。
 """
 import os
 import sys
+from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import gen_fuhyo  # noqa: E402
+import gen_fuhyo_years  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
@@ -32,6 +36,9 @@ RELINK_OUT_DIR = os.path.join(gm.ROOT, "build", "links", RELINK)
 FUHYO = gen_fuhyo.METHOD
 FUHYO_PATH = os.path.join(gm.ROOT, "links", f"{FUHYO}.tsv")
 FUHYO_OUT_DIR = os.path.join(gm.ROOT, "build", "links", FUHYO)
+YEARS = gen_fuhyo_years.METHOD
+YEARS_PATH = os.path.join(gm.ROOT, "links", f"{YEARS}.tsv")
+YEARS_OUT_DIR = os.path.join(gm.ROOT, "build", "links", YEARS)
 EXAMPLES = 10
 
 
@@ -145,6 +152,53 @@ def run_fuhyo(fbuilt, ledger_path, outdir):
     return rep.exit_code, rows, rep
 
 
+def years_report_lines(rows, rep, errors, ybuilt):
+    c = rep.checked.counts
+    by = Counter((r["method"], r["status"]) for r in rows)
+    L = ["# 台帳の確かめ（links/fuhyo-years.tsv）", "",
+         f"- 年度の台帳：{len(rows)} 行（"
+         + "・".join(f"{m} " + "・".join(f"{s} {by[(m, s)]}" for s in ledger.STATUSES)
+                     for m in (gen_fuhyo_years.NAME, gen_fuhyo_years.MANUAL)) + "）",
+         f"- 年度の台帳の §5 の照合（confirmed・candidate）：一致 {c[ledger.MATCH]}・移動 {c[ledger.MOVED]}・停止 {c[ledger.STOPPED]}",
+         f"- 年度の台帳の根拠の消失（再生成で出なくなった confirmed）：{len(rep.merged.vanished_confirmed)}",
+         f"- 年度の台帳と lock の版：作り直した台帳と違う行 {len(rep.stale)}",
+         f"- 年度の台帳の sentinel：{len(rows) - sum(1 for r in rows if r['status'] == ledger.REJECTED)} 行で確かめ、"
+         f"一致になった行 {len(rep.sentinel_failures)}",
+         f"- 年度の対応の誤り：{len(errors)}"]
+    L += gen_fuhyo_years.count_lines(rows, ybuilt)
+    L += [f"- 年度の台帳の判定：{'合格' if rep.exit_code == 0 and not errors else '停止'}"]
+    if rep.checked.stopped:
+        L += ["", f"年度の台帳の §5 の照合で停止した行（build/links/fuhyo-years/stopped.tsv。先頭{EXAMPLES}件）：", ""]
+        L += [f"- {r['from']} {r['to']}：{r['reason']}" for r in rep.checked.stopped[:EXAMPLES]]
+    if rep.stale:
+        L += ["", f"年度の台帳が lock の版で更新されていない。tools/update_links.py --ledger fuhyo-years を先に動かす。"
+                  f"違う行（先頭{EXAMPLES}件）：", ""]
+        L += [f"- {' '.join(k)}" for k in rep.stale[:EXAMPLES]]
+    if rep.sentinel_failures:
+        L += ["", f"年度の台帳の sentinel で一致になった行（先頭{EXAMPLES}件）：", ""]
+        L += [f"- {r['from']} {r['to']}：{r['context']}" for r in rep.sentinel_failures[:EXAMPLES]]
+    if errors:
+        L += ["", "年度の対応の誤り（全件）：", ""]
+        L += [f"- {e}" for e in errors]
+    return L
+
+
+def run_years(ybuilt, ledger_path, outdir):
+    """年度の台帳を確かめる。返り値は（終了コード、台帳の行、Report、年度の対応の誤り）。台帳には書かない。
+    台帳が無ければ、tools/update_links.py --ledger fuhyo-years を先に動かすよう示して止める。"""
+    if not os.path.exists(ledger_path):
+        raise ledger.LedgerError(f"年度の台帳が無い（{ledger_path}）。tools/update_links.py --ledger fuhyo-years を先に動かす")
+    rows = ledger.read_ledger(ledger_path, YEARS)
+    rep = ledger.check_ledger(rows, gen_fuhyo_years.generated_rows(ybuilt), gen_fuhyo_years.corpus(ybuilt),
+                              relink_rows=None)
+    errors = gen_fuhyo_years.years_errors(rows, ybuilt)
+    ledger.write_lists(outdir, rep.checked, rep.merged, update=False)
+    gen_fuhyo_years.write_rename_lists(outdir, ybuilt)
+    with open(os.path.join(outdir, "check.md"), "wb") as f:
+        f.write(("\n".join(years_report_lines(rows, rep, errors, ybuilt)) + "\n").encode("utf-8"))
+    return (1 if rep.exit_code or errors else 0), rows, rep, errors
+
+
 def main():
     try:
         refs = mention.load_refs(gm.LINEAGE, gm.ALIASES)
@@ -165,7 +219,15 @@ def main():
         print(f"停止：{e}", file=sys.stderr)
         return 1
     print("\n".join(fuhyo_report_lines(frows, frep)[2:]), file=sys.stderr if fcode else sys.stdout)
-    total = 1 if (code or fcode) else 0
+    # 年度の台帳（附表の台帳の報告のあとに出す）
+    try:
+        ybuilt = gen_fuhyo_years.build(gen_fuhyo_years.read_years_inputs(gi, lock))
+        ycode, yrows, yrep, yerrors = run_years(ybuilt, YEARS_PATH, YEARS_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print("\n".join(years_report_lines(yrows, yrep, yerrors, ybuilt)[2:]), file=sys.stderr if ycode else sys.stdout)
+    total = 1 if (code or fcode or ycode) else 0
     print(f"- 全体の判定：{'合格' if total == 0 else '停止'}", file=sys.stderr if total else sys.stdout)
     return total
 
