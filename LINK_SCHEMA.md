@@ -50,7 +50,7 @@
 - node は programs を持つ計画の事業にだけ定義する。key は shiga-hino-plans が事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の CLAUDE.md・PLAN_SCHEMA）。key の無い事業は指さない
 - node は、2026-10-19 に番号（`groups[].no`・`subgroups[].no`・`items[].no`）による形から key による形に替えた。番号の無い事業（jisshi など6計画）を指せないため（issue #1）。替えた時点で、台帳に node の行は無かった
 - gi は、テーマの定義（§12）、テーマのノートのデータ（§13）、記録の台帳（§15）、議案と回の台帳（`links/gian-yosan.tsv` の from。§7 gian-yosan）で使う。議案番号は gian.json の表記のまま（例「議第115号」「決議案第2号」）。同じ会議に同じ番号の議案が2つ以上あれば、その会議の gi は作らずに止める
-- fh は、附表の台帳（`links/fuhyo.tsv`・`links/fuhyo-years.tsv`。§7 fuhyo・fuhyo-years）、○の行と附表の台帳（`links/hosei-fuhyo.tsv`）の to、記録の台帳の target（§15.2・§15.7・§15.10）で使う。none は、附表の台帳（`links/fuhyo.tsv`）だけで使う（§7 fuhyo）（DESIGN.md ADR-34 の1・5）。fh の key は shiga-hino-plans が附表の事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の PLAN_SCHEMA §9）。none は、附表の事業が `<id>` の計画のどの事業にも当たらないこと（記載なし）を表す決まったキーで、事業を指さない
+- fh は、附表の台帳（`links/fuhyo.tsv`・`links/fuhyo-years.tsv`。§7 fuhyo・fuhyo-years）、○の行と附表の台帳（`links/hosei-fuhyo.tsv`）の to、記録の台帳の target（§15.2・§15.7・§15.10）で使う。none は、附表の台帳（`links/fuhyo.tsv`）と、○の行と附表の台帳（`links/hosei-fuhyo.tsv`。附表に当たる事業が無いことを `none:<附表id>` で表す）で使う（§7 fuhyo・hosei-fuhyo）（DESIGN.md ADR-34 の1・5）。fh の key は shiga-hino-plans が附表の事業に付ける番号で、一度付けたら変えず、使い回さない（shiga-hino-plans の PLAN_SCHEMA §9）。none は、附表の事業が `<id>` の計画のどの事業にも当たらないこと（記載なし）を表す決まったキーで、事業を指さない
 - iq・sq・rp と doc・pt は、記録の台帳（§15）とテーマの定義（§12）とテーマのノートのデータ（§13）だけで使う。iq・sq・rp は sid と同じく位置に依存するため、記録の引用（quote）が発言の本文にあることで照合する。doc・pt は、引用がそのページの原典の文字にあることで照合する（§15.1）
 - pt は計画の版ごとの原典の文字を指す。改正の前の版は、file の名前の末尾に策定か改正の年月6桁が付く（例 `honpen-202503`。shiga-hino-plans PLAN_SCHEMA §10.3）。計画の JSON の項目を指す参照（`plan:<id>/<tab>/<type>/<n>/<item>`、§13.1）とは別のもので、引用の照らし先には pt を使う（DESIGN.md ADR-22）
 - fa は、施設の記録（§15.8）・テーマの定義（§12）・テーマのノートのデータ（§13）で使う。名前や所在地では施設を決められないので、参照表で決めた英字のキーとする（DESIGN.md ADR-23）
@@ -130,10 +130,10 @@
 
 ○の行と附表の台帳（`links/hosei-fuhyo.tsv`）は、同じ11列を次のように使い、補正の種類の列 kind を足す（DESIGN.md ADR-34 の5）。
 
-- from：補正予算の概要の○の行か、特別会計の主な内容の行（hj）。to：同じ年度の附表の事業（fh）。method：name（事業名の一致）か manual（名前の一致しない組を人がつないだもの）。この台帳は、method が台帳のファイル名と違う（§11 方法の制限）
+- from：補正予算の概要の○の行か、特別会計の主な内容の行（hj）。to：同じ年度の附表の事業（fh）。附表に当たる事業が無い行は、to を `none:<附表id>`（その年度の附表の id）にする。method：name（事業名の一致）か manual（名前の一致しない組を人がつないだものと、none の行）。この台帳は、method が台帳のファイル名と違う（§11 方法の制限）
 - evidence・context：from の行の名前（§4 の正規化を通した値。evidence と context は同じ）。where：name
-- to_label：to の事業名（items[].name）。表記は元のデータのまま
-- kind：補正の種類。増額（附表の事業の増額）・減額（附表の事業の減額）・財源更正（補正額が0で、説明に財源の字がある）・新規（附表に無く、概要の説明に「新規計上」か「新たに」の字がある）・附表に無い（附表に無く、新規の字も無い。新規か主な事業でないかは原典では決まらない）のどれか。1行に2つ以上あるときは「,」で並べる（1行に新規と増額が混ざる行がある）
+- to_label：to の事業名（items[].name）。表記は元のデータのまま。none は「附表に無い」
+- kind：補正の種類。列は note の次（12列目）。増額（附表の事業の増額）・減額（附表の事業の減額）・財源更正（補正額が0で、説明に財源の字がある）・新規（附表に無く、概要の説明に「新規計上」か「新たに」の字がある）・附表に無い（附表に無く、新規の字も無い。新規か主な事業でないかは原典では決まらない。新規と附表に無いは to が none の行にだけ付け、増額・減額・財源更正は to が fh の行にだけ付ける）のどれか。1行に2つ以上あるときは「,」で並べる（1行に新規と増額が混ざる行がある）
 - note：候補を作った決まり（§7 hosei-fuhyo）、manual の行の根拠（○の行の説明と附表の事業概要の一致する部分）、判定の出どころ
 
 ---
@@ -263,8 +263,8 @@ hosei-fuhyo（補正予算の概要の○の行と附表の事業の対応。DES
 
 - 対象は、補正予算の概要の○の行と特別会計の主な内容の行（hj）と、同じ年度の附表の事業（fh）
 - 名前の一致（method が name）：○の行の名前と、同じ年度の附表の事業名が完全に一致する事業を候補にする（正規化は §4）。同じ年度の附表に同じ名前の事業が2つ以上あるときは、○の行に款が無いので name ではつながず、一覧に出して manual で決める
-- 名前が一致しない組（method が manual）：機械は台帳に行を作らない。人が、○の行の説明と附表の事業概要を比べてつなぎ、note に一致する部分を書く
-- 1つの○の行は、附表の1つの事業にしかつながない。つながらない行は、つながないまま残す。同じ事業が年度の中で何度も補正されるため、1つの fh が複数の hj の to になることは許す（§7 fuhyo-years の、同じ fh が to に2行以上無いという決まりは当てない）
+- 名前が一致しない組（method が manual）：機械は fh への行を作らず、to を `none:<附表id>` にした行を候補にする（kind は、概要の説明に「新規計上」か「新たに」の字があれば新規、無ければ附表に無い）。人が、○の行の説明と附表の事業概要を比べて同じ事業と判断できるときだけ、none の行を却下して fh への行を足し、note に一致する部分を書く
+- 1つの○の行は、附表の1つの事業（fh）か none のどちらか1つにしか確定しない。推測でつながない。同じ事業が年度の中で何度も補正されるため、1つの fh が複数の hj の to になることは許す（§7 fuhyo-years の、同じ fh が to に2行以上無いという決まりは当てない）
 - kind（§3）：増額・減額・財源更正は、○の行の金額の符号と額から、新規は説明の字から、機械で候補を付ける。推定で新規にしない
 - 判定：name の行は、依頼者が、この規則と候補の一覧を見て確定する（CLAUDE.md 不変の制約11 の (2)）。manual の行は、依頼者が会話で確認する（同じく (2)。DESIGN.md ADR-33 の4 と同じ）
 
@@ -349,7 +349,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 検査 | 内容 |
 | --- | --- |
 | 台帳の形 | §1 と §3 に合う（列名と列の順、UTF-8・BOMなし・LF、セルにタブ・改行が無い、行が from → to → method の文字コード順）。合わない台帳は、更新でも検査でも停止し、並べ直さない |
-| キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp・fh・gi・hj、to は plan・lin・node・none・fh・hs。mention と relink の台帳は、from が bq・sp、to が plan・lin だけ。fuhyo の台帳は、from が fh、to が node・none だけ。年度の台帳（fuhyo-years）は、from も to も fh だけ。議案と回の台帳（gian-yosan）は、from が gi、to が hs だけ。○の行と附表の台帳（hosei-fuhyo）は、from が hj、to が fh だけ（DESIGN.md ADR-34 の4・5） |
+| キーの形式 | 全行の from・to が §2 の形式に合う。from は bq・sp・fh・gi・hj、to は plan・lin・node・none・fh・hs。○の行と附表の台帳は、from が hj、to が fh か none だけ。mention と relink の台帳は、from が bq・sp、to が plan・lin だけ。fuhyo の台帳は、from が fh、to が node・none だけ。年度の台帳（fuhyo-years）は、from も to も fh だけ。議案と回の台帳（gian-yosan）は、from が gi、to が hs だけ。○の行と附表の台帳（hosei-fuhyo）は、from が hj、to が fh だけ（DESIGN.md ADR-34 の4・5） |
 | 行の同一性 | (from, to, method) の重複が0件 |
 | 状態 | status が3つの値のいずれか。confirmed・rejected は reviewer と date（YYYY-MM-DD）がある。candidate は reviewer と date が空。rejected は note が空でない |
 | 欄の値 | where が、bq は title・question_text・answer_title・answers、sp は text、fh・hj は name、gi は title のいずれか。evidence・context が §4 の正規化を通した値で、context に evidence が含まれる。fh の行は evidence と context が同じ |
@@ -367,7 +367,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 地区・組織の参照表 | `ref/chiku.tsv`・`ref/soshiki.tsv` が §1 と §12.1 の形に合う（列名と列の順、行が key の文字コード順、key の重複が0件、key が §2 の dist・org の形）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1 |
 | 附表の分類 | fuhyo の台帳で、附表の全事業が from に1行以上ある。同じ from に confirmed の none と confirmed の node が両方あれば終了コード1。candidate の無い from で confirmed が1行も無ければ（候補をすべて却下した）終了コード1。confirmed の行の note に §7 fuhyo の区分（「メモ：区分：<区分>」）が無いか、node の行の区分が一致・一致（柱違い）・表記の違い・名称の変更のどれでもないか、none の行の区分が一部・年度の事業・中身の違いのどれでもなければ終了コード1。confirmed の node か none で分類された事業の数と、まだ candidate のある事業の数を表示する（DESIGN.md §5 工程5 のゲート）。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo`。台帳を書かない）でも検査（`tools/check_links.py`）でも止め、誤りの事業を表示する |
 | 年度の対応 | 年度の台帳で、confirmed と candidate の行について、from の附表の年度が to の附表の年度より前。同じ fh が from に2行以上、または to に2行以上無い（§7 fuhyo-years）。name の行は from と to の事業名が同じで、manual の行は違う。manual の行の status は confirmed か rejected で、candidate は置かない。name の行の note の間の年度が、lock の附表の年度と合う。confirmed の name の行の note に「判定：」がある。note に「名前の一致の規則と一覧（<N>行）」のある confirmed の name の行を、date と N の組ごとに数え、その数が N と同じ。confirmed の manual の行の note が「概要の一致：「」で始まり、「判定：」がある。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo-years`。台帳を書かない）でも検査（`tools/check_links.py`）でも止め、件数と該当の行を表示して終了コード1。年度の組ごとに、つないだ数・前の年度だけの事業の数・後の年度だけの事業の数を表示する |
-| ○の行と附表の対応 | ○の行と附表の台帳（hosei-fuhyo）で、confirmed と candidate の行について、同じ hj が from に2行以上無い。同じ fh が to に2行以上あることは許し、年度の対応の「同じ fh が to に2行以上無い」の検査は当てない（§7 hosei-fuhyo。DESIGN.md ADR-34 の5）。kind が §3 の5つの値を「,」で並べたもの。manual の行の status は confirmed か rejected で、candidate は置かない |
+| ○の行と附表の対応 | ○の行と附表の台帳（hosei-fuhyo）で、confirmed と candidate の行について、confirmed の行について同じ hj が from に2行以上無い（candidate の間は、none の行と fh の行が並んでよい）。kind の値が、to が fh の行では増額・減額・財源更正、to が none の行では新規・附表に無いのどれか。同じ fh が to に2行以上あることは許し、年度の対応の「同じ fh が to に2行以上無い」の検査は当てない（§7 hosei-fuhyo。DESIGN.md ADR-34 の5）。kind が §3 の5つの値を「,」で並べたもの。manual の行の status は confirmed か rejected で、candidate は置かない |
 | 記録の台帳 | `records/` の9つの台帳が §1 と §15 の形に合う。行の同一性（§15 の各台帳）の重複が0件。status・種類などの値が §15 の決まりのどれか。引用（quote）が、§15.1 のとおり資料の本文にある。参照（answers・yaritori・upper_ref・lower_ref・sources など）が、指す先の行や資料にある。やりとりの記録と質疑の記録で、n が1からの整数で、round が「最初の問い」か「再質問」と1からの整数を続けたもので、答えの行の n が answers の指す問いの行の n と同じ。round が turns から求めた値と違う行は、件数を表示して一覧（build/records/round_diff.tsv）に出すが、終了コードは変えない（round は人が決め、turns から求めた値は候補のため。§15.2）。事柄の記録の point が、その行のテーマの kind 事柄の値のどれか。事柄の記録の value が、空か、§4 の正規化のあとで引用（quote）の中にある。やりとりの記録と質疑の記録と審査報告の記録の point が、空か、その問いかそのまとまりかその報告を持つテーマの kind 事柄か記載の値のどれか。審査報告の記録の question が §2 の rp の形で、bill が §2 の gi の形で gian.json にある（§15.10）。構造にしていない記載の about が、空か、そのテーマの kind 事柄か記載の値のどれか。同じテーマ・同じ point の事柄の記録の行で、program が同じ（空を除く）。つながりの記録の upper・lower が、そのテーマの kind 記載の値のどれか。施設の記録の facility が ref/shisetsu.tsv にあり、aspect が §15.8 の4つのどれか。やりとりの記録の bq が §2 の bq の形で、議会だよりにある。記録しない文の question・n が、やりとりの記録か質疑の記録にある問い（question が rp のときは、審査報告の記録にある報告で、n は空）で、sid がその問いかその報告の発言で、quote がその発言の本文にある（§15.9）。合わなければ、テーマのノートのデータを作らずに終了コード1。引用が本文に無い行は、一覧（build/records/quote_mismatch.tsv）に出す。kotogara・tsunagari・kisai に theme の列が無く、kotogara に program の列が無い（§15.3・§15.4・§15.6）。kotogara の point と kisai の about がテーマの定義の kind 事柄・記載の値のどれかにある（テーマは問わない）。kisai の同じ title が違う about を持たない。note の頭が §15.1 の「下書き：」の形で、confirmed の行は note に「判定：」の出どころがある |
 | 発言の取りこぼし | やりとりの記録の問い（question と n の組）ごとに、行のある発言のうち審議の記録の turns の順で最初のものから最後のものまでを見る。最後の行の発言が議員の発言でなければ、そのあとの議員の最初の発言（次の問いの頭。締めくくりの要望や意見が入る）も見る。質疑の記録は、まとまりの全部の発言を見て、テーマの語（§12 の kind 語）を含む文だけを残す。審査報告の記録も、報告の区切りの全部の発言を見て、テーマの語を含む文だけを残す（報告は1つの発言が長く、全文を見ると記録しない文の台帳に報告の大半が写り、不変の制約9 に触れるため。DESIGN.md ADR-34 の7）。見る発言の本文を §4 の正規化にかけ、「。」「？」「！」（正規化のあとの「?」「!」を含む）のあとで文に分ける。同じ発言を引いた行の引用と1字も重ならず、記録しない文の台帳（§15.9）にも無い文を、件数を表示して一覧（build/records/torikoboshi.tsv）に出す。終了コードは変えない。人が、行を足すか、記録しない文の台帳に理由を書く（DESIGN.md ADR-24） |
 | 引用の前後 | 記録の台帳の引用のうち、§4 の正規化のあとの頭が指示語（その・この・これ・それ・あの・こうした・そうした・こういった・そういった・上記・前述・同様・先ほど・さきほど・今申し上げ・以上）で始まるもの（つなぎの言葉と時の語「それと」「それから」「それぞれ」「それでは」「これまで」「これから」「このあと」で始まるものは数えない）と、引用の終わりが本文の文の終わり（「。」「？」「！」の直前か、本文の終わり。§4 の正規化のあとの「?」「!」を含む）でないものを、件数を表示して一覧（build/records/quote_context.tsv）に出す。終了コードは変えない。審査報告の記録の引用は文の途中で切ってよい（§15.10）ので、一覧には出すが止めない。指す先や文の続きを引用に入れるか、行を分けるか、note に書くかは、人がそのつど決める（§15.1） |
