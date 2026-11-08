@@ -4,7 +4,7 @@
     "files": ["docs/data/questions.json", "data/minutes_links.json"]
   },
   "hino-council-search": {
-    "sha": "bdda79e7d8bf73c2596d05924e939f7d99332a49",
+    "sha": "3f794e7c93be7a8a5844a01c89b817b196ad1bef",
     "files": ["public/data/index-manifest.json", "public/data/index/*.json", "public/data/proceedings.json", "public/data/meetings.json", "public/data/gian.json"]
   },
   "shiga-hino-plans": {
