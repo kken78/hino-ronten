@@ -320,3 +320,50 @@ def changes(prev, now, keys):
         elif prev.is_checked(key) and not now.is_checked(key):
             out[key] = "検収が済まなくなった"
     return out
+
+
+def kai_order(struct, groups=None):
+    """同じ年度・同じ会計の回の順（回の表の prev をたどった順。LINK_SCHEMA §11 提案理由の記録の (e)、DESIGN.md ADR-35）。
+    groups（(fiscal_year, kaikei) の集まり）を渡すと、その年度・会計だけを見る。返り値は (order, pos)：
+    order は (fiscal_year, kaikei) → 回の id の並び、pos は回の id → 順の番号（0から）。
+    prev の列が無い、prev が空の回が1つでない、2つの回が同じ回を prev に持つ、prev がほかの年度・会計の回を指す、
+    たどって全部の回に届かない、のどれかなら止める。"""
+    errs, by_group = [], {}
+    for kid, r in sorted(struct.kai.items()):
+        g = (r["fiscal_year"], r["kaikei"])
+        if groups is not None and g not in groups:
+            continue
+        if "prev" not in r:
+            errs.append(f"{kid}：回の表に prev の列が無い")
+            continue
+        by_group.setdefault(g, []).append(kid)
+    gm._fail("回の順の誤り（LINK_SCHEMA §11 提案理由の記録の (e)）", errs)
+    order, pos = {}, {}
+    for g, kids in sorted(by_group.items()):
+        roots = [k for k in kids if not struct.kai[k]["prev"]]
+        nxt = {}
+        for k in kids:
+            p = struct.kai[k]["prev"]
+            if not p:
+                continue
+            if p not in struct.kai or (struct.kai[p]["fiscal_year"], struct.kai[p]["kaikei"]) != g:
+                errs.append(f"{k}：prev（{p}）が同じ年度・会計の回でない")
+            elif p in nxt:
+                errs.append(f"{p}：2つの回（{nxt[p]}・{k}）の prev になっている")
+            else:
+                nxt[p] = k
+        if len(roots) != 1:
+            errs.append(f"{g[0]}年度 {g[1]}：prev が空の回が {len(roots)} 個（1つのはず）")
+            continue
+        seq, cur = [], roots[0]
+        while cur and cur not in seq:
+            seq.append(cur)
+            cur = nxt.get(cur)
+        if sorted(seq) != sorted(kids):
+            errs.append(f"{g[0]}年度 {g[1]}：prev をたどって届かない回がある（{'・'.join(sorted(set(kids) - set(seq)))}）")
+            continue
+        order[g] = seq
+        for i, k in enumerate(seq):
+            pos[k] = i
+    gm._fail("回の順の誤り（LINK_SCHEMA §11 提案理由の記録の (e)）", errs)
+    return order, pos

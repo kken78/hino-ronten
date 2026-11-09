@@ -145,7 +145,8 @@ class OutputTest(unittest.TestCase):
                                      "quote_mismatch.tsv", "review.md", "round_diff.tsv", "signal_chushin.tsv",
                                      "signal_point.tsv", "signal_todoku.tsv", "target_bill.tsv",
                                      "target_name.tsv", "target_unchecked.tsv", "teian_group.tsv", "teian_name.tsv",
-                             "teian_no_jijo.tsv", "teian_segment.tsv", "torikoboshi.tsv"]))
+                                     "teian_narabi.tsv", "teian_no_jijo.tsv", "teian_sashihiki.tsv",
+                                     "teian_segment.tsv", "torikoboshi.tsv"]))
             cand = rc.parse_tsv(read(tmp, "kotogara.candidate.tsv").encode(), rc.COLUMNS["kotogara"], "x")
             self.assertEqual(len(cand), 3)
             sheet = read(tmp, "hantei-K9.md")

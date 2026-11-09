@@ -13,13 +13,10 @@ links/gian-yosan.tsv（議案と回の台帳）には、台帳の形・§5 の�
 かけない（tools/ledger.py の NO_FROM_RULE。§5 gi）。回の表に行のある年度の、資料の無い回の議案を no_kai.tsv に出す。
 links/hosei-fuhyo.tsv（○の行と附表の台帳）には、mention と同じ検査と、○の行と附表の対応（§11）をかける。manual の行
 （人が足した行）は、生成の結果に無くても根拠の消失に数えない（§6）。名前の一致しない○の行を name_unmatched.tsv に出す。
-links/hosei-tsuzuki.tsv（回をまたぐ同じ事業の台帳）には、mention と同じ検査と、回をまたぐ同じ事業（§11）をかける
-（DESIGN.md ADR-35）。
-どれも、無ければ tools/update_links.py --ledger gian-yosan・--ledger hosei-fuhyo・--ledger hosei-tsuzuki を先に動かすよう示して止める。
+どちらも、無ければ tools/update_links.py --ledger gian-yosan・--ledger hosei-fuhyo を先に動かすよう示して止める。
 台帳には書かない。一覧と報告は build/links/mention/ に、relink の一覧は build/links/relink/ に、
 附表の一覧と報告は build/links/fuhyo/ に、年度の台帳の一覧と報告は build/links/fuhyo-years/ に、
-議案と回の台帳は build/links/gian-yosan/ に、○の行と附表の台帳は build/links/hosei-fuhyo/ に、
-回をまたぐ同じ事業の台帳は build/links/hosei-tsuzuki/ に書く。
+議案と回の台帳は build/links/gian-yosan/ に、○の行と附表の台帳は build/links/hosei-fuhyo/ に書く。
 
 実行: python3 -B tools/check_links.py
 終了コード：0 は合格（移動・移動先が見つからない rejected は一覧に出すだけ）。1 は止めた（件数と該当を表示する）。
@@ -35,7 +32,6 @@ import gen_fuhyo  # noqa: E402
 import gen_fuhyo_years  # noqa: E402
 import gen_gian_yosan  # noqa: E402
 import gen_hosei_fuhyo  # noqa: E402
-import gen_hosei_tsuzuki  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import hosei  # noqa: E402
 import ledger  # noqa: E402
@@ -59,9 +55,6 @@ GIAN_OUT_DIR = os.path.join(gm.ROOT, "build", "links", GIAN)
 HOSEI = gen_hosei_fuhyo.METHOD
 HOSEI_PATH = os.path.join(gm.ROOT, "links", f"{HOSEI}.tsv")
 HOSEI_OUT_DIR = os.path.join(gm.ROOT, "build", "links", HOSEI)
-TSUZUKI = gen_hosei_tsuzuki.METHOD
-TSUZUKI_PATH = os.path.join(gm.ROOT, "links", f"{TSUZUKI}.tsv")
-TSUZUKI_OUT_DIR = os.path.join(gm.ROOT, "build", "links", TSUZUKI)
 EXAMPLES = 10
 
 
@@ -323,49 +316,6 @@ def run_hosei(hbuilt, ledger_path, outdir):
     return (1 if rep.exit_code or errors else 0), rows, rep, errors
 
 
-def tsuzuki_report_lines(rows, rep, errors, tbuilt):
-    c = rep.checked.counts
-    L = ["# 台帳の確かめ（links/hosei-tsuzuki.tsv）", "",
-         f"- 回をまたぐ同じ事業の台帳：{len(rows)} 行（"
-         + "・".join(f"{s} {sum(1 for r in rows if r['status'] == s)}" for s in ledger.STATUSES) + "）",
-         f"- 回をまたぐ同じ事業の台帳の §5 の照合（confirmed・candidate）：一致 {c[ledger.MATCH]}・移動 {c[ledger.MOVED]}・"
-         f"停止 {c[ledger.STOPPED]}",
-         f"- 回をまたぐ同じ事業の台帳の根拠の消失（再生成で出なくなった confirmed）：{len(rep.merged.vanished_confirmed)}",
-         f"- 回をまたぐ同じ事業の台帳と lock の版：作り直した台帳と違う行 {len(rep.stale)}",
-         f"- 回をまたぐ同じ事業の台帳の sentinel：{ledger.sentinel_rows(rows)} 行で確かめ、一致になった行 {len(rep.sentinel_failures)}",
-         f"- 回をまたぐ同じ事業の誤り：{len(errors)}"]
-    L += gen_hosei_tsuzuki.count_lines(rows, tbuilt)
-    L += [f"- 回をまたぐ同じ事業の台帳の判定：{'合格' if rep.exit_code == 0 and not errors else '停止'}"]
-    if rep.checked.stopped:
-        L += ["", f"§5 の照合で停止した行（build/links/hosei-tsuzuki/stopped.tsv。先頭{EXAMPLES}件）：", ""]
-        L += [f"- {r['from']} {r['to']}：{r['reason']}" for r in rep.checked.stopped[:EXAMPLES]]
-    if rep.stale:
-        L += ["", f"回をまたぐ同じ事業の台帳が lock の版で更新されていない。tools/update_links.py --ledger hosei-tsuzuki を"
-                  f"先に動かす。違う行（先頭{EXAMPLES}件）：", ""]
-        L += [f"- {' '.join(k)}" for k in rep.stale[:EXAMPLES]]
-    if rep.sentinel_failures:
-        L += ["", f"sentinel で一致になった行（先頭{EXAMPLES}件）：", ""]
-        L += [f"- {r['from']} {r['to']}：{r['context']}" for r in rep.sentinel_failures[:EXAMPLES]]
-    if errors:
-        L += ["", "回をまたぐ同じ事業の誤り（全件）：", ""] + [f"- {e}" for e in errors]
-    return L
-
-
-def run_tsuzuki(tbuilt, ledger_path, outdir):
-    """回をまたぐ同じ事業の台帳を確かめる。返り値は（終了コード、台帳の行、Report、誤り）。台帳には書かない。"""
-    if not os.path.exists(ledger_path):
-        raise ledger.LedgerError(f"回をまたぐ同じ事業の台帳が無い（{ledger_path}）。"
-                                 "tools/update_links.py --ledger hosei-tsuzuki を先に動かす")
-    rows = ledger.read_ledger(ledger_path, TSUZUKI)
-    rep = ledger.check_ledger(rows, gen_hosei_tsuzuki.generated_rows(tbuilt), gen_hosei_tsuzuki.corpus(tbuilt),
-                              relink_rows=None)
-    errors = gen_hosei_tsuzuki.tsuzuki_errors(rows, tbuilt)
-    ledger.write_lists(outdir, rep.checked, rep.merged, update=False)
-    with open(os.path.join(outdir, "check.md"), "wb") as f:
-        f.write(("\n".join(tsuzuki_report_lines(rows, rep, errors, tbuilt)) + "\n").encode("utf-8"))
-    return (1 if rep.exit_code or errors else 0), rows, rep, errors
-
-
 def main():
     try:
         refs = mention.load_refs(gm.LINEAGE, gm.ALIASES)
@@ -409,14 +359,7 @@ def main():
         print(f"停止：{e}", file=sys.stderr)
         return 1
     print("\n".join(hosei_report_lines(hrows, hrep, herrors, hbuilt)[2:]), file=sys.stderr if hcode else sys.stdout)
-    try:
-        tbuilt = gen_hosei_tsuzuki.build(hosei.read_struct(gi))
-        tcode, trows, trep, terrors = run_tsuzuki(tbuilt, TSUZUKI_PATH, TSUZUKI_OUT_DIR)
-    except gm.GenError as e:
-        print(f"停止：{e}", file=sys.stderr)
-        return 1
-    print("\n".join(tsuzuki_report_lines(trows, trep, terrors, tbuilt)[2:]), file=sys.stderr if tcode else sys.stdout)
-    total = 1 if (code or fcode or ycode or gcode or hcode or tcode) else 0
+    total = 1 if (code or fcode or ycode or gcode or hcode) else 0
     print(f"- 全体の判定：{'合格' if total == 0 else '停止'}", file=sys.stderr if total else sys.stdout)
     return total
 

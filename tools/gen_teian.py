@@ -4,7 +4,9 @@
 inputs.lock.json の版の会議録の索引と、hino-town-docs の構造化の層（tools/hosei.py）と、議案と回の台帳
 （links/gian-yosan.tsv）の confirmed の行を読み、一般会計の回の○の行ごとに次を build/teian/ に書く。台帳には書かない。
 候補の文を選んで下書きの TSV を作るのは生成AI（下書き）で、判定は人（CLAUDE.md 不変の制約11 の (4)）。
-  candidates.tsv  ○の行ごとの候補の文（事情は歳出の段から3つまで、財源は歳入の段から2つまで）
+候補の文は文の全体で、行ごとに切って「…」で省くのは下書き（§15.11 の引用の切り方）。
+  candidates.tsv  ○の行ごとの候補の文（事情は歳出の段から3つまで、財源は歳入の段から2つまで）。kata は、概要の説明が
+                  差し引きの型（§15.11。tools/records.py の sashihiki_kata）に当たった字（下書きが gaku を書く手がかり）
   report.md       件数
 
 提案理由の発言の見つけ方：議案（gi）の会議の発言のうち、役職が議員と議長でないもので、索引の並びで最初に、
@@ -32,7 +34,7 @@ import hosei  # noqa: E402
 import records  # noqa: E402
 
 OUT_DIR = os.path.join(gm.ROOT, "build", "teian")
-COLUMNS = ["target", "name", "amount", "men", "rank", "name_in", "score", "bill", "sid", "sentence", "desc"]
+COLUMNS = ["maru", "name", "amount", "men", "rank", "name_in", "score", "bill", "sid", "sentence", "desc", "kata"]
 JIJO_TOP, ZAIGEN_TOP = 3, 2
 CHAIR = "議長"
 RE_ITEM = re.compile(r"(?:議|報)第[0-9]+号、")
@@ -132,17 +134,19 @@ def candidates(inp, st, report=None):
             continue
         sid, part = found
         inc, outs = sections(part)
-        target = f"hj:{kid}/{key}"
+        maru = f"hj:{kid}/{key}"
+        kata = ",".join(records.sashihiki_kata(r["desc"]))
         for men, sents, key_text, top in ((records.JIJO, outs, r["desc"], JIJO_TOP),
                                          (records.ZAIGEN, inc, r["name"], ZAIGEN_TOP)):
             for rank, hit, sc, s in ranked(sents, r["name"], key_text, top):
-                out.append({"target": target, "name": r["name"], "amount": r["amount"], "men": men, "rank": str(rank),
+                out.append({"maru": maru, "name": r["name"], "amount": r["amount"], "men": men, "rank": str(rank),
                             "name_in": "1" if hit else "0", "score": f"{sc:.2f}", "bill": bills[0], "sid": f"sp:{sid}",
-                            "sentence": s, "desc": r["desc"]})
+                            "sentence": s, "desc": r["desc"], "kata": kata})
     if report is not None:
         top1 = [c for c in out if c["men"] == records.JIJO and c["rank"] == "1"]
         report.update(rows=rows_n, no_bill=sorted(no_bill), no_speech=sorted(no_speech), targets=len(top1),
-                      top1_name=sum(1 for c in top1 if c["name_in"] == "1"))
+                      top1_name=sum(1 for c in top1 if c["name_in"] == "1"),
+                      kata=sum(1 for c in top1 if c["kata"]))
     return out
 
 
@@ -154,6 +158,7 @@ def report_lines(rep, n):
             f"- 提案理由の発言が見つからない回：{len(rep['no_speech'])}"
             + (f"（{'・'.join(rep['no_speech'])}）" if rep["no_speech"] else ""),
             f"- 候補の文を出した○の行：{rep['targets']}（事情の1番目の文に名前がある行 {rep['top1_name']}）",
+            f"- 概要の説明が差し引きの型に当たる○の行：{rep['kata']}",
             f"- 候補の行：{n}"]
 
 

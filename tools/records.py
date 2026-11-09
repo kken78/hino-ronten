@@ -36,7 +36,7 @@ COLUMNS = {
     "kisai": ["title", "about", "source", "source_date", "quote"] + COMMON,
     "shisetsu": ["facility", "aspect", "value", "source", "source_date", "quote", "target", "kind", "prev"] + COMMON,
     "nozoki": ["question", "n", "sid", "quote", "reason"] + COMMON,
-    "teian": ["target", "men", "bill", "sid", "quote"] + COMMON,
+    "teian": ["maru", "men", "bill", "sid", "quote", "gaku"] + COMMON,
 }
 # 行のキー（§15 の各台帳）。row と step は数の順、ほかは文字コード順（§1）
 KEYS = {
@@ -48,7 +48,7 @@ KEYS = {
     "kisai": ("title", "source"),
     "shisetsu": ("facility", "aspect", "source", "quote"),
     "nozoki": ("question", "n", "sid", "quote"),
-    "teian": ("target", "men", "sid", "quote"),
+    "teian": ("maru", "men", "sid", "quote"),
 }
 NUMERIC = ("row", "step")
 LEDGERS = tuple(COLUMNS)          # nozoki は無ければ0行（DESIGN.md ADR-24）
@@ -74,7 +74,12 @@ ASPECTS = ("種類", "運営", "役割", "状態", "規模")   # §15.8（規模
 MEN = ("事情", "財源")   # 提案理由の記録の面（§15.11）
 JIJO, ZAIGEN = MEN
 RE_GIIN = re.compile(r"[0-9０-９]+番")   # 議員の役職（tools/build_theme.py の speaker_class と同じ形）
-RE_PAREN = re.compile(r"\([^()]*\)")   # §4 の正規化のあとの括弧の中（名前の照らし合わせで除く。§11 提案理由の記録の (b)）
+RE_PAREN = re.compile(r"\([^()]*\)")   # §4 の正規化のあとの括弧（§15.11・§11 提案理由の記録の (b)）
+RE_PAREN_IN = re.compile(r"\(([^()]*)\)")   # 括弧の中の字
+ELLIPSIS = "…"   # 提案理由の記録の引用で省いたところ（U+2026。§15.11）
+SASHIHIKI = "差し引き"   # 提案理由の記録の gaku（§15.11）
+GAKU = ("", SASHIHIKI)
+SASHIHIKI_WORDS = ("減額", "増額", "新規計上")   # 差し引きの型の字（§15.11）
 IPPAN = "ippan"
 FIRST = "最初の問い"
 ROUND = re.compile(r"最初の問い|再質問[1-9][0-9]*")
@@ -121,10 +126,12 @@ TARGET_UNCHECKED_COLUMNS = ["ledger", "question", "row", "status", "key"]
 TARGET_BILL_COLUMNS = ["ledger", "question", "row", "key", "bills", "kai"]
 TARGET_NAME_COLUMNS = ["ledger", "question", "row", "key", "name", "target_text"]
 TARGET_CHANGED_COLUMNS = ["ledger", "question", "row", "key", "change"]
-TEIAN_SEGMENT_COLUMNS = ["target", "men", "sid", "bill", "quote"]
-TEIAN_NAME_COLUMNS = ["target", "men", "sid", "name", "quote"]
-TEIAN_NO_JIJO_COLUMNS = ["target", "name", "amount"]
-TEIAN_GROUP_COLUMNS = ["group", "size", "men", "sid", "target", "name", "quote"]
+TEIAN_SEGMENT_COLUMNS = ["maru", "men", "sid", "bill", "quote", "desc"]
+TEIAN_NAME_COLUMNS = ["maru", "men", "sid", "name", "quote", "desc"]
+TEIAN_NO_JIJO_COLUMNS = ["maru", "name", "amount", "desc"]
+TEIAN_GROUP_COLUMNS = ["group", "size", "men", "sid", "maru", "name", "quote", "desc"]
+TEIAN_NARABI_COLUMNS = ["group", "size", "n", "maru", "name", "amount", "desc"]
+TEIAN_SASHIHIKI_COLUMNS = ["maru", "name", "amount", "kata", "gaku", "desc"]
 
 # 対象の形（§11・§15.2）：target のキーの種類と、target_text の種類
 TARGET_LEDGERS = ("yaritori", "shitsugi")   # target を持つ台帳（審査報告の記録 §15.10 はまだ置いていない）
@@ -205,6 +212,8 @@ class Report:
     teian_name: list = field(default_factory=list)
     teian_no_jijo: list = field(default_factory=list)
     teian_group: list = field(default_factory=list)
+    teian_narabi: list = field(default_factory=list)
+    teian_sashihiki: list = field(default_factory=list)
 
     def err(self, where, msg):
         self.errors.append(f"{where}：{msg}")
@@ -1095,11 +1104,104 @@ def target_changed(ledgers, prev, now):
 # ---- 提案理由の記録（§11・§15.11。DESIGN.md ADR-35） ----
 
 def base_name(name):
-    """○の行の名前から、括弧の中と末尾の「ほか」を除き、§4 の正規化をかけたもの（§11 提案理由の記録の (b)）。"""
+    """○の行の名前から、括弧の中と末尾の「ほか」を除き、§4 の正規化をかけたもの（§15.11 の財源の (1)・§11 の (b)）。"""
     n = norm(name)
     while RE_PAREN.search(n):
         n = RE_PAREN.sub("", n)
     return n[:-2] if n.endswith("ほか") else n
+
+
+def paren_texts(name):
+    """○の行の名前の括弧の中の字（§4 の正規化のあと。入れ子は内側から1つずつ）。"""
+    n, out = norm(name), []
+    while True:
+        found = RE_PAREN_IN.findall(n)
+        if not found:
+            return out
+        out += [x for x in found if x]
+        n = RE_PAREN.sub("", n)
+
+
+def name_missing(name, quote):
+    """§11 の (b)：括弧の外の字（末尾の「ほか」を除く）と括弧の中の字の1つずつのうち、quote（§4 の正規化のあと）に無いもの。"""
+    q = norm(quote)
+    return [x for x in [base_name(name)] + paren_texts(name) if x and x not in q]
+
+
+def teian_parts(quote):
+    """quote を「…」で分ける（§15.11）。返り値は (頭を省いたか, 終わりを省いたか, 部分（§4 の正規化のあと）, 誤り)。"""
+    raw = quote.split(ELLIPSIS)
+    head = len(raw) > 1 and raw[0] == ""
+    tail = len(raw) > 1 and raw[-1] == ""
+    mid = raw[(1 if head else 0):(len(raw) - 1 if tail else len(raw))]
+    parts = [norm(p) for p in mid]
+    errs = []
+    if not any(parts):
+        errs.append("quote に「…」のほかの字が無い")
+    elif any(len(p) < 2 for p in parts):
+        errs.append("「…」で分けた部分に2字に満たないもの（空を含む）がある")
+    return head, tail, parts, errs
+
+
+@dataclass
+class Placement:
+    """§15.11 の当て方の結果。sentence はもとの文の番号（0から）、start・end はその文の本文の中の位置、spans は部分の位置。"""
+    sentence: int
+    start: int
+    end: int
+    spans: list
+    text: str
+
+
+def teian_place(text, parts):
+    """§15.11 の当て方：本文（§4 の正規化のあと）の文のうち、部分がこの順で重ならずにある文ごとの Placement の並び。"""
+    t, ss = sentences(text or "")
+    out = []
+    for n, (a, b, s) in enumerate(ss):
+        pos, spans = 0, []
+        for p in parts:
+            i = s.find(p, pos)
+            if i < 0:
+                break
+            spans.append((a + i, a + i + len(p)))
+            pos = i + len(p)
+        else:
+            out.append(Placement(n, a, b, spans, t))
+    return out
+
+
+def teian_quote(inp, r, rep, name="teian"):
+    """提案理由の記録の引用の照合（§11・§15.11）。もとの文が1つに決まれば Placement、決まらなければ None。
+    引用が本文に無いときは、ほかの台帳と同じく quote_mismatch.tsv に出し、confirmed なら誤り。"""
+    w, q, key = label(name, r), r["quote"], r["sid"]
+    if not q:
+        rep.err(w, "quote が空")
+        return None
+    if len(q) > QUOTE_MAX:
+        rep.err(w, f"quote が{QUOTE_MAX}字を超える（{len(q)}字）")
+    _, _, parts, errs = teian_parts(q)
+    for e in errs:
+        rep.err(w, e)
+    if errs:
+        return None
+    texts = source_texts(inp, key)
+    if texts is None:
+        rep.err(w, f"資料が入力に無いか、照らせない資料のキー（{key}）")
+        return None
+    hits = teian_place(texts[0], parts)
+    if not hits:
+        rep.quote_mismatch.append({"ledger": name, "key": "/".join(r[c] for c in KEYS[name]),
+                                   "status": r["status"], "source": key, "quote": q})
+        if r["status"] == "confirmed":
+            rep.err(w, f"confirmed の引用が資料の本文に無い（{key}）")
+        return None
+    if len(hits) > 1:
+        rep.err(w, f"quote の部分がこの順である文が {len(hits)} つあり、当て方が1つに決まらない（部分を長くする）")
+        return None
+    h = hits[0]
+    if any(x[1] == y[0] for x, y in zip(h.spans, h.spans[1:])):
+        rep.err(w, "「…」の前後の部分が本文で続いている（省いた字が無い）")
+    return h
 
 
 def in_proposal(inp, sid, bill):
@@ -1115,34 +1217,48 @@ def in_proposal(inp, sid, bill):
     return False
 
 
+def sashihiki_kata(desc):
+    """§15.11 の差し引きの型：概要の説明（§4 の正規化のあと）に「減額」と、「増額」か「新規計上」がある。当たった字の並び。"""
+    d = norm(desc)
+    if "減額" not in d or not ("増額" in d or "新規計上" in d):
+        return []
+    return [x for x in SASHIHIKI_WORDS if x in d]
+
+
 def check_teian(rows, inp, rep):
     """提案理由の記録（§15.11）。誤りは rep.errors、一覧は rep.teian_*。"""
     name = "teian"
     st = inp.struct
     live = [r for r in rows if r["status"] != "rejected"]
+    desc_of = lambda t: ((st.row_of(t) or {}).get("desc", "") if st is not None else "")  # noqa: E731
+    placed = {}
     for r in rows:
         w = label(name, r)
         check_common(name, r, rep)
-        t = r["target"]
+        t = r["maru"]
         row = None
         if hosei.kind_of(t) != "hj" or not t.partition("/")[2].startswith("m"):
-            rep.err(w, f"target が §2 の hj の○の行（key の頭が m）のキー1つでない（{t}）")
+            rep.err(w, f"maru が §2 の hj の○の行（key の頭が m）のキー1つでない（{t}）")
         elif st is None or not st.exists(t):
-            rep.err(w, f"target が lock の版の構造化の層に無い（{t}）")
+            rep.err(w, f"maru が lock の版の構造化の層に無い（{t}）")
         else:
             row = st.row_of(t)
             kai = st.kai.get(st.kai_of(t)) or {}
             if kai.get("kaikei") != IPPAN:
-                rep.err(w, f"target の回の会計が一般会計でない（{kai.get('kaikei')}）")
+                rep.err(w, f"maru の回の会計が一般会計でない（{kai.get('kaikei')}）")
             if r["status"] == "confirmed" and not st.is_checked(t):
-                rep.err(w, f"confirmed の行の target が検収の済んだ行でない（{t}）")
+                rep.err(w, f"confirmed の行の maru が検収の済んだ行でない（{t}）")
         if r["men"] not in MEN:
             rep.err(w, f"men が {MEN} のどれでもない（{r['men']}）")
+        if r["gaku"] not in GAKU:
+            rep.err(w, f"gaku が空か「{SASHIHIKI}」でない（{r['gaku']}）")
+        elif r["gaku"] and r["men"] != JIJO:
+            rep.err(w, "gaku は事情の行にだけ書く（財源の行は空）")
         m = RE_GI.fullmatch(r["bill"])
         if not m or m.group(2) not in inp.gian.get(m.group(1), set()):
             rep.err(w, f"bill が §2 の gi の形でないか、gian.json に無い（{r['bill']}）")
         elif row is not None and f"hs:{st.kai_of(t)}" not in inp.gian_hs.get(r["bill"], set()):
-            rep.err(w, f"bill が、議案と回の台帳の confirmed の行で target の回（hs:{st.kai_of(t)}）に対応しない")
+            rep.err(w, f"bill が、議案と回の台帳の confirmed の行で maru の回（hs:{st.kai_of(t)}）に対応しない")
         sid = r["sid"][3:] if RE_SP.fullmatch(r["sid"]) else None
         stmt = inp.statements.get(sid) if sid else None
         if stmt is None:
@@ -1150,44 +1266,103 @@ def check_teian(rows, inp, rep):
             continue
         if RE_GIIN.fullmatch(stmt.get("role") or ""):
             rep.err(w, f"sid の発言の役職が議員（{stmt.get('role')}）")
-        check_quote(inp, name, r, r["sid"], rep)
+        h = teian_quote(inp, r, rep)
         if r["status"] == "rejected":
             continue
+        if h is not None:
+            placed[id(r)] = h
+        desc = desc_of(t)
         if not in_proposal(inp, sid, r["bill"]):
-            rep.teian_segment.append({"target": t, "men": r["men"], "sid": r["sid"], "bill": r["bill"],
-                                      "quote": r["quote"]})
-        if r["men"] == JIJO and row is not None and base_name(row["name"]) not in norm(r["quote"]):
-            rep.teian_name.append({"target": t, "men": r["men"], "sid": r["sid"], "name": row["name"],
-                                   "quote": r["quote"]})
-    # 同じ target・同じ men の rejected でない行：事情は1つ（財源は文ごとに1つ以上でよい）
+            rep.teian_segment.append({"maru": t, "men": r["men"], "sid": r["sid"], "bill": r["bill"],
+                                      "quote": r["quote"], "desc": desc})
+        if r["men"] == JIJO and row is not None and name_missing(row["name"], r["quote"]):
+            rep.teian_name.append({"maru": t, "men": r["men"], "sid": r["sid"], "name": row["name"],
+                                   "quote": r["quote"], "desc": desc})
+    # 同じ maru・同じ men の rejected でない行：事情は1つ（財源は文ごとに1つ以上でよい）
     jijo = {}
     for r in live:
         if r["men"] == JIJO:
-            jijo.setdefault(r["target"], []).append(r)
+            jijo.setdefault(r["maru"], []).append(r)
     for t, rs in sorted(jijo.items()):
         if len(rs) > 1:
             rep.err(f"{name} {t}", f"rejected でない事情の行が {len(rs)} 行ある（1つまで）")
+    kais = {st.kai_of(r["maru"]) for r in live if hosei.kind_of(r["maru"]) == "hj"} if st is not None else set()
+    maru_keys = sorted((kid, key) for tb, kid, key in st.rows if tb == hosei.MARU and kid in kais
+                       and key.startswith("m")) if st is not None else []
     # (c) 提案理由の記録に行のある回の○の行のうち、事情の行の無い行
-    if st is not None:
-        kais = {st.kai_of(r["target"]) for r in live if hosei.kind_of(r["target"]) == "hj"}
-        for tb, kid, key in sorted(st.rows):
-            if tb == hosei.MARU and kid in kais and key.startswith("m") and f"hj:{kid}/{key}" not in jijo:
-                x = st.rows[(tb, kid, key)]
-                rep.teian_no_jijo.append({"target": f"hj:{kid}/{key}", "name": x["name"], "amount": x["amount"]})
-    # (d) 同じ men・同じ sid・同じ quote（§4 の正規化のあと）の target が2つ以上
+    for kid, key in maru_keys:
+        if f"hj:{kid}/{key}" not in jijo:
+            x = st.rows[(hosei.MARU, kid, key)]
+            rep.teian_no_jijo.append({"maru": f"hj:{kid}/{key}", "name": x["name"], "amount": x["amount"],
+                                      "desc": x["desc"]})
+    # (d) 同じ men・同じ sid で、もとの文が同じ行の maru が2つ以上
     groups = {}
     for r in live:
-        groups.setdefault((r["men"], r["sid"], norm(r["quote"])), []).append(r)
-    found = sorted((sorted(rs, key=lambda x: x["target"]) for rs in groups.values()
-                    if len({x["target"] for x in rs}) > 1), key=lambda rs: (rs[0]["target"], rs[0]["men"]))
+        h = placed.get(id(r))
+        if h is not None:
+            groups.setdefault((r["men"], r["sid"], h.sentence), []).append(r)
+    found = sorted((sorted(rs, key=lambda x: (x["maru"], x["quote"])) for rs in groups.values()
+                    if len({x["maru"] for x in rs}) > 1), key=lambda rs: (rs[0]["maru"], rs[0]["men"]))
     for i, rs in enumerate(found, 1):
         for x in rs:
-            nm = (st.row_of(x["target"]) or {}).get("name", "") if st is not None else ""
+            nm = (st.row_of(x["maru"]) or {}).get("name", "") if st is not None else ""
             rep.teian_group.append({"group": str(i), "size": str(len(rs)), "men": x["men"], "sid": x["sid"],
-                                    "target": x["target"], "name": nm, "quote": x["quote"]})
-    order = lambda x: (x["target"], x["men"], x["sid"], x["quote"])  # noqa: E731
+                                    "maru": x["maru"], "name": nm, "quote": x["quote"], "desc": desc_of(x["maru"])})
+    # (e) 同じ年度・同じ会計で名前が同じ○の行の並び（判断を含まない）
+    if maru_keys:
+        fy_k = {(st.kai[k]["fiscal_year"], st.kai[k]["kaikei"]) for k in kais}
+        _, pos = hosei.kai_order(st, fy_k)
+        by_name = {}
+        for tb, kid, key in sorted(st.rows):
+            if tb != hosei.MARU or not key.startswith("m") or kid not in pos:
+                continue
+            x = st.rows[(hosei.MARU, kid, key)]
+            g = (st.kai[kid]["fiscal_year"], st.kai[kid]["kaikei"], norm(x["name"]))
+            by_name.setdefault(g, []).append((pos[kid], key, kid, x))
+        seqs = sorted((sorted(v) for v in by_name.values() if len(v) > 1),
+                      key=lambda v: (st.kai[v[0][2]]["fiscal_year"], st.kai[v[0][2]]["kaikei"], v[0][0], v[0][1]))
+        for gi_, v in enumerate(seqs, 1):
+            for n, (_, key, kid, x) in enumerate(v, 1):
+                rep.teian_narabi.append({"group": str(gi_), "size": str(len(v)), "n": str(n), "maru": f"hj:{kid}/{key}",
+                                         "name": x["name"], "amount": x["amount"], "desc": x["desc"]})
+    # (f) 額が差し引きの行の候補
+    for kid, key in maru_keys:
+        t = f"hj:{kid}/{key}"
+        x = st.rows[(hosei.MARU, kid, key)]
+        kata = sashihiki_kata(x["desc"])
+        gaku = (jijo.get(t) or [{}])[0].get("gaku", "")
+        if kata or gaku:
+            rep.teian_sashihiki.append({"maru": t, "name": x["name"], "amount": x["amount"], "kata": ",".join(kata),
+                                        "gaku": gaku, "desc": x["desc"]})
+    order = lambda x: (x["maru"], x["men"], x["sid"], x["quote"])  # noqa: E731
     rep.teian_segment.sort(key=order)
     rep.teian_name.sort(key=order)
+
+
+def teian_context(inp, rows, rep):
+    """§11 引用の前後の、提案理由の記録の分（「…」で分けた部分で見る。DESIGN.md ADR-35）。"""
+    name = "teian"
+    for r in rows:
+        q = norm(r["quote"])
+        if not q:
+            continue
+        k = "/".join(r[c] for c in KEYS[name])
+        if q.startswith(DEMONSTRATIVES) and not q.startswith(NOT_DEMONSTRATIVE):
+            rep.quote_context.append({"ledger": name, "key": k, "source": r["sid"], "kind": "指示語で始まる",
+                                      "quote": r["quote"]})
+        head, tail, parts, errs = teian_parts(r["quote"])
+        texts = source_texts(inp, r["sid"]) if not errs else None
+        hits = teian_place(texts[0], parts) if texts else []
+        if len(hits) != 1:
+            continue
+        h = hits[0]
+        if not head and h.spans[0][0] != h.start:
+            rep.quote_context.append({"ledger": name, "key": k, "source": r["sid"], "kind": "文の途中から始まる",
+                                      "quote": r["quote"]})
+        e = h.spans[-1][1]
+        if not tail and not (e == h.end or h.text[e:e + 1] in ("",) or h.text[e] in SENTENCE_END):
+            rep.quote_context.append({"ledger": name, "key": k, "source": r["sid"], "kind": "文の途中で終わる",
+                                      "quote": r["quote"]})
 
 
 # ---- 全体 ----
@@ -1226,8 +1401,11 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
     torikoboshi(inp, {"yaritori": group(live["yaritori"]), "shitsugi": group(live["shitsugi"])},
                 ledgers.get("nozoki", []), theme, rep)
     for name in LEDGERS:
-        if name != "nozoki":
-            quote_context(inp, name, [r for r in ledgers.get(name, []) if r["status"] != "rejected"], rep)
+        live = [r for r in ledgers.get(name, []) if r["status"] != "rejected"]
+        if name == "teian":
+            teian_context(inp, live, rep)
+        elif name != "nozoki":
+            quote_context(inp, name, live, rep)
     signals(ledgers, theme, rep)
     return rep
 

@@ -7,8 +7,6 @@ name・manual で、from も to も fh（§3・§11）。年度の対応（§11�
 議案と回の台帳（links/gian-yosan.tsv）は、from が gi、to が hs、method が title。○の行と附表の台帳
 （links/hosei-fuhyo.tsv）は、from が hj の○の行（key の頭が m）、to が fh、method が name・manual で、11列の後ろに kind の列を持つ
 （§3・§11。DESIGN.md ADR-34 の4・5）。○の行と附表の対応（§11）は tools/gen_hosei_fuhyo.py で確かめる。
-回をまたぐ同じ事業の台帳（links/hosei-tsuzuki.tsv）は、from も to も hj の○の行、method が name（§3・§11。DESIGN.md ADR-35）。
-to の hj は、行があり、その name が to_label と同じことを照合する（§5）。回をまたぐ同じ事業（§11）は tools/gen_hosei_tsuzuki.py で確かめる。
 §5 に gi の決まりは無いので、議案と回の台帳の from は照合せず、to（hs）だけを照合する。sentinel もかけない
 （context は from の議案の題で、to の照合では変わらないため。台帳と lock の版の検査が議案の題の変わったことを見る）。
 入力のリポジトリは読まない。読むのは tools/update_links.py・tools/check_links.py が gen_mentions・gen_fuhyo で
@@ -35,10 +33,9 @@ RELINK_CONFLICT_COLUMNS = ["from", "to", "relink_status", "mention_status", "con
 CANDIDATE, CONFIRMED, REJECTED = "candidate", "confirmed", "rejected"
 STATUSES = (CANDIDATE, CONFIRMED, REJECTED)
 METHODS = ("mention", "program", "semantic", "relink", "fuhyo", "fuhyo-years", "gian-yosan",
-           "hosei-fuhyo", "hosei-tsuzuki")  # 台帳のファイル名（links/<method>.tsv）
+           "hosei-fuhyo")  # 台帳のファイル名（links/<method>.tsv）
 # §11 方法の制限の例外：行の method が台帳のファイル名と違う台帳
-ROW_METHODS = {"fuhyo-years": ("name", "manual"), "hosei-fuhyo": ("name", "manual"), "gian-yosan": ("title",),
-               "hosei-tsuzuki": ("name",)}
+ROW_METHODS = {"fuhyo-years": ("name", "manual"), "hosei-fuhyo": ("name", "manual"), "gian-yosan": ("title",)}
 # 台帳ごとの列（§3）。○の行と附表の台帳は、11列の後ろに補正の種類の列 kind を持つ
 COLUMNS_OF = {"hosei-fuhyo": LEDGER_COLUMNS + ["kind"]}
 MATCH, MOVED, STOPPED = "一致", "移動", "停止"
@@ -58,18 +55,15 @@ KEY_FORMS = {
     "hs": hosei.KEY_FORMS["hs"],
     "hj": hosei.KEY_FORMS["hj"],
 }
-FROM_KINDS, TO_KINDS = ("bq", "sp", "fh", "gi", "hj"), ("plan", "lin", "node", "none", "fh", "hs", "hj")
+FROM_KINDS, TO_KINDS = ("bq", "sp", "fh", "gi", "hj"), ("plan", "lin", "node", "none", "fh", "hs")
 MARU_KEY_HEAD = "m"  # §2・§7 hosei-fuhyo：○の行と附表の台帳の from は○の行だけ（特別会計・企業会計の t の行は対象にしない）
 NO_FROM_RULE = ("gi",)  # §5 に照合の決まりが無い from（議案と回の台帳の gi）。from は照合せず、sentinel もかけない
 # §11：台帳ごとの from・to の種類。mention と relink は from が bq・sp、to が plan・lin。fuhyo は from が fh、to が node・none。
 # fuhyo-years は from も to も fh
 # gian-yosan は from が gi、to が hs。hosei-fuhyo は from が hj（○の行だけ）、to が fh（DESIGN.md ADR-34 の4・5。PR #19 の問い1・2）
-# hosei-tsuzuki は from も to も hj（○の行だけ。DESIGN.md ADR-35）
-FROM_KINDS_OF = {"fuhyo": ("fh",), "fuhyo-years": ("fh",), "gian-yosan": ("gi",), "hosei-fuhyo": ("hj",),
-                 "hosei-tsuzuki": ("hj",)}
+FROM_KINDS_OF = {"fuhyo": ("fh",), "fuhyo-years": ("fh",), "gian-yosan": ("gi",), "hosei-fuhyo": ("hj",)}
 TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none"), "fuhyo-years": ("fh",),
-               "gian-yosan": ("hs",), "hosei-fuhyo": ("fh",), "hosei-tsuzuki": ("hj",)}
-MARU_ONLY = ("hosei-fuhyo", "hosei-tsuzuki")  # from（と hj の to）が○の行（key の頭が m）だけの台帳
+               "gian-yosan": ("hs",), "hosei-fuhyo": ("fh",)}
 DEFAULT_FROM_KINDS, DEFAULT_TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")  # program・semantic（§3）
 HUMAN_ONLY = ("relink", "manual")  # §6：機械が作らない行の method（relink の台帳、年度の台帳と○の行と附表の台帳の manual）。candidate を置かない
 WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",), "fh": ("name",), "hj": ("name",), "gi": ("title",)}
@@ -107,10 +101,8 @@ def _row_errors(n, r, method):
         errs.append(f"to の形が違う（{r['to']!r}）")
     elif tk not in TO_KINDS_OF.get(method, DEFAULT_TO_KINDS):
         errs.append(f"{method} の台帳の to に {tk} は使えない（{r['to']}）")
-    if method in MARU_ONLY and fk == "hj" and not r["from"].partition("/")[2].startswith(MARU_KEY_HEAD):
+    if method == "hosei-fuhyo" and fk == "hj" and not r["from"].partition("/")[2].startswith(MARU_KEY_HEAD):
         errs.append(f"{method} の台帳の from は○の行（key の頭が {MARU_KEY_HEAD}）だけ（{r['from']}）")
-    if method in MARU_ONLY and tk == "hj" and not r["to"].partition("/")[2].startswith(MARU_KEY_HEAD):
-        errs.append(f"{method} の台帳の to は○の行（key の頭が {MARU_KEY_HEAD}）だけ（{r['to']}）")
     allowed = ROW_METHODS.get(method)
     if allowed is None and r["method"] != method:
         errs.append(f"method が台帳のファイル（{method}）と違う（{r['method']!r}）")
@@ -150,8 +142,6 @@ def _row_errors(n, r, method):
         errs.append("context に evidence が含まれない")
     elif fk == "fh" and r["evidence"] != r["context"]:
         errs.append("fh の行で evidence と context が同じでない")
-    elif method == "hosei-tsuzuki" and r["evidence"] != r["context"]:
-        errs.append("回をまたぐ同じ事業の台帳の行で evidence と context が同じでない")
     return [f"{n}行目 {r['from']} {r['to']}：{e}" for e in errs]
 
 
@@ -309,16 +299,8 @@ def match_row(row, corpus, context=None):
 
 def match_label(row, corpus):
     """to の照合（§5）。plan・lin は名称、node は計画の事業の有無と事業名、none は「記載なし」と manifest の id、
-    fh（年度の台帳・○の行と附表の台帳）は附表の事業の有無と事業名、hs は回の有無と題、
-    hj（回をまたぐ同じ事業の台帳）は主な内容の行の有無と名前。"""
+    fh（年度の台帳・○の行と附表の台帳）は附表の事業の有無と事業名、hs は回の有無と題。"""
     kind = _kind(row["to"])
-    if kind == "hj":
-        item = corpus.struct.row_of(row["to"]) if corpus.struct is not None else None
-        if item is None:
-            return Match(STOPPED, reason="to の主な内容の行が無い")
-        if item["name"] != row["to_label"]:
-            return Match(STOPPED, reason=f"to の行の名前が違う（いまの名前：{item['name']}）")
-        return Match(MATCH)
     if kind == "hs":
         kai = corpus.struct.kai.get(row["to"][3:]) if corpus.struct is not None else None
         if kai is None:
