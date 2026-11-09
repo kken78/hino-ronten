@@ -14,7 +14,9 @@ links/fuhyo.tsv に合わせて書く。付け替えは使わない（§6）。�
 --ledger hosei-fuhyo のときは、tools/gen_hosei_fuhyo.py の build で○の行の名前の一致の候補を作り、links/hosei-fuhyo.tsv
 （kind の列を持つ12列）に合わせて書く。manual の行（人が足した行）は変えない（§6）。附表に名前の一致する事業の無い
 ○の行は台帳に書かず、build/links/hosei-fuhyo/name_unmatched.tsv に出す（§7 hosei-fuhyo）。
-どちらも、既存の confirmed・rejected の行（人の判定）は変えない（§6。ほかの台帳と同じ）。
+--ledger hosei-tsuzuki のときは、tools/gen_hosei_tsuzuki.py の build で回をまたぐ同じ事業の候補を作り、
+links/hosei-tsuzuki.tsv に合わせて書く（§6・§7 hosei-tsuzuki。DESIGN.md ADR-35）。
+どれも、既存の confirmed・rejected の行（人の判定）は変えない（§6。ほかの台帳と同じ）。
 機械が作るのは candidate だけ（DESIGN.md ADR-2）。
 
 実行: python3 -B tools/update_links.py              （links/mention.tsv）
@@ -22,11 +24,13 @@ links/fuhyo.tsv に合わせて書く。付け替えは使わない（§6）。�
       python3 -B tools/update_links.py --ledger fuhyo-years （links/fuhyo-years.tsv）
       python3 -B tools/update_links.py --ledger gian-yosan （links/gian-yosan.tsv）
       python3 -B tools/update_links.py --ledger hosei-fuhyo （links/hosei-fuhyo.tsv）
+      python3 -B tools/update_links.py --ledger hosei-tsuzuki （links/hosei-tsuzuki.tsv）
 終了コード：0 は台帳を書いた。1 は止めた（台帳は書かない。件数と該当を表示し、一覧を build/links/<method>/ に書く）。
 止めるのは、使い方の誤り・台帳の形の誤り・入力の誤り・§5 の停止・再生成で出なくなった confirmed があるとき。
 --ledger fuhyo のときは、附表の分類（§11）の誤りがあるときも止める（誤りの事業を表示する）。
 --ledger fuhyo-years のときは、年度の対応（§11）の誤りがあるときも止める（誤りの行を表示する）。
 --ledger gian-yosan・--ledger hosei-fuhyo のときは、○の行と附表の対応（§11）の誤りがあるときも止める。
+--ledger hosei-tsuzuki のときは、回をまたぐ同じ事業（§11）の誤りがあるときも止める。
 """
 import os
 import sys
@@ -39,6 +43,7 @@ import gen_fuhyo  # noqa: E402
 import gen_fuhyo_years  # noqa: E402
 import gen_gian_yosan  # noqa: E402
 import gen_hosei_fuhyo  # noqa: E402
+import gen_hosei_tsuzuki  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
@@ -50,8 +55,11 @@ FUHYO = check_links.FUHYO
 YEARS = check_links.YEARS
 GIAN = check_links.GIAN
 HOSEI = check_links.HOSEI
+TSUZUKI = check_links.TSUZUKI
 USAGE = ("使い方：python3 -B tools/update_links.py [--ledger fuhyo | --ledger fuhyo-years | --ledger gian-yosan | "
-         "--ledger hosei-fuhyo]")
+         "--ledger hosei-fuhyo | --ledger hosei-tsuzuki]")
+HOSEI_ERRORS = "○の行と附表の対応（§11）"
+TSUZUKI_ERRORS = "回をまたぐ同じ事業（§11）"
 
 
 def report_lines(merged, checked, wrote):
@@ -158,8 +166,8 @@ def run_years(ybuilt, ledger_path, outdir):
     return code, merged, checked, errors
 
 
-def other_report_lines(title, merged, checked, wrote, errors, extra):
-    """議案と回の台帳・○の行と附表の台帳の更新の報告。"""
+def other_report_lines(title, merged, checked, wrote, errors, extra, err_label=HOSEI_ERRORS):
+    """議案と回の台帳・○の行と附表の台帳・回をまたぐ同じ事業の台帳の更新の報告。"""
     c = checked.counts
     rows = merged.rows
     return [f"# 台帳の更新（{title}）", "",
@@ -170,10 +178,11 @@ def other_report_lines(title, merged, checked, wrote, errors, extra):
             f"- 再生成で出なくなった confirmed {len(merged.vanished_confirmed)}・rejected "
             f"{len(merged.vanished) - len(merged.vanished_confirmed)}",
             f"- §5 の照合（confirmed・candidate）：一致 {c[ledger.MATCH]}・移動 {c[ledger.MOVED]}・停止 {c[ledger.STOPPED]}",
-            f"- ○の行と附表の対応（§11）の誤り：{len(errors)}"] + extra
+            f"- {err_label}の誤り：{len(errors)}"] + extra
 
 
-def run_other(method, current_rows_path, gen_rows, corpus, errors_of, outdir, title, extra_of, write_extra):
+def run_other(method, current_rows_path, gen_rows, corpus, errors_of, outdir, title, extra_of, write_extra,
+              err_label=HOSEI_ERRORS):
     """議案と回の台帳・○の行と附表の台帳を更新する（§6）。返り値は（終了コード、Merged、Checked、誤り）。止めるときは台帳を書かない。"""
     current = ledger.read_ledger(current_rows_path, method, missing_ok=True)
     merged = ledger.merge(current, gen_rows, corpus)
@@ -185,7 +194,7 @@ def run_other(method, current_rows_path, gen_rows, corpus, errors_of, outdir, ti
         ledger.write_ledger(current_rows_path, merged.rows, method)
     ledger.write_lists(outdir, checked, merged, update=True)
     write_extra(outdir)
-    lines = other_report_lines(title, merged, checked, code == 0, errors, extra_of(merged.rows))
+    lines = other_report_lines(title, merged, checked, code == 0, errors, extra_of(merged.rows), err_label)
     with open(os.path.join(outdir, "update.md"), "wb") as f:
         f.write(("\n".join(lines) + "\n").encode("utf-8"))
     return code, merged, checked, errors, lines
@@ -206,9 +215,20 @@ def run_hosei(hbuilt, ledger_path, outdir):
                      lambda d: gen_hosei_fuhyo.write_lists(d, hbuilt))
 
 
+def run_tsuzuki(tbuilt, ledger_path, outdir):
+    return run_other(TSUZUKI, ledger_path, gen_hosei_tsuzuki.generated_rows(tbuilt), gen_hosei_tsuzuki.corpus(tbuilt),
+                     lambda rows: gen_hosei_tsuzuki.tsuzuki_errors(rows, tbuilt), outdir, "links/hosei-tsuzuki.tsv",
+                     lambda rows: gen_hosei_tsuzuki.count_lines(rows, tbuilt), lambda d: None, TSUZUKI_ERRORS)
+
+
 def main_other(method):
     try:
-        if method == GIAN:
+        label = HOSEI_ERRORS
+        if method == TSUZUKI:
+            code, merged, checked, errors, lines = run_tsuzuki(gen_hosei_tsuzuki.load_built(), check_links.TSUZUKI_PATH,
+                                                                check_links.TSUZUKI_OUT_DIR)
+            outdir, label = check_links.TSUZUKI_OUT_DIR, TSUZUKI_ERRORS
+        elif method == GIAN:
             code, merged, checked, errors, lines = run_gian(gen_gian_yosan.load_built(), check_links.GIAN_PATH,
                                                              check_links.GIAN_OUT_DIR)
             outdir = check_links.GIAN_OUT_DIR
@@ -222,7 +242,7 @@ def main_other(method):
     print("\n".join(lines[2:]))
     _stop_messages(merged, checked, outdir)
     if errors:
-        print(f"停止：○の行と附表の対応（§11）の誤り {len(errors)} 件", file=sys.stderr)
+        print(f"停止：{label}の誤り {len(errors)} 件", file=sys.stderr)
         for e in errors:
             print(f"  {e}", file=sys.stderr)
     return code
@@ -274,7 +294,7 @@ def main(argv=None):
         return main_fuhyo()
     if args == ["--ledger", YEARS]:
         return main_years()
-    if args in (["--ledger", GIAN], ["--ledger", HOSEI]):
+    if args in (["--ledger", GIAN], ["--ledger", HOSEI], ["--ledger", TSUZUKI]):
         return main_other(args[1])
     if args:
         print(USAGE, file=sys.stderr)

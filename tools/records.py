@@ -4,6 +4,8 @@
 
 やりとりの記録と質疑の記録の target・target_text（§15.2・§15.7）は、§11 の「対象の形」「対象の照合」「対象と議案・名前」で
 確かめる。hs・hj・hk・hz は hino-town-docs の構造化の層（tools/hosei.py の Struct）で照らす（DESIGN.md ADR-34）。
+提案理由の記録（records/teian.tsv。§15.11、ADR-35）は、§11 の「提案理由の記録」で確かめ、提案の区切りに入らない sid・
+名前が引用に無い事情の行・事情の行の無い○の行・同じ文で説明された行の組を一覧に出す（組は台帳に持たず、ここで導く）。
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
 （theme・views）で決める（§15.3・§15.4・§15.6、ADR-31 の2）。届き先の信号（§11、ADR-31 の4）は一覧に出すだけで、止めない。
 
@@ -34,6 +36,7 @@ COLUMNS = {
     "kisai": ["title", "about", "source", "source_date", "quote"] + COMMON,
     "shisetsu": ["facility", "aspect", "value", "source", "source_date", "quote", "target", "kind", "prev"] + COMMON,
     "nozoki": ["question", "n", "sid", "quote", "reason"] + COMMON,
+    "teian": ["target", "men", "bill", "sid", "quote"] + COMMON,
 }
 # 行のキー（§15 の各台帳）。row と step は数の順、ほかは文字コード順（§1）
 KEYS = {
@@ -45,10 +48,12 @@ KEYS = {
     "kisai": ("title", "source"),
     "shisetsu": ("facility", "aspect", "source", "quote"),
     "nozoki": ("question", "n", "sid", "quote"),
+    "teian": ("target", "men", "sid", "quote"),
 }
 NUMERIC = ("row", "step")
 LEDGERS = tuple(COLUMNS)          # nozoki は無ければ0行（DESIGN.md ADR-24）
-OPTIONAL = ("nozoki",)
+OPTIONAL = ("nozoki", "teian")   # 無ければ0行（teian は DESIGN.md ADR-35 で足した）
+NOT_IN_THEME = ("teian",)         # テーマのノートのデータの ledgers に入れない台帳（渡す形は次の段で決める。ADR-35）
 
 THEME_COLUMNS = ["theme", "kind", "value", "source", "views", "reviewer", "date", "note"]
 THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "事柄", "記載", "施設",
@@ -66,6 +71,11 @@ BULLETIN = ("載っている", "載っていない", "言い回しが違う")
 TIME_KINDS = ("済んだこと", "いまのこと", "予定", "変更")
 LINKS = ("目的と手段", "もとにした")
 ASPECTS = ("種類", "運営", "役割", "状態", "規模")   # §15.8（規模は ADR-32）
+MEN = ("事情", "財源")   # 提案理由の記録の面（§15.11）
+JIJO, ZAIGEN = MEN
+RE_GIIN = re.compile(r"[0-9０-９]+番")   # 議員の役職（tools/build_theme.py の speaker_class と同じ形）
+RE_PAREN = re.compile(r"\([^()]*\)")   # §4 の正規化のあとの括弧の中（名前の照らし合わせで除く。§11 提案理由の記録の (b)）
+IPPAN = "ippan"
 FIRST = "最初の問い"
 ROUND = re.compile(r"最初の問い|再質問[1-9][0-9]*")
 QUOTE_MAX = 200                   # 不変の制約9
@@ -111,6 +121,10 @@ TARGET_UNCHECKED_COLUMNS = ["ledger", "question", "row", "status", "key"]
 TARGET_BILL_COLUMNS = ["ledger", "question", "row", "key", "bills", "kai"]
 TARGET_NAME_COLUMNS = ["ledger", "question", "row", "key", "name", "target_text"]
 TARGET_CHANGED_COLUMNS = ["ledger", "question", "row", "key", "change"]
+TEIAN_SEGMENT_COLUMNS = ["target", "men", "sid", "bill", "quote"]
+TEIAN_NAME_COLUMNS = ["target", "men", "sid", "name", "quote"]
+TEIAN_NO_JIJO_COLUMNS = ["target", "name", "amount"]
+TEIAN_GROUP_COLUMNS = ["group", "size", "men", "sid", "target", "name", "quote"]
 
 # 対象の形（§11・§15.2）：target のキーの種類と、target_text の種類
 TARGET_LEDGERS = ("yaritori", "shitsugi")   # target を持つ台帳（審査報告の記録 §15.10 はまだ置いていない）
@@ -144,6 +158,7 @@ class Inputs:
     struct: object = None                          # hino-town-docs の構造化の層（hosei.Struct）。無ければ None
     gian_hs: dict = field(default_factory=dict)    # 議案と回の台帳の confirmed の行：gi → hs の集まり
     hj_fh: dict = field(default_factory=dict)      # ○の行と附表の台帳の confirmed の行：hj → fh の集まり
+    proposals: list = field(default_factory=list)  # 提案の区切り（kind が proposal）：(from, to, 会議 id, bills) の並び
 
     def __post_init__(self):
         self.pos = {s: i for i, s in enumerate(self.order)}
@@ -186,6 +201,10 @@ class Report:
     struct: object = None                                  # 照らした構造化の層（check.md に件数を出す）
     prev_sha: str = ""                                     # 前の版の hino-town-docs の SHA（--prev）
     target_changed: list = None                            # §10 の比べ方の一覧（--prev のときだけ）
+    teian_segment: list = field(default_factory=list)      # 提案理由の記録の一覧（§11 の (a)〜(d)。終了コードは変えない）
+    teian_name: list = field(default_factory=list)
+    teian_no_jijo: list = field(default_factory=list)
+    teian_group: list = field(default_factory=list)
 
     def err(self, where, msg):
         self.errors.append(f"{where}：{msg}")
@@ -1073,6 +1092,104 @@ def target_changed(ledgers, prev, now):
     return target_order(out)
 
 
+# ---- 提案理由の記録（§11・§15.11。DESIGN.md ADR-35） ----
+
+def base_name(name):
+    """○の行の名前から、括弧の中と末尾の「ほか」を除き、§4 の正規化をかけたもの（§11 提案理由の記録の (b)）。"""
+    n = norm(name)
+    while RE_PAREN.search(n):
+        n = RE_PAREN.sub("", n)
+    return n[:-2] if n.endswith("ほか") else n
+
+
+def in_proposal(inp, sid, bill):
+    """sid が、bills に bill の議案番号を持つ提案の区切りに入っているか（§11 の (a)）。"""
+    m = RE_GI.fullmatch(bill)
+    p = inp.pos.get(sid)
+    if not m or p is None:
+        return False
+    for f, t, mid, bills in inp.proposals:
+        if mid == m.group(1) and m.group(2) in (bills or []) and f in inp.pos and t in inp.pos \
+                and inp.pos[f] <= p <= inp.pos[t]:
+            return True
+    return False
+
+
+def check_teian(rows, inp, rep):
+    """提案理由の記録（§15.11）。誤りは rep.errors、一覧は rep.teian_*。"""
+    name = "teian"
+    st = inp.struct
+    live = [r for r in rows if r["status"] != "rejected"]
+    for r in rows:
+        w = label(name, r)
+        check_common(name, r, rep)
+        t = r["target"]
+        row = None
+        if hosei.kind_of(t) != "hj" or not t.partition("/")[2].startswith("m"):
+            rep.err(w, f"target が §2 の hj の○の行（key の頭が m）のキー1つでない（{t}）")
+        elif st is None or not st.exists(t):
+            rep.err(w, f"target が lock の版の構造化の層に無い（{t}）")
+        else:
+            row = st.row_of(t)
+            kai = st.kai.get(st.kai_of(t)) or {}
+            if kai.get("kaikei") != IPPAN:
+                rep.err(w, f"target の回の会計が一般会計でない（{kai.get('kaikei')}）")
+            if r["status"] == "confirmed" and not st.is_checked(t):
+                rep.err(w, f"confirmed の行の target が検収の済んだ行でない（{t}）")
+        if r["men"] not in MEN:
+            rep.err(w, f"men が {MEN} のどれでもない（{r['men']}）")
+        m = RE_GI.fullmatch(r["bill"])
+        if not m or m.group(2) not in inp.gian.get(m.group(1), set()):
+            rep.err(w, f"bill が §2 の gi の形でないか、gian.json に無い（{r['bill']}）")
+        elif row is not None and f"hs:{st.kai_of(t)}" not in inp.gian_hs.get(r["bill"], set()):
+            rep.err(w, f"bill が、議案と回の台帳の confirmed の行で target の回（hs:{st.kai_of(t)}）に対応しない")
+        sid = r["sid"][3:] if RE_SP.fullmatch(r["sid"]) else None
+        stmt = inp.statements.get(sid) if sid else None
+        if stmt is None:
+            rep.err(w, f"sid が §2 の sp の形でないか、lock の版の索引に無い（{r['sid']}）")
+            continue
+        if RE_GIIN.fullmatch(stmt.get("role") or ""):
+            rep.err(w, f"sid の発言の役職が議員（{stmt.get('role')}）")
+        check_quote(inp, name, r, r["sid"], rep)
+        if r["status"] == "rejected":
+            continue
+        if not in_proposal(inp, sid, r["bill"]):
+            rep.teian_segment.append({"target": t, "men": r["men"], "sid": r["sid"], "bill": r["bill"],
+                                      "quote": r["quote"]})
+        if r["men"] == JIJO and row is not None and base_name(row["name"]) not in norm(r["quote"]):
+            rep.teian_name.append({"target": t, "men": r["men"], "sid": r["sid"], "name": row["name"],
+                                   "quote": r["quote"]})
+    # 同じ target・同じ men の rejected でない行：事情は1つ（財源は文ごとに1つ以上でよい）
+    jijo = {}
+    for r in live:
+        if r["men"] == JIJO:
+            jijo.setdefault(r["target"], []).append(r)
+    for t, rs in sorted(jijo.items()):
+        if len(rs) > 1:
+            rep.err(f"{name} {t}", f"rejected でない事情の行が {len(rs)} 行ある（1つまで）")
+    # (c) 提案理由の記録に行のある回の○の行のうち、事情の行の無い行
+    if st is not None:
+        kais = {st.kai_of(r["target"]) for r in live if hosei.kind_of(r["target"]) == "hj"}
+        for tb, kid, key in sorted(st.rows):
+            if tb == hosei.MARU and kid in kais and key.startswith("m") and f"hj:{kid}/{key}" not in jijo:
+                x = st.rows[(tb, kid, key)]
+                rep.teian_no_jijo.append({"target": f"hj:{kid}/{key}", "name": x["name"], "amount": x["amount"]})
+    # (d) 同じ men・同じ sid・同じ quote（§4 の正規化のあと）の target が2つ以上
+    groups = {}
+    for r in live:
+        groups.setdefault((r["men"], r["sid"], norm(r["quote"])), []).append(r)
+    found = sorted((sorted(rs, key=lambda x: x["target"]) for rs in groups.values()
+                    if len({x["target"] for x in rs}) > 1), key=lambda rs: (rs[0]["target"], rs[0]["men"]))
+    for i, rs in enumerate(found, 1):
+        for x in rs:
+            nm = (st.row_of(x["target"]) or {}).get("name", "") if st is not None else ""
+            rep.teian_group.append({"group": str(i), "size": str(len(rs)), "men": x["men"], "sid": x["sid"],
+                                    "target": x["target"], "name": nm, "quote": x["quote"]})
+    order = lambda x: (x["target"], x["men"], x["sid"], x["quote"])  # noqa: E731
+    rep.teian_segment.sort(key=order)
+    rep.teian_name.sort(key=order)
+
+
 # ---- 全体 ----
 
 def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=()):
@@ -1099,6 +1216,7 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
     check_kisai(ledgers["kisai"], inp, theme, rep)
     check_shisetsu(ledgers["shisetsu"], inp, theme, shisetsu_keys, rep)
     check_nozoki(ledgers.get("nozoki", []), inp, {**yar, **shi}, rep)
+    check_teian(ledgers.get("teian", []), inp, rep)
     for name in TARGET_LEDGERS:
         check_targets(name, ledgers[name], inp, rep)
     rep.target_unchecked = target_order(rep.target_unchecked)
@@ -1109,7 +1227,7 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
                 ledgers.get("nozoki", []), theme, rep)
     for name in LEDGERS:
         if name != "nozoki":
-            quote_context(inp, name, [r for r in ledgers[name] if r["status"] != "rejected"], rep)
+            quote_context(inp, name, [r for r in ledgers.get(name, []) if r["status"] != "rejected"], rep)
     signals(ledgers, theme, rep)
     return rep
 

@@ -32,7 +32,8 @@ import records  # noqa: E402
 OUT_DIR = os.path.join(gm.ROOT, "build", "theme")
 LEDGERS = ["links/mention.tsv", "links/relink.tsv", "links/fuhyo.tsv", "ref/themes.tsv", "ref/shisetsu.tsv",
            "ref/chiku.tsv", "ref/soshiki.tsv",   # 地区・組織の参照表（§12.1）。無ければ ledgers に入れない
-           "ref/lineage.tsv", "ref/aliases.tsv"] + [f"records/{n}.tsv" for n in records.LEDGERS]
+           "ref/lineage.tsv", "ref/aliases.tsv"] + [f"records/{n}.tsv" for n in records.LEDGERS
+                                                    if n not in records.NOT_IN_THEME]
 PLAN_PAGE = "https://kken78.github.io/shiga-hino-plans/plans/{}.html"
 SEARCH = "https://kken78.github.io/hino-council-search/#thread={}&focus={}"
 CONFIRMED = "確定"
