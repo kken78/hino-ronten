@@ -44,7 +44,10 @@ IPPAN = {"kind": "ippan", "from": sid(2), "to": sid(12), "member": "松田 洋�
          "turns": [[0, "q", 1], [2, "a", 1], [4, "rq", 1], [6, "a", 1], [8, "q", 2], [10, "a", 2]]}
 SHITSUGI = {"kind": "shitsugi", "from": sid(13), "to": sid(15), "member": "山本秀喜", "meetingId": M,
             "bills": ["議第1号"], "turns": [[0, "q", 1], [2, "a", 1]]}
-DOCS = {("teigen", "text"): "一頁目の文。\f二頁目に再編の方針がある。"}
+DOCS = {("teigen", "text"): "一頁目の文。\f二頁目に再編の方針がある。",
+        # 定例記者会見の次第（PDF）と掲載ページ（html）。掲載ページは書かない資料（§2・§11）
+        ("kaiken-20250630-shidai", "text"): "令和7年6月定例記者会見次第",
+        ("kaiken-20250630-page", "text"): "令和7(2025)年6月30日定例記者会見"}
 PTS = {("youho", "honpen", "text"): "計画期間は令和6年からです。"}
 IQ = f"iq:{sid(2)}"
 SQ = f"sq:{sid(13)}"
@@ -58,7 +61,7 @@ def inputs():
         segments={sid(2): IPPAN, sid(13): SHITSUGI},
         gian={M: {"議第1号"}},
         bulletin={"bq:30/松田洋子/1": ["新こども園の定員は", "定員を伺う"]},
-        docs={"teigen"},
+        docs={"teigen", "kaiken-20250630-shidai", "kaiken-20250630-page"},
         doc_text=lambda did, layer: DOCS.get((did, layer)),
         pt_text=lambda pid, name, layer: PTS.get((pid, name, layer)),
         plans={"youho", "jisshi"},
@@ -546,6 +549,22 @@ class OtherLedgersTest(RecordsTestCase):
         self.assertEqual(run(led).errors, [])
         led["katei"][0]["cycle"] = "第9期 "
         self.assertErr(run(led), "cycle の前後に空白がある")
+
+    def test_unused_docs(self):
+        # 記者会見の次第の PDF は過程の記録の資料に書ける。掲載ページは書けない（§2・§11 書かない資料）
+        led = ledgers()
+        led["katei"][0]["sources"] = "doc:kaiken-20250630-shidai/1"
+        led["katei"][0]["quote"] = "定例記者会見次第"
+        self.assertEqual(run(led).errors, [])
+        led["katei"][0]["sources"] = "doc:kaiken-20250630-page/1"
+        led["katei"][0]["quote"] = "定例記者会見"
+        rep = run(led)
+        self.assertEqual(len(rep.errors), 1, rep.errors)
+        self.assertErr(rep, "sources に書かない資料がある（doc:kaiken-20250630-page/1")
+        # テーマの定義の kind 資料も同じ
+        rows = theme_rows() + [dict(theme_rows()[0], kind="資料", value="doc:kaiken-20250630-page", note="")]
+        rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
+        self.assertErr(run(themes=rows), "value に書かない資料がある（doc:kaiken-20250630-page")
 
     def test_kisai_about(self):
         led = ledgers()
