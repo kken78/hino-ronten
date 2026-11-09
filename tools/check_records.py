@@ -17,6 +17,8 @@ inputs.lock.json の版の入力（会議録の索引と審議の記録・議案
   target_bill.tsv    対象と議案・名前の (a)（終了コードは変えない）
   target_name.tsv    対象と議案・名前の (b)（終了コードは変えない）
   target_changed.tsv lock の hino-town-docs を上げるときの比べ方（--prev を渡したときだけ。§10）
+  teian_segment.tsv  提案理由の記録で、sid が bill の提案の区切りに入っていない行（§11。終了コードは変えない。
+                     ○の行の概要の説明（desc）を並べる。LINK_SCHEMA §15.11）
 
 target のキーは、lock の版の附表（fh）と hino-town-docs の構造化の層（hs・hj・hk・hz。tools/hosei.py）で照らし、
 links/gian-yosan.tsv・links/hosei-fuhyo.tsv の confirmed の行（無ければ0行）で議案の回と○の行の附表を引く。
@@ -87,11 +89,13 @@ def read_inputs(gi):
     statements = {e["sid"]: {"text": e.get("text") or "", "role": e.get("role"), "meetingId": e.get("meetingId")}
                   for e in index}
     proceedings = gi.read_json(gm.HS, "public/data/proceedings.json")
-    segments = {}
+    segments, proposals = {}, []
     for mid, m in proceedings.items():
         for sg in m.get("segments") or []:
             if sg.get("kind") in ("ippan", "shitsugi"):
                 segments[sg["from"]] = dict(sg, meetingId=mid)
+            elif sg.get("kind") == "proposal":   # 提案理由の記録の (a)（§11。DESIGN.md ADR-35）
+                proposals.append((sg["from"], sg["to"], mid, list(sg.get("bills") or [])))
     gian = {mid: {a["no"] for a in m.get("agenda") or []}
             for mid, m in gi.read_json(gm.HS, "public/data/gian.json").items()}
     questions = gi.read_json(gm.CD, "docs/data/questions.json")["questions"]
@@ -136,7 +140,7 @@ def read_inputs(gi):
         doc_text=lambda did, layer: text_of(gm.TD, f"data/{layer}/{did}.txt", doc_files),
         pt_text=lambda pid, name, layer: text_of(gm.SP, f"data/{layer}/{pid}/{name}.txt", pt_files),
         plans=plan_ids, nodes=nodes, series=series, plans_in_lineage=plans_in_lineage,
-        fuhyo_keys=fuhyo_keys, struct=hosei.read_struct(gi), **confirmed_links())
+        fuhyo_keys=fuhyo_keys, struct=hosei.read_struct(gi), proposals=proposals, **confirmed_links())
 
 
 def confirmed_links(links_dir=LINKS_DIR):
@@ -176,6 +180,8 @@ def report_lines(rep):
     L.append("- target_text の種類ごとの数：" + "・".join(f"{k} {rep.text_counts.get(k, 0)}" for k in records.TEXT_KINDS))
     L.append(f"- 対象の照合の (2) に合わない candidate の行：{len(rep.target_unchecked)}（target_unchecked.tsv）")
     L.append(f"- 対象と議案・名前：(a) {len(rep.target_bill)}（target_bill.tsv）・(b) {len(rep.target_name)}（target_name.tsv）")
+    if rep.counts.get("teian"):
+        L.append(f"- 提案理由の記録：sid が提案の区切りに入っていない行 {len(rep.teian_segment)}（teian_segment.tsv）")
     L += struct_lines(rep.struct)
     changed = rep.target_changed
     if changed is not None:
@@ -211,6 +217,7 @@ def write_outputs(outdir, rep):
         "target_unchecked.tsv": (records.TARGET_UNCHECKED_COLUMNS, rep.target_unchecked),
         "target_bill.tsv": (records.TARGET_BILL_COLUMNS, rep.target_bill),
         "target_name.tsv": (records.TARGET_NAME_COLUMNS, rep.target_name),
+        "teian_segment.tsv": (records.TEIAN_SEGMENT_COLUMNS, rep.teian_segment),
     }
     if rep.target_changed is not None:
         files["target_changed.tsv"] = (records.TARGET_CHANGED_COLUMNS, rep.target_changed)
