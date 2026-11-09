@@ -8,8 +8,15 @@ links/fuhyo.tsv（附表の台帳）には、mention と同じ検査と、附表
 tools/update_links.py --ledger fuhyo を先に動かすよう示して止める。
 links/fuhyo-years.tsv（年度の台帳）には、mention と同じ検査と、年度の対応（§11）をかける。manual の行（人が足した行）は、
 生成の結果に無くても根拠の消失に数えない（§6）。無ければ、tools/update_links.py --ledger fuhyo-years を先に動かすよう示して止める。
+links/gian-yosan.tsv（議案と回の台帳）には、台帳の形・§5 の照合（to の hs。from の gi は §5 に決まりが無いので照合しない）・
+根拠の消失・台帳と lock の版をかけ、confirmed の行の to の hs が検収の済んだ行（§2）でなければ止める。sentinel は
+かけない（tools/ledger.py の NO_FROM_RULE。§5 gi）。回の表に行のある年度の、資料の無い回の議案を no_kai.tsv に出す。
+links/hosei-fuhyo.tsv（○の行と附表の台帳）には、mention と同じ検査と、○の行と附表の対応（§11）をかける。manual の行
+（人が足した行）は、生成の結果に無くても根拠の消失に数えない（§6）。名前の一致しない○の行を name_unmatched.tsv に出す。
+どちらも、無ければ tools/update_links.py --ledger gian-yosan・--ledger hosei-fuhyo を先に動かすよう示して止める。
 台帳には書かない。一覧と報告は build/links/mention/ に、relink の一覧は build/links/relink/ に、
-附表の一覧と報告は build/links/fuhyo/ に、年度の台帳の一覧と報告は build/links/fuhyo-years/ に書く。
+附表の一覧と報告は build/links/fuhyo/ に、年度の台帳の一覧と報告は build/links/fuhyo-years/ に、
+議案と回の台帳は build/links/gian-yosan/ に、○の行と附表の台帳は build/links/hosei-fuhyo/ に書く。
 
 実行: python3 -B tools/check_links.py
 終了コード：0 は合格（移動・移動先が見つからない rejected は一覧に出すだけ）。1 は止めた（件数と該当を表示する）。
@@ -23,7 +30,10 @@ sys.path.insert(0, HERE)
 
 import gen_fuhyo  # noqa: E402
 import gen_fuhyo_years  # noqa: E402
+import gen_gian_yosan  # noqa: E402
+import gen_hosei_fuhyo  # noqa: E402
 import gen_mentions as gm  # noqa: E402
+import hosei  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
 
@@ -39,6 +49,12 @@ FUHYO_OUT_DIR = os.path.join(gm.ROOT, "build", "links", FUHYO)
 YEARS = gen_fuhyo_years.METHOD
 YEARS_PATH = os.path.join(gm.ROOT, "links", f"{YEARS}.tsv")
 YEARS_OUT_DIR = os.path.join(gm.ROOT, "build", "links", YEARS)
+GIAN = gen_gian_yosan.METHOD
+GIAN_PATH = os.path.join(gm.ROOT, "links", f"{GIAN}.tsv")
+GIAN_OUT_DIR = os.path.join(gm.ROOT, "build", "links", GIAN)
+HOSEI = gen_hosei_fuhyo.METHOD
+HOSEI_PATH = os.path.join(gm.ROOT, "links", f"{HOSEI}.tsv")
+HOSEI_OUT_DIR = os.path.join(gm.ROOT, "build", "links", HOSEI)
 EXAMPLES = 10
 
 
@@ -199,6 +215,107 @@ def run_years(ybuilt, ledger_path, outdir):
     return (1 if rep.exit_code or errors else 0), rows, rep, errors
 
 
+def struct_lines(struct):
+    """構造化の層の行の数と、検収の台帳の key の作り直し（§2 の (1)）・検収の状態の件数。"""
+    counts, states = struct.counts()
+    same, diff, orphan, other = struct.rekey_counts()
+    return [f"- 構造化の層：回 {counts['回']}・資料のページ {counts['資料のページ']}・款の行 {counts[hosei.KAN]}・"
+            f"主な内容の行 {counts[hosei.MARU]}・事項 {counts[hosei.JIKO]}",
+            f"- 検収の台帳の key の作り直し：同じ {same}・違う {diff}・表に行の無い台帳の行 {orphan}・"
+            f"読まない表（hosei-kaikei など）の台帳の行 {other}",
+            "- 検収の状態（款の行・主な内容の行・事項）：" + "・".join(f"{k} {v}" for k, v in sorted(states.items()))]
+
+
+def gian_errors(rows, struct):
+    """§11 ○の行と附表の対応の後半：議案と回の台帳の confirmed の行の to の hs が、検収の済んだ行（§2）。"""
+    return [f"{r['from']} {r['to']} {r['method']}：confirmed の行の to が検収の済んだ行でない（LINK_SCHEMA §2）"
+            for r in rows if r["status"] == ledger.CONFIRMED and not struct.is_checked(r["to"])]
+
+
+def gian_report_lines(rows, rep, errors, gbuilt):
+    c = rep.checked.counts
+    L = ["# 台帳の確かめ（links/gian-yosan.tsv）", "",
+         f"- 議案と回の台帳：{len(rows)} 行（{'・'.join(f'{s} {sum(1 for r in rows if r['status'] == s)}' for s in ledger.STATUSES)}）",
+         f"- 議案と回の台帳の §5 の照合（confirmed・candidate。to の hs だけ）：一致 {c[ledger.MATCH]}・"
+         f"移動 {c[ledger.MOVED]}・停止 {c[ledger.STOPPED]}",
+         f"- 議案と回の台帳の根拠の消失（再生成で出なくなった confirmed）：{len(rep.merged.vanished_confirmed)}",
+         f"- 議案と回の台帳と lock の版：作り直した台帳と違う行 {len(rep.stale)}",
+         f"- 議案と回の台帳の sentinel：from の gi は §5 に決まりが無いのでかけない（{len(rows)} 行）",
+         f"- confirmed の行の to が検収の済んだ行でない：{len(errors)}"]
+    L += gen_gian_yosan.count_lines(rows, gbuilt) + struct_lines(gbuilt.inputs.struct)
+    L += [f"- 議案と回の台帳の判定：{'合格' if rep.exit_code == 0 and not errors else '停止'}"]
+    if rep.checked.stopped:
+        L += ["", f"§5 の照合で停止した行（build/links/gian-yosan/stopped.tsv。先頭{EXAMPLES}件）：", ""]
+        L += [f"- {r['from']} {r['to']}：{r['reason']}" for r in rep.checked.stopped[:EXAMPLES]]
+    if rep.stale:
+        L += ["", f"議案と回の台帳が lock の版で更新されていない。tools/update_links.py --ledger gian-yosan を先に動かす。"
+                  f"違う行（先頭{EXAMPLES}件）：", ""]
+        L += [f"- {' '.join(k)}" for k in rep.stale[:EXAMPLES]]
+    if errors:
+        L += ["", "検収の済んだ行でない confirmed の行（全件）：", ""] + [f"- {e}" for e in errors]
+    return L
+
+
+def run_gian(gbuilt, ledger_path, outdir):
+    """議案と回の台帳を確かめる。返り値は（終了コード、台帳の行、Report、誤り）。台帳には書かない。"""
+    if not os.path.exists(ledger_path):
+        raise ledger.LedgerError(f"議案と回の台帳が無い（{ledger_path}）。tools/update_links.py --ledger gian-yosan を先に動かす")
+    rows = ledger.read_ledger(ledger_path, GIAN)
+    rep = ledger.check_ledger(rows, gen_gian_yosan.generated_rows(gbuilt), gen_gian_yosan.corpus(gbuilt),
+                              relink_rows=None)
+    errors = gian_errors(rows, gbuilt.inputs.struct)
+    ledger.write_lists(outdir, rep.checked, rep.merged, update=False)
+    gen_gian_yosan.write_lists(outdir, gbuilt)
+    with open(os.path.join(outdir, "check.md"), "wb") as f:
+        f.write(("\n".join(gian_report_lines(rows, rep, errors, gbuilt)) + "\n").encode("utf-8"))
+    return (1 if rep.exit_code or errors else 0), rows, rep, errors
+
+
+def hosei_report_lines(rows, rep, errors, hbuilt):
+    c = rep.checked.counts
+    by = Counter((r["method"], r["status"]) for r in rows)
+    L = ["# 台帳の確かめ（links/hosei-fuhyo.tsv）", "",
+         f"- ○の行と附表の台帳：{len(rows)} 行（"
+         + "・".join(f"{m} " + "・".join(f"{s} {by[(m, s)]}" for s in ledger.STATUSES)
+                     for m in (gen_hosei_fuhyo.NAME, gen_hosei_fuhyo.MANUAL)) + "）",
+         f"- ○の行と附表の台帳の §5 の照合（confirmed・candidate）：一致 {c[ledger.MATCH]}・移動 {c[ledger.MOVED]}・"
+         f"停止 {c[ledger.STOPPED]}",
+         f"- ○の行と附表の台帳の根拠の消失（再生成で出なくなった confirmed）：{len(rep.merged.vanished_confirmed)}",
+         f"- ○の行と附表の台帳と lock の版：作り直した台帳と違う行 {len(rep.stale)}",
+         f"- ○の行と附表の台帳の sentinel：{ledger.sentinel_rows(rows)} 行で確かめ、一致になった行 {len(rep.sentinel_failures)}",
+         f"- ○の行と附表の対応の誤り：{len(errors)}"]
+    L += gen_hosei_fuhyo.count_lines(rows, hbuilt)
+    L += [f"- ○の行と附表の台帳の判定：{'合格' if rep.exit_code == 0 and not errors else '停止'}"]
+    if rep.checked.stopped:
+        L += ["", f"§5 の照合で停止した行（build/links/hosei-fuhyo/stopped.tsv。先頭{EXAMPLES}件）：", ""]
+        L += [f"- {r['from']} {r['to']}：{r['reason']}" for r in rep.checked.stopped[:EXAMPLES]]
+    if rep.stale:
+        L += ["", f"○の行と附表の台帳が lock の版で更新されていない。tools/update_links.py --ledger hosei-fuhyo を先に動かす。"
+                  f"違う行（先頭{EXAMPLES}件）：", ""]
+        L += [f"- {' '.join(k)}" for k in rep.stale[:EXAMPLES]]
+    if rep.sentinel_failures:
+        L += ["", f"sentinel で一致になった行（先頭{EXAMPLES}件）：", ""]
+        L += [f"- {r['from']} {r['to']}：{r['context']}" for r in rep.sentinel_failures[:EXAMPLES]]
+    if errors:
+        L += ["", "○の行と附表の対応の誤り（全件）：", ""] + [f"- {e}" for e in errors]
+    return L
+
+
+def run_hosei(hbuilt, ledger_path, outdir):
+    """○の行と附表の台帳を確かめる。返り値は（終了コード、台帳の行、Report、誤り）。台帳には書かない。"""
+    if not os.path.exists(ledger_path):
+        raise ledger.LedgerError(f"○の行と附表の台帳が無い（{ledger_path}）。tools/update_links.py --ledger hosei-fuhyo を先に動かす")
+    rows = ledger.read_ledger(ledger_path, HOSEI)
+    rep = ledger.check_ledger(rows, gen_hosei_fuhyo.generated_rows(hbuilt), gen_hosei_fuhyo.corpus(hbuilt),
+                              relink_rows=None)
+    errors = gen_hosei_fuhyo.hosei_errors(rows, hbuilt)
+    ledger.write_lists(outdir, rep.checked, rep.merged, update=False)
+    gen_hosei_fuhyo.write_lists(outdir, hbuilt)
+    with open(os.path.join(outdir, "check.md"), "wb") as f:
+        f.write(("\n".join(hosei_report_lines(rows, rep, errors, hbuilt)) + "\n").encode("utf-8"))
+    return (1 if rep.exit_code or errors else 0), rows, rep, errors
+
+
 def main():
     try:
         refs = mention.load_refs(gm.LINEAGE, gm.ALIASES)
@@ -227,7 +344,22 @@ def main():
         print(f"停止：{e}", file=sys.stderr)
         return 1
     print("\n".join(years_report_lines(yrows, yrep, yerrors, ybuilt)[2:]), file=sys.stderr if ycode else sys.stdout)
-    total = 1 if (code or fcode or ycode) else 0
+    # 議案と回の台帳・○の行と附表の台帳（年度の台帳の報告のあとに出す）
+    try:
+        gbuilt = gen_gian_yosan.build(gen_gian_yosan.read_gian_inputs(gi, lock))
+        gcode, grows, grep_, gerrors = run_gian(gbuilt, GIAN_PATH, GIAN_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print("\n".join(gian_report_lines(grows, grep_, gerrors, gbuilt)[2:]), file=sys.stderr if gcode else sys.stdout)
+    try:
+        hbuilt = gen_hosei_fuhyo.build(gen_hosei_fuhyo.read_hosei_inputs(gi, lock))
+        hcode, hrows, hrep, herrors = run_hosei(hbuilt, HOSEI_PATH, HOSEI_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print("\n".join(hosei_report_lines(hrows, hrep, herrors, hbuilt)[2:]), file=sys.stderr if hcode else sys.stdout)
+    total = 1 if (code or fcode or ycode or gcode or hcode) else 0
     print(f"- 全体の判定：{'合格' if total == 0 else '停止'}", file=sys.stderr if total else sys.stdout)
     return total
 

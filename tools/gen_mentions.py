@@ -134,8 +134,8 @@ class GitInputs:
         for repo in REPOS:
             self._git(repo, "cat-file", "-e", f"{self.lock[repo]['sha']}^{{commit}}")
 
-    def expand(self, repo, pattern):
-        """lock のパターンを、その版にあるファイルのパスに展開する。1件も無ければ止める。"""
+    def expand(self, repo, pattern, allow_empty=False):
+        """lock のパターンを、その版にあるファイルのパスに展開する。1件も無ければ止める（allow_empty なら空の一覧）。"""
         if repo not in self.lock or pattern not in self.lock[repo]["files"]:
             raise GenError(f"lock に無いパターン（{repo}: {pattern}）")
         fixed = []
@@ -150,9 +150,16 @@ class GitInputs:
             meta, _, path = line.partition("\t")
             if meta.split()[1] == "blob" and match_lock(pattern, path):
                 paths.append(path)
-        if not paths:
+        if not paths and not allow_empty:
             raise GenError(f"{repo}@{self.lock[repo]['sha'][:7]}: {pattern} に当たるファイルが無い")
         return sorted(paths)
+
+    def has(self, repo, path):
+        """その版に、lock の files に当たるそのファイルがあるか（前の版との比べ方で使う。LINK_SCHEMA §10）。"""
+        self._check(repo, path)
+        r = subprocess.run(["git", "-C", os.path.join(self.root, repo), "cat-file", "-e",
+                            f"{self.lock[repo]['sha']}:{path}"], capture_output=True)
+        return r.returncode == 0
 
     def read_bytes(self, repo, path):
         self._check(repo, path)

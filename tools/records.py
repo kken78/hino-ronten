@@ -2,6 +2,8 @@
 地区と組織の参照表（ref/chiku.tsv・ref/soshiki.tsv）を確かめる関数
 （LINK_SCHEMA.md §1・§2・§11・§12・§12.1・§15、DESIGN.md ADR-19・ADR-21〜ADR-24・ADR-31・ADR-32）。
 
+やりとりの記録と質疑の記録の target・target_text（§15.2・§15.7）は、§11 の「対象の形」「対象の照合」「対象と議案・名前」で
+確かめる。hs・hj・hk・hz は hino-town-docs の構造化の層（tools/hosei.py の Struct）で照らす（DESIGN.md ADR-34）。
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
 （theme・views）で決める（§15.3・§15.4・§15.6、ADR-31 の2）。届き先の信号（§11、ADR-31 の4）は一覧に出すだけで、止めない。
 
@@ -13,6 +15,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
+import hosei
 import mention
 
 STATUSES = ("candidate", "confirmed", "rejected")
@@ -21,9 +24,9 @@ COMMON = ["status", "reviewer", "date", "note"]
 # §15 の各台帳の列（status・reviewer・date・note は最後に置く。§15.1）
 COLUMNS = {
     "yaritori": ["question", "n", "row", "side", "sid", "quote", "speaker", "round", "stage", "kind", "answers",
-                 "point", "bq", "bulletin"] + COMMON,
+                 "target", "target_text", "point", "bq", "bulletin"] + COMMON,
     "shitsugi": ["question", "n", "row", "bills", "side", "sid", "quote", "speaker", "round", "stage", "kind",
-                 "answers", "point"] + COMMON,
+                 "answers", "target", "target_text", "point"] + COMMON,
     "kotogara": ["point", "source", "source_date", "quote", "value", "target", "kind", "prev", "reason",
                  "yaritori"] + COMMON,
     "tsunagari": ["link", "upper", "upper_ref", "lower", "lower_ref", "source", "source_date", "quote"] + COMMON,
@@ -104,6 +107,16 @@ QUOTE_CONTEXT_COLUMNS = ["ledger", "key", "source", "kind", "quote"]
 SIGNAL_TODOKU_COLUMNS = ["ledger", "key", "point"]
 SIGNAL_POINT_COLUMNS = ["ledger", "question", "rows", "empty", "ratio"]
 SIGNAL_CHUSHIN_COLUMNS = ["theme", "chushin", "rows", "hit", "ratio"]
+TARGET_UNCHECKED_COLUMNS = ["ledger", "question", "row", "status", "key"]
+TARGET_BILL_COLUMNS = ["ledger", "question", "row", "key", "bills", "kai"]
+TARGET_NAME_COLUMNS = ["ledger", "question", "row", "key", "name", "target_text"]
+TARGET_CHANGED_COLUMNS = ["ledger", "question", "row", "key", "change"]
+
+# 対象の形（§11・§15.2）：target のキーの種類と、target_text の種類
+TARGET_LEDGERS = ("yaritori", "shitsugi")   # target を持つ台帳（審査報告の記録 §15.10 はまだ置いていない）
+TARGET_KINDS = ("fh", "hs", "hj", "hk", "hz")
+RE_FH = re.compile(r"fh:[a-z0-9][a-z0-9-]*/b[0-9]{3,}")
+TEXT_KINDS = ("名", "款", "頁", "額", "源")
 
 
 class RecordsError(ValueError):
@@ -127,6 +140,10 @@ class Inputs:
     plans_in_lineage: set = field(default_factory=set)   # 系譜表の plan の列（空でない値）。views の plan キーを照らす
     pos: dict = field(default_factory=dict)
     qturns: dict = field(default_factory=dict)  # 一般質問の問い（q）の最初の発言の sid → 場面の from（§2 の iq）
+    fuhyo_keys: set = field(default_factory=set)   # lock の附表の事業の fh キー（対象の照合の (1)）
+    struct: object = None                          # hino-town-docs の構造化の層（hosei.Struct）。無ければ None
+    gian_hs: dict = field(default_factory=dict)    # 議案と回の台帳の confirmed の行：gi → hs の集まり
+    hj_fh: dict = field(default_factory=dict)      # ○の行と附表の台帳の confirmed の行：hj → fh の集まり
 
     def __post_init__(self):
         self.pos = {s: i for i, s in enumerate(self.order)}
@@ -161,6 +178,14 @@ class Report:
     signal_todoku: list = field(default_factory=list)   # 届き先の信号（§11、ADR-31 の4）。終了コードは変えない
     signal_point: list = field(default_factory=list)
     signal_chushin: list = field(default_factory=list)
+    target_unchecked: list = field(default_factory=list)   # 対象の照合の (2) に合わない candidate（§11）
+    target_bill: list = field(default_factory=list)        # 対象と議案・名前の (a)
+    target_name: list = field(default_factory=list)        # 対象と議案・名前の (b)
+    target_counts: dict = field(default_factory=dict)      # target のキーの種類ごとの数（check.md。H-7）
+    text_counts: dict = field(default_factory=dict)        # target_text の種類ごとの数
+    struct: object = None                                  # 照らした構造化の層（check.md に件数を出す）
+    prev_sha: str = ""                                     # 前の版の hino-town-docs の SHA（--prev）
+    target_changed: list = None                            # §10 の比べ方の一覧（--prev のときだけ）
 
     def err(self, where, msg):
         self.errors.append(f"{where}：{msg}")
@@ -930,6 +955,124 @@ def signals(ledgers, theme, rep):
                                    "ratio": ratio(hit, n) if ch else ""})
 
 
+# ---- 対象の形・対象の照合・対象と議案・名前（§11。DESIGN.md ADR-34 の1・2） ----
+
+def target_kind(key):
+    """target のキーの種類（fh・hs・hj・hk・hz）。形に合わなければ None。"""
+    if RE_FH.fullmatch(key):
+        return "fh"
+    return hosei.kind_of(key)
+
+
+def split_text(text):
+    """target_text → [(種類, 字)]。形に合わなければ None（区切りの半角の「;」と、種類の後ろの半角の「:」だけを見る）。"""
+    if not text:
+        return []
+    out = []
+    for part in text.split(";"):
+        if part.count(":") != 1:
+            return None
+        k, _, s = part.partition(":")
+        if k not in TEXT_KINDS or not s:
+            return None
+        out.append((k, s))
+    return out
+
+
+def check_targets(name, rows, inp, rep):
+    """§11 の対象の形・対象の照合・対象と議案・名前。一覧は rep.target_*。行の並びは ledger → question → row。"""
+    st = inp.struct
+    for r in rows:
+        w = label(name, r)
+        keys = r["target"].split(",") if r["target"] else []
+        parts = split_text(r["target_text"])
+        # 対象の形
+        bad = [k for k in keys if target_kind(k) is None]
+        if bad:
+            rep.err(w, f"target が §2 の fh・hs・hj・hk・hz の形のキーを「,」で区切ったものでない（{'・'.join(bad) or '空の要素'}）")
+        if len(set(keys)) != len(keys):
+            rep.err(w, "target に同じキーが2つある")
+        if parts is None:
+            rep.err(w, f"target_text が「種類:字」を「;」で区切ったもの（種類は {'・'.join(TEXT_KINDS)}）でない"
+                       f"（{r['target_text']!r}）")
+            parts = []
+        if keys and not r["target_text"]:
+            rep.err(w, "target が空でないのに target_text が空")
+        for k in keys:
+            kind = target_kind(k)
+            if kind:
+                rep.target_counts[kind] = rep.target_counts.get(kind, 0) + 1
+        for k, _ in parts:
+            rep.text_counts[k] = rep.text_counts.get(k, 0) + 1
+        if bad:
+            continue
+        # 対象の照合（1）〜（4）
+        for k in keys:
+            kind = target_kind(k)
+            if kind == "fh":
+                if k not in inp.fuhyo_keys:
+                    rep.err(w, f"target の {k} が lock の版の附表に無い（対象の照合の (1)）")
+                continue
+            if st is None or not st.exists(k):
+                rep.err(w, f"target の {k} が lock の版の構造化の層に無い（対象の照合の (1)）")
+                continue
+            if not st.is_checked(k):
+                if r["status"] == "confirmed":
+                    rep.err(w, f"confirmed の行の target の {k} が検収の済んだ行でない（対象の照合の (2)）")
+                elif r["status"] == "candidate":
+                    rep.target_unchecked.append({"ledger": name, "question": r["question"], "row": r["row"],
+                                                 "status": r["status"], "key": k})
+        st_text = norm((inp.statements.get(r["sid"][3:]) or {}).get("text") or "") if RE_SP.fullmatch(r["sid"]) else ""
+        for k, s in parts:
+            if norm(s) not in st_text:
+                rep.err(w, f"target_text の字「{s}」が、その行の sid の発言の本文に無い（対象の照合の (3)）")
+        for k in keys:
+            if target_kind(k) == "hj":
+                both = sorted(inp.hj_fh.get(k, set()) & set(keys))
+                if both:
+                    rep.err(w, f"target に {k} と、○の行と附表の台帳で引ける {'・'.join(both)} が両方ある（対象の照合の (4)）")
+        # 対象と議案・名前（一覧だけ。(1) に合わないキーは見ない）
+        if st is None:
+            continue
+        keys = [k for k in keys if target_kind(k) == "fh" or st.exists(k)]
+        if name == "shitsugi":
+            bills = r["bills"].split(",") if r["bills"] else []
+            kai = sorted({h[3:] for b in bills for h in inp.gian_hs.get(b, set())})
+            for k in keys:
+                if target_kind(k) in ("hs", "hj", "hk", "hz") and st.kai_of(k) not in kai:
+                    rep.target_bill.append({"ledger": name, "question": r["question"], "row": r["row"], "key": k,
+                                            "bills": r["bills"], "kai": ",".join(f"hs:{x}" for x in kai)})
+        words = [norm(s) for kk, s in parts if kk in ("名", "款")]
+        for k in keys:
+            kind = target_kind(k)
+            if kind not in ("hj", "hk", "hz"):
+                continue
+            row = st.row_of(k)
+            names = [norm(row["name"])] + ([norm(row["kan_no"])] if kind == "hk" and row.get("kan_no") else [])
+            if not any(n and n in wd for n in names for wd in words):
+                rep.target_name.append({"ledger": name, "question": r["question"], "row": r["row"], "key": k,
+                                        "name": row["name"], "target_text": r["target_text"]})
+
+
+def target_order(rows):
+    """一覧の並び（§11）：ledger → question の文字コード順、同じ question の中は row の数の順。"""
+    return sorted(rows, key=lambda x: (x["ledger"], x["question"],
+                                       int(x["row"]) if RE_INT.fullmatch(x["row"]) else 0, x.get("key", "")))
+
+
+def target_changed(ledgers, prev, now):
+    """§10・§11：lock の hino-town-docs を上げるときの比べ方の一覧（target_changed.tsv の行）。"""
+    keys = [k for n in TARGET_LEDGERS for r in ledgers.get(n, []) for k in (r["target"].split(",") if r["target"] else [])]
+    ch = hosei.changes(prev, now, keys)
+    out = []
+    for n in TARGET_LEDGERS:
+        for r in ledgers.get(n, []):
+            for k in (r["target"].split(",") if r["target"] else []):
+                if k in ch:
+                    out.append({"ledger": n, "question": r["question"], "row": r["row"], "key": k, "change": ch[k]})
+    return target_order(out)
+
+
 # ---- 全体 ----
 
 def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=()):
@@ -956,6 +1099,11 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
     check_kisai(ledgers["kisai"], inp, theme, rep)
     check_shisetsu(ledgers["shisetsu"], inp, theme, shisetsu_keys, rep)
     check_nozoki(ledgers.get("nozoki", []), inp, {**yar, **shi}, rep)
+    for name in TARGET_LEDGERS:
+        check_targets(name, ledgers[name], inp, rep)
+    rep.target_unchecked = target_order(rep.target_unchecked)
+    rep.target_bill = target_order(rep.target_bill)
+    rep.target_name = target_order(rep.target_name)
     live = {n: [r for r in ledgers[n] if r["status"] != "rejected"] for n in ("yaritori", "shitsugi")}
     torikoboshi(inp, {"yaritori": group(live["yaritori"]), "shitsugi": group(live["shitsugi"])},
                 ledgers.get("nozoki", []), theme, rep)

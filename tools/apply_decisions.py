@@ -18,10 +18,17 @@ lock の版だけを読む。§10）。
 台帳に同じ組の行が無ければ confirmed の行として足し（evidence・context・to_label は lock の附表から作る）、
 confirmed の manual の行があれば rejected の判定だけを受け付けて取り消す。書き写したあとの台帳に年度の対応（§11）の
 誤りが出るなら書かない。書き写す前の件数は、method（name・manual）と status ごとに表示する。
+--ledger hosei-fuhyo のときは、○の行と附表の台帳 links/hosei-fuhyo.tsv に、年度の台帳と同じ形で書き写す（§6・§7 hosei-fuhyo。
+manual の行の組み立ては tools/gen_hosei_fuhyo.py の manual_row）。書き写したあとの台帳に○の行と附表の対応（§11）の誤りが
+出るなら書かない。書き写す前の件数は、method と status ごとに表示する。
+--ledger gian-yosan のときは、議案と回の台帳 links/gian-yosan.tsv の candidate の行に書き写す（§7 gian-yosan）。書き写した
+あとの台帳で confirmed の行の to が検収の済んだ行でなければ書かない。書き写す前の件数は、status ごとに表示する。
 
 実行: python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger fuhyo --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger fuhyo-years --keys <判定した範囲の TSV> <判定の一覧の TSV>
+      python3 -B tools/apply_decisions.py --ledger hosei-fuhyo --keys <判定した範囲の TSV> <判定の一覧の TSV>
+      python3 -B tools/apply_decisions.py --ledger gian-yosan --keys <判定した範囲の TSV> <判定の一覧の TSV>
 終了コード：0 は書き写し、確かめも合格。1 は止めた（使い方の誤り、入力の読み込み、範囲の一覧・判定の一覧の誤り、
 範囲と判定の一覧の食い違い、附表の分類の誤りで止めたときは台帳に書かない。書いたあとの確かめで合格しなかったときは、
 台帳は書いたまま、件数と該当を表示する）。
@@ -38,6 +45,8 @@ sys.path.insert(0, HERE)
 import check_links  # noqa: E402
 import gen_fuhyo  # noqa: E402
 import gen_fuhyo_years  # noqa: E402
+import gen_gian_yosan  # noqa: E402
+import gen_hosei_fuhyo  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
 import mention  # noqa: E402
@@ -46,12 +55,15 @@ METHOD = "mention"
 RELINK = check_links.RELINK
 FUHYO = check_links.FUHYO
 YEARS = check_links.YEARS
+HOSEI = check_links.HOSEI
+GIAN = check_links.GIAN
 DECISION_COLUMNS = ["from", "to", "method", "context", "status", "reviewer", "date", "note"]
 RELINK_TO = "relink_to"
 HEADERS = (DECISION_COLUMNS, DECISION_COLUMNS + [RELINK_TO])  # いまの8列か、relink_to を足した9列
 KEY_COLUMNS = ["from", "to", "method"]  # 判定した範囲の一覧（--keys）の列
 DECIDED = (ledger.CONFIRMED, ledger.REJECTED)
-USAGE = ("使い方：python3 -B tools/apply_decisions.py [--ledger fuhyo | --ledger fuhyo-years] "
+USAGE = ("使い方：python3 -B tools/apply_decisions.py [--ledger fuhyo | --ledger fuhyo-years | --ledger hosei-fuhyo | "
+         "--ledger gian-yosan] "
          "--keys <判定した範囲の TSV> <判定の一覧の TSV>")
 COUNT_PREFIX = "書き写す前の件数："
 REJECT_PREFIX, REJECT_BASIS = "却下：", "。判別の根拠："  # decided_note の rejected の形
@@ -341,6 +353,12 @@ def apply_years(ledger_rows, decisions, ybuilt):
     """年度の台帳に判定を書き写した新しい台帳の行を返す（§6・§7 fuhyo-years）。name の行は apply と同じ（candidate の行に
     書き写す）。manual の行は、台帳に無ければ confirmed の行を足し、confirmed の manual の行があれば rejected で取り消す。
     合わない行が1行でもあれば、すべて示して止める。"""
+    return apply_manual(ledger_rows, decisions, lambda f, t, d: gen_fuhyo_years.manual_row(ybuilt, f, t, d))
+
+
+def apply_manual(ledger_rows, decisions, make_row):
+    """name・manual の2つの method を持つ台帳（年度の台帳・○の行と附表の台帳）に判定を書き写す（§6）。
+    make_row(from, to, 判定の行) は、人が確かめた manual の行と誤りの文の一覧を返す。"""
     by_key = {(r["from"], r["to"], r["method"]): r for r in ledger_rows}
     names = [(n, d) for n, d in decisions if d["method"] == gen_fuhyo_years.NAME]
     errs, added, cancelled = [], [], {}
@@ -363,7 +381,7 @@ def apply_years(ledger_rows, decisions, ybuilt):
         if r is None:
             if d["status"] != ledger.CONFIRMED:
                 bad.append(f"台帳に無い manual の行は confirmed でだけ足せる（{d['status']!r}）")
-            row, more = gen_fuhyo_years.manual_row(ybuilt, d["from"], d["to"], d)
+            row, more = make_row(d["from"], d["to"], d)
             bad += more
             if not bad:
                 added.append(row)
@@ -406,6 +424,97 @@ def run_years(decisions_path, keys_path, ledger_path, ybuilt, outdir, out=None):
     return code, applied, rows, rep, errors
 
 
+def hosei_count_lines(decisions):
+    """○の行と附表の台帳の書き写す前の件数の行（§11 判定の範囲）。年度の台帳と同じく method と status ごと。"""
+    return years_count_lines(decisions)
+
+
+def gian_count_lines(decisions):
+    """議案と回の台帳の書き写す前の件数の行（§11 判定の範囲）。status ごと（0件も書く）。"""
+    counts = Counter(d["status"] for _, d in decisions)
+    return [f"{COUNT_PREFIX}{s} {counts[s]}" for s in DECIDED]
+
+
+def write_hosei(decisions_path, keys_path, ledger_path, hbuilt, out=None):
+    """判定の一覧を○の行と附表の台帳に書き写して書く（§6・§7 hosei-fuhyo）。name の行は candidate の行に書き写し、
+    manual の行は台帳に無ければ confirmed で足す（年度の台帳と同じ）。書き写したあとの台帳に○の行と附表の対応（§11）の
+    誤りが出るなら書かない。返り値は書き写した行の数（(method, status) の Counter）。"""
+    with open(decisions_path, "rb") as f:
+        decisions = parse_decisions(f.read(), relink=False)
+    with open(keys_path, "rb") as f:
+        keys = parse_keys(f.read())
+    _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", scope_errors(keys, decisions))
+    current = ledger.read_ledger(ledger_path, HOSEI)
+    rows = apply_manual(current, decisions, lambda f, t, d: gen_hosei_fuhyo.manual_row(hbuilt, f, t, d))
+    ledger.parse_ledger(ledger.format_ledger(rows, HOSEI), HOSEI)  # 書く前に台帳の形（§1・§3・§11）を確かめる
+    _fail("書き写したあとの台帳に○の行と附表の対応の誤りがある（台帳には書いていない）",
+          gen_hosei_fuhyo.hosei_errors(rows, hbuilt))
+    print("\n".join(hosei_count_lines(decisions)), file=out or sys.stdout)
+    ledger.write_ledger(ledger_path, rows, HOSEI)
+    old = {(r["from"], r["to"], r["method"]): r for r in current}
+    return Counter((r["method"], r["status"]) for r in rows if old.get((r["from"], r["to"], r["method"])) != r)
+
+
+def run_hosei(decisions_path, keys_path, ledger_path, hbuilt, outdir, out=None):
+    """○の行と附表の台帳に書き写してから check_links.run_hosei で確かめる。返り値は（終了コード、書き写した数、台帳の行、Report、誤り）。"""
+    applied = write_hosei(decisions_path, keys_path, ledger_path, hbuilt, out)
+    code, rows, rep, errors = check_links.run_hosei(hbuilt, ledger_path, outdir)
+    return code, applied, rows, rep, errors
+
+
+def write_gian(decisions_path, keys_path, ledger_path, gbuilt, out=None):
+    """判定の一覧を議案と回の台帳に書き写して書く（§7 gian-yosan）。candidate の行に書き写すだけ（付け替えは使わない）。
+    書き写したあとの台帳で、confirmed の行の to が検収の済んだ行でなければ書かない。返り値は書き写した行の数（Counter）。"""
+    with open(decisions_path, "rb") as f:
+        decisions = parse_decisions(f.read(), relink=False)
+    with open(keys_path, "rb") as f:
+        keys = parse_keys(f.read())
+    _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", scope_errors(keys, decisions))
+    current = ledger.read_ledger(ledger_path, GIAN)
+    rows, _ = apply(current, decisions)
+    ledger.parse_ledger(ledger.format_ledger(rows, GIAN), GIAN)
+    _fail("書き写したあとの台帳に検収の済んでいない confirmed の行がある（台帳には書いていない）",
+          check_links.gian_errors(rows, gbuilt.inputs.struct))
+    print("\n".join(gian_count_lines(decisions)), file=out or sys.stdout)
+    ledger.write_ledger(ledger_path, rows, GIAN)
+    old = {(r["from"], r["to"], r["method"]): r for r in current}
+    return Counter(r["status"] for r in rows if old[(r["from"], r["to"], r["method"])] != r)
+
+
+def run_gian(decisions_path, keys_path, ledger_path, gbuilt, outdir, out=None):
+    """議案と回の台帳に書き写してから check_links.run_gian で確かめる。返り値は（終了コード、書き写した数、台帳の行、Report、誤り）。"""
+    applied = write_gian(decisions_path, keys_path, ledger_path, gbuilt, out)
+    code, rows, rep, errors = check_links.run_gian(gbuilt, ledger_path, outdir)
+    return code, applied, rows, rep, errors
+
+
+def main_hosei(keys_path, decisions_path):
+    try:
+        hbuilt = gen_hosei_fuhyo.load_built()
+        code, applied, rows, rep, errors = run_hosei(decisions_path, keys_path, check_links.HOSEI_PATH, hbuilt,
+                                                     check_links.HOSEI_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print("書き写した：" + "・".join(f"{m} {s} {applied[(m, s)]}" for m in (gen_hosei_fuhyo.NAME, gen_hosei_fuhyo.MANUAL)
+                                    for s in DECIDED))
+    print("\n".join(check_links.hosei_report_lines(rows, rep, errors, hbuilt)[2:]), file=sys.stderr if code else sys.stdout)
+    return code
+
+
+def main_gian(keys_path, decisions_path):
+    try:
+        gbuilt = gen_gian_yosan.load_built()
+        code, applied, rows, rep, errors = run_gian(decisions_path, keys_path, check_links.GIAN_PATH, gbuilt,
+                                                    check_links.GIAN_OUT_DIR)
+    except gm.GenError as e:
+        print(f"停止：{e}", file=sys.stderr)
+        return 1
+    print(f"書き写した：confirmed {applied[ledger.CONFIRMED]}・rejected {applied[ledger.REJECTED]}")
+    print("\n".join(check_links.gian_report_lines(rows, rep, errors, gbuilt)[2:]), file=sys.stderr if code else sys.stdout)
+    return code
+
+
 def main_years(keys_path, decisions_path):
     try:
         ybuilt = gen_fuhyo_years.load_built()
@@ -437,6 +546,10 @@ def main(argv):
         return main_fuhyo(argv[4], argv[5])
     if len(argv) == 6 and argv[1:3] == ["--ledger", YEARS] and argv[3] == "--keys":
         return main_years(argv[4], argv[5])
+    if len(argv) == 6 and argv[1:3] == ["--ledger", HOSEI] and argv[3] == "--keys":
+        return main_hosei(argv[4], argv[5])
+    if len(argv) == 6 and argv[1:3] == ["--ledger", GIAN] and argv[3] == "--keys":
+        return main_gian(argv[4], argv[5])
     if len(argv) != 4 or argv[1] != "--keys":
         print(USAGE, file=sys.stderr)
         return 1

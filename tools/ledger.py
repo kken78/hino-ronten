@@ -4,6 +4,11 @@
 人が付け替えた行の台帳（links/relink.tsv）は、付け替えの元と付け替えの重なり（§6・§11）も確かめる。
 附表の台帳（links/fuhyo.tsv）は、附表の分類（§11）も確かめる。年度の台帳（links/fuhyo-years.tsv）は、行の method が
 name・manual で、from も to も fh（§3・§11）。年度の対応（§11）は tools/gen_fuhyo_years.py で確かめる。
+議案と回の台帳（links/gian-yosan.tsv）は、from が gi、to が hs、method が title。○の行と附表の台帳
+（links/hosei-fuhyo.tsv）は、from が hj の○の行（key の頭が m）、to が fh、method が name・manual で、11列の後ろに kind の列を持つ
+（§3・§11。DESIGN.md ADR-34 の4・5）。○の行と附表の対応（§11）は tools/gen_hosei_fuhyo.py で確かめる。
+§5 に gi の決まりは無いので、議案と回の台帳の from は照合せず、to（hs）だけを照合する。sentinel もかけない
+（context は from の議案の題で、to の照合では変わらないため。台帳と lock の版の検査が議案の題の変わったことを見る）。
 入力のリポジトリは読まない。読むのは tools/update_links.py・tools/check_links.py が gen_mentions・gen_fuhyo で
 lock の版から作ったデータだけ（§10）。機械は status を confirmed・rejected にしない（DESIGN.md ADR-2）。
 """
@@ -14,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date as Date
 
 import gen_mentions as gm
+import hosei
 import mention
 
 LEDGER_COLUMNS = ["from", "to", "method", "evidence", "where", "context", "to_label",
@@ -26,8 +32,12 @@ RELINK_CONFLICT_COLUMNS = ["from", "to", "relink_status", "mention_status", "con
 
 CANDIDATE, CONFIRMED, REJECTED = "candidate", "confirmed", "rejected"
 STATUSES = (CANDIDATE, CONFIRMED, REJECTED)
-METHODS = ("mention", "program", "semantic", "relink", "fuhyo", "fuhyo-years")  # 台帳のファイル名（links/<method>.tsv）
-ROW_METHODS = {"fuhyo-years": ("name", "manual")}  # §11 方法の制限の例外：行の method が台帳のファイル名と違う台帳
+METHODS = ("mention", "program", "semantic", "relink", "fuhyo", "fuhyo-years", "gian-yosan",
+           "hosei-fuhyo")  # 台帳のファイル名（links/<method>.tsv）
+# §11 方法の制限の例外：行の method が台帳のファイル名と違う台帳
+ROW_METHODS = {"fuhyo-years": ("name", "manual"), "hosei-fuhyo": ("name", "manual"), "gian-yosan": ("title",)}
+# 台帳ごとの列（§3）。○の行と附表の台帳は、11列の後ろに補正の種類の列 kind を持つ
+COLUMNS_OF = {"hosei-fuhyo": LEDGER_COLUMNS + ["kind"]}
 MATCH, MOVED, STOPPED = "一致", "移動", "停止"
 NEIGHBORS = 5  # §5：連番の前後5以内
 SENTINEL_MARKS = ("〓", "※")  # §11：context に「〓」が含まれるときは「※」
@@ -41,15 +51,22 @@ KEY_FORMS = {
     "lin": re.compile(r"lin:[a-z0-9][a-z0-9-]*/[0-9]+"),
     "node": re.compile(r"node:[a-z0-9][a-z0-9-]*/e[0-9]{3,}"),
     "none": re.compile(r"none:[a-z0-9][a-z0-9-]*"),
+    "gi": re.compile(r"gi:[0-9]{10}/[^/,\s]+"),
+    "hs": hosei.KEY_FORMS["hs"],
+    "hj": hosei.KEY_FORMS["hj"],
 }
-FROM_KINDS, TO_KINDS = ("bq", "sp", "fh"), ("plan", "lin", "node", "none", "fh")
+FROM_KINDS, TO_KINDS = ("bq", "sp", "fh", "gi", "hj"), ("plan", "lin", "node", "none", "fh", "hs")
+MARU_KEY_HEAD = "m"  # §2・§7 hosei-fuhyo：○の行と附表の台帳の from は○の行だけ（特別会計・企業会計の t の行は対象にしない）
+NO_FROM_RULE = ("gi",)  # §5 に照合の決まりが無い from（議案と回の台帳の gi）。from は照合せず、sentinel もかけない
 # §11：台帳ごとの from・to の種類。mention と relink は from が bq・sp、to が plan・lin。fuhyo は from が fh、to が node・none。
 # fuhyo-years は from も to も fh
-FROM_KINDS_OF = {"fuhyo": ("fh",), "fuhyo-years": ("fh",)}
-TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none"), "fuhyo-years": ("fh",)}
+# gian-yosan は from が gi、to が hs。hosei-fuhyo は from が hj（○の行だけ）、to が fh（DESIGN.md ADR-34 の4・5。PR #19 の問い1・2）
+FROM_KINDS_OF = {"fuhyo": ("fh",), "fuhyo-years": ("fh",), "gian-yosan": ("gi",), "hosei-fuhyo": ("hj",)}
+TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none"), "fuhyo-years": ("fh",),
+               "gian-yosan": ("hs",), "hosei-fuhyo": ("fh",)}
 DEFAULT_FROM_KINDS, DEFAULT_TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")  # program・semantic（§3）
-HUMAN_ONLY = ("relink", "manual")  # §6：機械が作らない行の method（relink の台帳、年度の台帳の manual）。candidate を置かない
-WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",), "fh": ("name",)}
+HUMAN_ONLY = ("relink", "manual")  # §6：機械が作らない行の method（relink の台帳、年度の台帳と○の行と附表の台帳の manual）。candidate を置かない
+WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",), "fh": ("name",), "hj": ("name",), "gi": ("title",)}
 
 
 class LedgerError(gm.GenError):
@@ -84,6 +101,8 @@ def _row_errors(n, r, method):
         errs.append(f"to の形が違う（{r['to']!r}）")
     elif tk not in TO_KINDS_OF.get(method, DEFAULT_TO_KINDS):
         errs.append(f"{method} の台帳の to に {tk} は使えない（{r['to']}）")
+    if method == "hosei-fuhyo" and fk == "hj" and not r["from"].partition("/")[2].startswith(MARU_KEY_HEAD):
+        errs.append(f"{method} の台帳の from は○の行（key の頭が {MARU_KEY_HEAD}）だけ（{r['from']}）")
     allowed = ROW_METHODS.get(method)
     if allowed is None and r["method"] != method:
         errs.append(f"method が台帳のファイル（{method}）と違う（{r['method']!r}）")
@@ -126,6 +145,11 @@ def _row_errors(n, r, method):
     return [f"{n}行目 {r['from']} {r['to']}：{e}" for e in errs]
 
 
+def columns_of(method):
+    """台帳の列（§3）。○の行と附表の台帳は12列、ほかは11列。"""
+    return COLUMNS_OF.get(method, LEDGER_COLUMNS)
+
+
 def parse_ledger(data, method):
     """台帳のバイト列を読み、§1・§3・§11 の形を確かめる。誤りがあれば全件を示して止める（並べ直さない）。"""
     if method not in METHODS:
@@ -141,15 +165,16 @@ def parse_ledger(data, method):
     if not text.endswith("\n"):
         raise LedgerError("台帳の最後の行が改行で終わっていない")
     lines = text[:-1].split("\n")
-    if lines[0].split("\t") != LEDGER_COLUMNS:
-        raise LedgerError(f"台帳のヘッダが {LEDGER_COLUMNS} でない（{lines[0].split(chr(9))}）")
+    columns = columns_of(method)
+    if lines[0].split("\t") != columns:
+        raise LedgerError(f"台帳のヘッダが {columns} でない（{lines[0].split(chr(9))}）")
     rows, errs = [], []
     for n, line in enumerate(lines[1:], start=2):
         cells = line.split("\t")
-        if len(cells) != len(LEDGER_COLUMNS):
-            errs.append(f"{n}行目：列の数が {len(cells)}（{len(LEDGER_COLUMNS)} のはず）")
+        if len(cells) != len(columns):
+            errs.append(f"{n}行目：列の数が {len(cells)}（{len(columns)} のはず）")
             continue
-        r = dict(zip(LEDGER_COLUMNS, cells))
+        r = dict(zip(columns, cells))
         errs += _row_errors(n, r, method)
         rows.append(r)
     seen = Counter(_key(r) for r in rows)
@@ -172,9 +197,10 @@ def read_ledger(path, method, missing_ok=False):
         return parse_ledger(f.read(), method)
 
 
-def format_ledger(rows):
-    """§1 の形のバイト列。行は from → to → method の文字コード順（キーが一意なので全列の順と同じ）。"""
-    return _format(LEDGER_COLUMNS, rows)
+def format_ledger(rows, method=None):
+    """§1 の形のバイト列。行は from → to → method の文字コード順（キーが一意なので全列の順と同じ）。
+    method を渡すと、その台帳の列（○の行と附表の台帳は kind を含む12列）で書く。"""
+    return _format(columns_of(method), rows)
 
 
 def _format(columns, rows):
@@ -185,10 +211,10 @@ def _format(columns, rows):
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
-def write_ledger(path, rows):
+def write_ledger(path, rows, method=None):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "wb") as f:
-        f.write(format_ledger(rows))
+        f.write(format_ledger(rows, method))
 
 
 # ---- 照合の相手（lock の版の入力から作る） ----
@@ -202,6 +228,7 @@ class Corpus:
     refs: object
     fuhyo: dict = field(default_factory=dict)     # (附表id, key) → 附表の事業（name は元の表記）
     programs: dict = field(default_factory=dict)  # (計画id, key) → 計画の事業（name は元の表記）
+    struct: object = None                         # hino-town-docs の構造化の層（hosei.Struct。hs・hj の照合）
 
 
 def make_corpus(inputs, refs):
@@ -260,13 +287,27 @@ def match_row(row, corpus, context=None):
         if mention.normalize(item["name"]) != ctx:
             return Match(STOPPED, reason=f"事業名が context と違う（いまの事業名：{item['name']}）")
         return Match(MATCH)
+    if kind == "hj":
+        item = corpus.struct.row_of(row["from"]) if corpus.struct is not None else None
+        if item is None:
+            return Match(STOPPED, reason="主な内容の行が無い")
+        if mention.normalize(item["name"]) != ctx:
+            return Match(STOPPED, reason=f"行の名前が context と違う（いまの名前：{item['name']}）")
+        return Match(MATCH)
     raise LedgerError(f"from の形が違う（{row['from']}）")
 
 
 def match_label(row, corpus):
     """to の照合（§5）。plan・lin は名称、node は計画の事業の有無と事業名、none は「記載なし」と manifest の id、
-    fh（年度の台帳）は附表の事業の有無と事業名。"""
+    fh（年度の台帳・○の行と附表の台帳）は附表の事業の有無と事業名、hs は回の有無と題。"""
     kind = _kind(row["to"])
+    if kind == "hs":
+        kai = corpus.struct.kai.get(row["to"][3:]) if corpus.struct is not None else None
+        if kai is None:
+            return Match(STOPPED, reason="回が無い")
+        if kai["title"] != row["to_label"]:
+            return Match(STOPPED, reason=f"回の題が違う（いまの題：{kai['title']}）")
+        return Match(MATCH)
     if kind == "fh":
         item = corpus.fuhyo.get(tuple(row["to"][3:].split("/", 1)))
         if item is None:
@@ -296,6 +337,12 @@ def match_label(row, corpus):
     return Match(MATCH)
 
 
+def match_full(row, corpus):
+    """confirmed・candidate の行の §5 の照合：from（§5 に決まりの無い gi は照合しない）と to。"""
+    m = Match(MATCH) if _kind(row["from"]) in NO_FROM_RULE else match_row(row, corpus)
+    return match_label(row, corpus) if m.result == MATCH else m
+
+
 @dataclass
 class Checked:
     counts: Counter = field(default_factory=Counter)  # 一致・移動・停止の件数（confirmed・candidate）
@@ -323,9 +370,7 @@ def check_rows(rows, corpus):
             elif m.result == STOPPED:
                 ck.rejected_unmatched.append(_listed(r, STOPPED_COLUMNS, reason=m.reason))
             continue
-        m = match_row(r, corpus)
-        if m.result == MATCH:
-            m = match_label(r, corpus)
+        m = match_full(r, corpus)
         ck.counts[m.result] += 1
         if m.result == MOVED:
             ck.moved.append(_listed(r, MOVED_COLUMNS, moved_to=m.moved_to))
@@ -347,7 +392,7 @@ def sentinel(rows, corpus):
     """§11：confirmed・candidate の全行で context の1文字を替えて照合し、一致になった行を返す（空なら合格）。"""
     bad = []
     for r in rows:
-        if r["status"] == REJECTED:
+        if r["status"] == REJECTED or _kind(r["from"]) in NO_FROM_RULE:
             continue
         changed = mutate_context(r["context"])
         if match_row(r, corpus, context=changed).result == MATCH:
@@ -356,6 +401,11 @@ def sentinel(rows, corpus):
 
 
 # ---- 併合（§6） ----
+
+def sentinel_rows(rows):
+    """sentinel をかける行の数（confirmed・candidate で、from に §5 の決まりがあるもの）。"""
+    return sum(1 for r in rows if r["status"] != REJECTED and _kind(r["from"]) not in NO_FROM_RULE)
+
 
 def generated_rows(built):
     """gm.build の結果から、台帳の11列の行を作る（speech_date・scene は台帳に入れない）。"""
@@ -420,7 +470,12 @@ def merge(ledger_rows, gen_rows, corpus, relink_rows=()):
                 continue
             check = found[k].result
         else:
-            check = "照合しない" if r["status"] == REJECTED else match_row(r, corpus).result
+            if r["status"] == REJECTED:
+                check = "照合しない"
+            elif _kind(r["from"]) in NO_FROM_RULE:   # from に §5 の決まりが無い（gi）ので to を照合する
+                check = match_label(r, corpus).result
+            else:
+                check = match_row(r, corpus).result
         out.vanished.append(dict(r, check=check))
     have = {_key(r) for r in out.rows}
     for k, g in gen.items():
