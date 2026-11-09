@@ -5,7 +5,7 @@
 附表の台帳（links/fuhyo.tsv）は、附表の分類（§11）も確かめる。年度の台帳（links/fuhyo-years.tsv）は、行の method が
 name・manual で、from も to も fh（§3・§11）。年度の対応（§11）は tools/gen_fuhyo_years.py で確かめる。
 議案と回の台帳（links/gian-yosan.tsv）は、from が gi、to が hs、method が title。○の行と附表の台帳
-（links/hosei-fuhyo.tsv）は、from が hj、to が fh か none、method が name・manual で、11列の後ろに kind の列を持つ
+（links/hosei-fuhyo.tsv）は、from が hj の○の行（key の頭が m）、to が fh、method が name・manual で、11列の後ろに kind の列を持つ
 （§3・§11。DESIGN.md ADR-34 の4・5）。○の行と附表の対応（§11）は tools/gen_hosei_fuhyo.py で確かめる。
 §5 に gi の決まりは無いので、議案と回の台帳の from は照合せず、to（hs）だけを照合する。sentinel もかけない
 （context は from の議案の題で、to の照合では変わらないため。台帳と lock の版の検査が議案の題の変わったことを見る）。
@@ -56,15 +56,16 @@ KEY_FORMS = {
     "hj": hosei.KEY_FORMS["hj"],
 }
 FROM_KINDS, TO_KINDS = ("bq", "sp", "fh", "gi", "hj"), ("plan", "lin", "node", "none", "fh", "hs")
+MARU_KEY_HEAD = "m"  # §2・§7 hosei-fuhyo：○の行と附表の台帳の from は○の行だけ（特別会計・企業会計の t の行は対象にしない）
 NO_FROM_RULE = ("gi",)  # §5 に照合の決まりが無い from（議案と回の台帳の gi）。from は照合せず、sentinel もかけない
 # §11：台帳ごとの from・to の種類。mention と relink は from が bq・sp、to が plan・lin。fuhyo は from が fh、to が node・none。
 # fuhyo-years は from も to も fh
-# gian-yosan は from が gi、to が hs。hosei-fuhyo は from が hj、to が fh・none（DESIGN.md ADR-34 の4・5）
+# gian-yosan は from が gi、to が hs。hosei-fuhyo は from が hj（○の行だけ）、to が fh（DESIGN.md ADR-34 の4・5。PR #19 の問い1・2）
 FROM_KINDS_OF = {"fuhyo": ("fh",), "fuhyo-years": ("fh",), "gian-yosan": ("gi",), "hosei-fuhyo": ("hj",)}
 TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none"), "fuhyo-years": ("fh",),
-               "gian-yosan": ("hs",), "hosei-fuhyo": ("fh", "none")}
+               "gian-yosan": ("hs",), "hosei-fuhyo": ("fh",)}
 DEFAULT_FROM_KINDS, DEFAULT_TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")  # program・semantic（§3）
-HUMAN_ONLY = ("relink", "manual")  # §6：機械が作らない行の method（relink の台帳、年度の台帳の manual）。candidate を置かない
+HUMAN_ONLY = ("relink", "manual")  # §6：機械が作らない行の method（relink の台帳、年度の台帳と○の行と附表の台帳の manual）。candidate を置かない
 WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",), "fh": ("name",), "hj": ("name",), "gi": ("title",)}
 
 
@@ -100,6 +101,8 @@ def _row_errors(n, r, method):
         errs.append(f"to の形が違う（{r['to']!r}）")
     elif tk not in TO_KINDS_OF.get(method, DEFAULT_TO_KINDS):
         errs.append(f"{method} の台帳の to に {tk} は使えない（{r['to']}）")
+    if method == "hosei-fuhyo" and fk == "hj" and not r["from"].partition("/")[2].startswith(MARU_KEY_HEAD):
+        errs.append(f"{method} の台帳の from は○の行（key の頭が {MARU_KEY_HEAD}）だけ（{r['from']}）")
     allowed = ROW_METHODS.get(method)
     if allowed is None and r["method"] != method:
         errs.append(f"method が台帳のファイル（{method}）と違う（{r['method']!r}）")

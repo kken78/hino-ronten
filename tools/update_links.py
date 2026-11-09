@@ -9,9 +9,11 @@ links/fuhyo.tsv に合わせて書く。付け替えは使わない（§6）。�
 --ledger fuhyo-years のときは、tools/gen_fuhyo_years.py の build で名前の一致の候補を作り、links/fuhyo-years.tsv に
 合わせて書く。manual の行（人が足した行）は変えない（§6）。一覧と報告は build/links/fuhyo-years/ に書く。
 --ledger gian-yosan のときは、tools/gen_gian_yosan.py の build で議案と回の候補を作り、links/gian-yosan.tsv に合わせて書く。
-資料の無い回の議案は行を作らず、build/links/gian-yosan/no_kai.tsv に出す。
---ledger hosei-fuhyo のときは、tools/gen_hosei_fuhyo.py の build で名前の一致の候補を作り、links/hosei-fuhyo.tsv
-（kind の列を持つ12列）に合わせて書く。manual の行（人が足した行）は変えない（§6）。
+回の表に行のある年度の、資料の無い回の議案は行を作らず、build/links/gian-yosan/no_kai.tsv に出す（ほかの年度の議案と、
+題から年度・会計・号が取れない議案は件数だけ。§7 gian-yosan）。
+--ledger hosei-fuhyo のときは、tools/gen_hosei_fuhyo.py の build で○の行の名前の一致の候補を作り、links/hosei-fuhyo.tsv
+（kind の列を持つ12列）に合わせて書く。manual の行（人が足した行）は変えない（§6）。附表に名前の一致する事業の無い
+○の行は台帳に書かず、build/links/hosei-fuhyo/name_unmatched.tsv に出す（§7 hosei-fuhyo）。
 どちらも、既存の confirmed・rejected の行（人の判定）は変えない（§6。ほかの台帳と同じ）。
 機械が作るのは candidate だけ（DESIGN.md ADR-2）。
 
@@ -198,9 +200,8 @@ def run_gian(gbuilt, ledger_path, outdir):
 
 
 def run_hosei(hbuilt, ledger_path, outdir):
-    st = hbuilt.inputs.struct
     return run_other(HOSEI, ledger_path, gen_hosei_fuhyo.generated_rows(hbuilt), gen_hosei_fuhyo.corpus(hbuilt),
-                     lambda rows: gen_hosei_fuhyo.hosei_errors(rows, st), outdir, "links/hosei-fuhyo.tsv",
+                     lambda rows: gen_hosei_fuhyo.hosei_errors(rows, hbuilt), outdir, "links/hosei-fuhyo.tsv",
                      lambda rows: gen_hosei_fuhyo.count_lines(rows, hbuilt),
                      lambda d: gen_hosei_fuhyo.write_lists(d, hbuilt))
 

@@ -14,9 +14,10 @@ inputs.lock.json の版の hino-council-search の public/data/gian.json（議�
 - 議案の題から年度・会計・号を取る。専決処分の議案は題のかっこの中から取る。数字は §4 の正規化で半角にそろえる。
   題の末尾に余計な字があっても、年度・会計・号が取れれば通す
 - 題の年度は「令和N年度」を西暦（N＋2018。元年は1）にして回の fiscal_year と、号は整数にして gou と、会計の名前は
-  §2 の title と kaikei の組で比べる。当たる回が回の表に無い議案は行を作らず、一覧（no_kai.tsv）に出す
-- 題が「補正予算（第N号）」を含むが、「令和N年度日野町…補正予算（第N号）」の形で年度・会計・号が取れない議案
-  （平成の年度の議案）は、§7 に決まりが無いので行も一覧も作らず、件数だけを示す
+  §2 の title と kaikei の組で比べる。当たる回が回の表に無い議案は行を作らない
+- 一覧（no_kai.tsv）に出すのは、題の年度が回の表に行のある年度の議案だけ。回の表に行の無い年度の議案は年度ごとの件数だけを、
+  題が「補正予算」を含むが「令和N年度日野町…補正予算（第N号）」の形で年度・会計・号が取れない議案（平成の年度の題など）は
+  件数だけを示す（PR #19 の問い3）
 """
 import os
 import re
@@ -107,8 +108,9 @@ class GianBuilt:
     inputs: GianInputs
     bills: list      # 補正予算の議案（Bill）
     rows: list       # 候補の行（台帳の11列。from → to → method の順）
-    no_kai: list     # 当たる回が回の表に無い議案（no_kai.tsv の行）
+    no_kai: list     # 回の表に行のある年度で、当たる回が回の表に無い議案（no_kai.tsv の行）
     no_title: list   # 題から年度・会計・号が取れない議案（件数だけを示す）
+    no_year: list = None  # 題の年度が回の表に行の無い年度の議案（年度ごとの件数だけを示す）
 
 
 def build(inp):
@@ -117,7 +119,8 @@ def build(inp):
     for kid, r in inp.struct.kai.items():
         index.setdefault((int(r["fiscal_year"]), r["kaikei"], int(r["gou"])), []).append(kid)
     bills = hosei_bills(inp.gian)
-    rows, no_kai, no_title = [], [], []
+    years = {int(r["fiscal_year"]) for r in inp.struct.kai.values()}
+    rows, no_kai, no_title, no_year = [], [], [], []
     for b in bills:
         if not b.ok:
             no_title.append({"from": b.key, "title": b.title})
@@ -125,7 +128,7 @@ def build(inp):
         kaikei = names.get(b.kaikei_name)
         kids = index.get((b.year, kaikei, b.gou), []) if kaikei else []
         if not kids:
-            no_kai.append({"from": b.key, "title": b.title})
+            (no_kai if b.year in years else no_year).append({"from": b.key, "title": b.title})
             continue
         ev = mention.normalize(b.title)
         for kid in kids:
@@ -137,7 +140,8 @@ def build(inp):
     if len(set(keys)) != len(keys):
         raise gm.GenError("候補で (from, to, method) が重なっている")
     return GianBuilt(inp, bills, sorted(rows, key=lambda r: (r["from"], r["to"], r["method"])),
-                     sorted(no_kai, key=lambda r: r["from"]), sorted(no_title, key=lambda r: r["from"]))
+                     sorted(no_kai, key=lambda r: r["from"]), sorted(no_title, key=lambda r: r["from"]),
+                     sorted(no_year, key=lambda r: r["from"]))
 
 
 def generated_rows(built):
@@ -179,7 +183,11 @@ def count_lines(rows, built):
     return [f"- 補正予算の議案：{len(built.bills)}（年度・会計・号が取れた {sum(1 for b in built.bills if b.ok)}・"
             f"取れない {len(built.no_title)}）",
             f"- 会計ごとの行の数：{kaikei_counts(rows, built.inputs.struct) or '0'}",
-            f"- 当たる回が回の表に無い議案：{len(built.no_kai)}（{year_counts(built.no_kai) or '0'}。no_kai.tsv）"]
+            f"- 回の表に行のある年度で、当たる回が回の表に無い議案：{len(built.no_kai)}"
+            f"（{year_counts(built.no_kai) or '0'}。no_kai.tsv）",
+            f"- 題の年度が回の表に行の無い年度の議案（一覧に出さない）：{len(built.no_year)}"
+            f"（{year_counts(built.no_year) or '0'}）",
+            f"- 題から年度・会計・号が取れない議案（一覧に出さない）：{len(built.no_title)}"]
 
 
 def write_lists(outdir, built):
