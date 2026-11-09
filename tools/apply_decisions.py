@@ -19,8 +19,10 @@ lock の版だけを読む。§10）。
 confirmed の manual の行があれば rejected の判定だけを受け付けて取り消す。書き写したあとの台帳に年度の対応（§11）の
 誤りが出るなら書かない。書き写す前の件数は、method（name・manual）と status ごとに表示する。
 --ledger hosei-fuhyo のときは、○の行と附表の台帳 links/hosei-fuhyo.tsv に、年度の台帳と同じ形で書き写す（§6・§7 hosei-fuhyo。
-manual の行の組み立ては tools/gen_hosei_fuhyo.py の manual_row）。書き写したあとの台帳に○の行と附表の対応（§11）の誤りが
-出るなら書かない。書き写す前の件数は、method と status ごとに表示する。
+manual の行の組み立ては tools/gen_hosei_fuhyo.py の manual_row）。manual の行は、to が fh の行（名前の一致しない組を人が
+つないだもの）と、to が none:<附表id> の行（附表に当たる事業が無いと人が確かめたもの。to_label は「附表に無い」、kind は
+説明の字から付ける。2026-11-09、依頼者の決定。PR #19 の問い1）の2つ。書き写したあとの台帳に○の行と附表の対応（§11）の誤りが
+出るなら書かない。書き写す前の件数は、name・manual の fh・manual の none と status ごとに表示する。
 --ledger gian-yosan のときは、議案と回の台帳 links/gian-yosan.tsv の candidate の行に書き写す（§7 gian-yosan）。書き写した
 あとの台帳で confirmed の行の to が検収の済んだ行でなければ書かない。書き写す前の件数は、status ごとに表示する。
 
@@ -424,9 +426,22 @@ def run_years(decisions_path, keys_path, ledger_path, ybuilt, outdir, out=None):
     return code, applied, rows, rep, errors
 
 
+HOSEI_GROUPS = ("name", "manual fh", "manual none")  # §11 判定の範囲：○の行と附表の台帳の件数の分け方
+
+
+def hosei_group(row):
+    """○の行と附表の台帳の行の分け方（name・manual fh・manual none）。"""
+    if row["method"] != gen_hosei_fuhyo.MANUAL:
+        return row["method"]
+    return "manual none" if gen_hosei_fuhyo.is_none(row["to"]) else "manual fh"
+
+
 def hosei_count_lines(decisions):
-    """○の行と附表の台帳の書き写す前の件数の行（§11 判定の範囲）。年度の台帳と同じく method と status ごと。"""
-    return years_count_lines(decisions)
+    """○の行と附表の台帳の書き写す前の件数の行（§11 判定の範囲）。name・manual の fh・manual の none の順に、
+    confirmed・rejected の件数（0件も書く）。"""
+    counts = Counter((hosei_group(d), d["status"]) for _, d in decisions)
+    return [f"{COUNT_PREFIX}{g} {ledger.CONFIRMED} {counts[(g, ledger.CONFIRMED)]}・"
+            f"{ledger.REJECTED} {counts[(g, ledger.REJECTED)]}" for g in HOSEI_GROUPS]
 
 
 def gian_count_lines(decisions):
@@ -438,7 +453,7 @@ def gian_count_lines(decisions):
 def write_hosei(decisions_path, keys_path, ledger_path, hbuilt, out=None):
     """判定の一覧を○の行と附表の台帳に書き写して書く（§6・§7 hosei-fuhyo）。name の行は candidate の行に書き写し、
     manual の行は台帳に無ければ confirmed で足す（年度の台帳と同じ）。書き写したあとの台帳に○の行と附表の対応（§11）の
-    誤りが出るなら書かない。返り値は書き写した行の数（(method, status) の Counter）。"""
+    誤りが出るなら書かない。返り値は書き写した行の数（(name・manual fh・manual none, status) の Counter）。"""
     with open(decisions_path, "rb") as f:
         decisions = parse_decisions(f.read(), relink=False)
     with open(keys_path, "rb") as f:
@@ -452,7 +467,7 @@ def write_hosei(decisions_path, keys_path, ledger_path, hbuilt, out=None):
     print("\n".join(hosei_count_lines(decisions)), file=out or sys.stdout)
     ledger.write_ledger(ledger_path, rows, HOSEI)
     old = {(r["from"], r["to"], r["method"]): r for r in current}
-    return Counter((r["method"], r["status"]) for r in rows if old.get((r["from"], r["to"], r["method"])) != r)
+    return Counter((hosei_group(r), r["status"]) for r in rows if old.get((r["from"], r["to"], r["method"])) != r)
 
 
 def run_hosei(decisions_path, keys_path, ledger_path, hbuilt, outdir, out=None):
@@ -496,8 +511,7 @@ def main_hosei(keys_path, decisions_path):
     except gm.GenError as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
-    print("書き写した：" + "・".join(f"{m} {s} {applied[(m, s)]}" for m in (gen_hosei_fuhyo.NAME, gen_hosei_fuhyo.MANUAL)
-                                    for s in DECIDED))
+    print("書き写した：" + "・".join(f"{g} {s} {applied[(g, s)]}" for g in HOSEI_GROUPS for s in DECIDED))
     print("\n".join(check_links.hosei_report_lines(rows, rep, errors, hbuilt)[2:]), file=sys.stderr if code else sys.stdout)
     return code
 

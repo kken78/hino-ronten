@@ -92,6 +92,15 @@ GIAN = {"0000000010": {"agenda": [
         {"no": "議第9号", "kind": "予算", "title": "専決処分について（令和６年度日野町一般会計補正予算（第１号））"}]}}
 
 
+NONE_NOTE = "附表を見た範囲：fuhyo-r6 の参考の候補2つ（b001・b002）。判定：依頼者が会話で確認（2026-11-09）"
+
+
+def none_decision():
+    """附表に当たる事業が無いと人が確かめた○の行の判定の見本（PR #19 の問い1 の決定）。"""
+    return {"from": f"hj:{K1}/m002", "to": "none:fuhyo-r6", "method": "manual", "context": "衆議院議員選挙費",
+            "status": "confirmed", "reviewer": "kken78", "date": "2026-11-09", "note": NONE_NOTE}
+
+
 def gian_built(st=None, gian=None):
     return gg.build(gg.GianInputs({}, gian or GIAN, st or struct()))
 
@@ -305,6 +314,59 @@ class TestHoseiFuhyo(unittest.TestCase):
         self.assertTrue(gh.manual_row(b, d["from"], d["to"], dict(d, context="別"))[1])  # context が違う
         self.assertEqual(len(gh.hosei_errors([dict(row, note="判定：見本")], b)), 1)   # manual の note の頭
 
+    def test_manual_row_none(self):
+        # 附表に当たる事業が無いと人が確かめた○の行（PR #19 の問い1 の決定）
+        b = hosei_built()
+        d = none_decision()
+        row, bad = gh.manual_row(b, d["from"], d["to"], d)
+        self.assertEqual(bad, [])
+        self.assertEqual((row["to"], row["to_label"], row["kind"], row["method"], row["evidence"], row["note"]),
+                         ("none:fuhyo-r6", "附表に無い", "新規", "manual", "衆議院議員選挙費", NONE_NOTE))
+        self.assertEqual(gh.hosei_errors([row], b), [])
+        self.assertTrue(gh.manual_row(b, d["from"], "none:fuhyo-r9", d)[1])                   # 附表が lock に無い
+        self.assertTrue(gh.manual_row(b, d["from"], d["to"], dict(d, context="別"))[1])       # context が違う
+        self.assertTrue(gh.manual_row(b, f"hj:{K2}/t001", d["to"], d)[1])                    # t の行
+        f7 = copy.deepcopy(FUHYO)
+        f7.update(id="fuhyo-r7", fiscal_year={"label": "令和7年度", "year": 2025})
+        b2 = gh.build(gh.HoseiInputs({}, struct(), {"fuhyo-r6": FUHYO, "fuhyo-r7": f7}))
+        self.assertTrue(gh.manual_row(b2, d["from"], "none:fuhyo-r7", d)[1])                 # 年度が違う
+        maru = maru_rows()
+        maru[1]["desc"] = "増額します。"
+        self.assertEqual(gh.manual_row(hosei_built(st=struct(maru=maru)), d["from"], d["to"], d)[0]["kind"], "附表に無い")
+
+    def test_hosei_errors_none(self):
+        b = hosei_built()
+        d = none_decision()
+        row = gh.manual_row(b, d["from"], d["to"], d)[0]
+        cases = {"kind が fh の値": dict(row, kind="増額"), "kind が2つ": dict(row, kind="新規,附表に無い"),
+                 "note の頭": dict(row, note="説明と概要の一致：「x」。判定：見本"),
+                 "判定の出どころが無い": dict(row, note="附表を見た範囲：fuhyo-r6 の全事業"),
+                 "method が name": dict(row, method="name")}
+        for name, r in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(len(gh.hosei_errors([r], b)), 1, gh.hosei_errors([r], b))
+        fh_row = dict(b.rows[0], **{"from": d["from"]})
+        self.assertTrue(any("2 行ある" in e for e in gh.hosei_errors([row, dict(fh_row, method="manual")], b)))  # fh と none の両方
+        self.assertEqual(gh.hosei_errors([dict(row, status="rejected")], b), [])                # 取り消した行は数えない
+        f7 = copy.deepcopy(FUHYO)
+        f7.update(id="fuhyo-r7", fiscal_year={"label": "令和7年度", "year": 2025})
+        b2 = gh.build(gh.HoseiInputs({}, struct(), {"fuhyo-r6": FUHYO, "fuhyo-r7": f7}))
+        self.assertEqual(len(gh.hosei_errors([dict(row, to="none:fuhyo-r7")], b2)), 1)        # 年度が違う
+        self.assertEqual(gh.unmatched_rows(b, [row]), [])                                      # 判定済みは一覧に出さない
+        self.assertEqual(len(gh.unmatched_rows(b, [dict(row, status="rejected")])), 1)          # 取り消すとまた出る
+
+    def test_match_none(self):
+        b = hosei_built()
+        d = none_decision()
+        row = gh.manual_row(b, d["from"], d["to"], d)[0]
+        c = gh.corpus(b)
+        self.assertEqual(ledger.match_full(row, c).result, ledger.MATCH)
+        self.assertEqual(ledger.match_full(dict(row, to_label="記載なし"), c).result, ledger.STOPPED)
+        self.assertEqual(ledger.match_full(dict(row, to="none:fuhyo-r9"), c).result, ledger.STOPPED)
+        self.assertEqual(ledger.match_full(dict(row, context="別の事業"), c).result, ledger.STOPPED)  # from の hj も照合する
+        self.assertEqual(ledger.sentinel([row], c), [])
+        self.assertEqual(ledger.sentinel_rows([row]), 1)
+
     def test_match_hj(self):
         b = hosei_built()
         c = gh.corpus(b)
@@ -339,7 +401,9 @@ class TestLedgerForm(unittest.TestCase):
                  ("hosei-fuhyo", dict(h, method="manual"), "candidate は置かない"),
                  ("hosei-fuhyo", dict(h, **{"from": "hj:r6-ippan-01/z001"}), "from の形が違う"),
                  ("hosei-fuhyo", dict(h, **{"from": "hj:r6-kokuho-01/t001"}), "from は○の行"),
-                 ("hosei-fuhyo", dict(h, to="none:fuhyo-r6", to_label="附表に無い"), "to に none は使えない")]
+                 ("hosei-fuhyo", dict(h, to="none:fuhyo-r6", to_label="附表に無い"), "to が none の行は method が manual だけ"),
+                 ("hosei-fuhyo", dict(h, to="none:fuhyo-r6", to_label="附表に無い", method="manual"), "candidate は置かない"),
+                 ("gian-yosan", dict(g, to="none:fuhyo-r6"), "to に none は使えない")]
         for method, r, msg in cases:
             with self.subTest(msg=msg), self.assertRaises(ledger.LedgerError) as cm:
                 ledger.parse_ledger(self.fmt(method, [r]), method)
@@ -409,8 +473,9 @@ class TestApply(unittest.TestCase):
             code, applied, rows, _, errors = ad.run_hosei(dec, keys, path, hb, os.path.join(tmp, "h"), out=out)
             self.assertEqual((code, errors), (0, []))
             self.assertEqual(out.getvalue(), "書き写す前の件数：name confirmed 1・rejected 0\n"
-                                             "書き写す前の件数：manual confirmed 1・rejected 0\n")
-            self.assertEqual(applied, {("name", "confirmed"): 1, ("manual", "confirmed"): 1})
+                                             "書き写す前の件数：manual fh confirmed 1・rejected 0\n"
+                                             "書き写す前の件数：manual none confirmed 0・rejected 0\n")
+            self.assertEqual(applied, {("name", "confirmed"): 1, ("manual fh", "confirmed"): 1})
             self.assertEqual([(r["method"], r["status"]) for r in rows], [("name", "confirmed"), ("manual", "confirmed")])
             self.assertTrue(rows[0]["note"].endswith("。メモ：判定：依頼者が名前の一致の規則と一覧（1行）を確認して確定"))
             # 更新しても人の判定（manual の行を含む）は変わらない
@@ -437,6 +502,56 @@ class TestApply(unittest.TestCase):
             keys, dec = self.decisions(tmp, [t])
             with self.assertRaises(ad.DecisionError):    # t の行は manual にもできない
                 ad.write_hosei(dec, keys, path, hb, out=io.StringIO())
+            self.assertEqual(ledger.read_ledger(path, "hosei-fuhyo"), before)
+
+    def test_hosei_none(self):
+        # 附表に当たる事業が無いと人が確かめた○の行を none の manual の confirmed で足す（PR #19 の問い1 の決定）
+        hb = hosei_built()
+        d = none_decision()
+        with tempfile.TemporaryDirectory() as tmp:
+            path, out_dir = os.path.join(tmp, "hosei-fuhyo.tsv"), os.path.join(tmp, "h")
+            unmatched = os.path.join(out_dir, "name_unmatched.tsv")
+            self.assertEqual(update_links.run_hosei(hb, path, out_dir)[0], 0)
+            with open(unmatched, encoding="utf-8") as f:
+                self.assertEqual(len(f.read().splitlines()), 2)
+            keys, dec = self.decisions(tmp, [d])
+            out = io.StringIO()
+            code, applied, rows, _, errors = ad.run_hosei(dec, keys, path, hb, out_dir, out=out)
+            self.assertEqual((code, errors), (0, []))
+            self.assertEqual(out.getvalue(), "書き写す前の件数：name confirmed 0・rejected 0\n"
+                                             "書き写す前の件数：manual fh confirmed 0・rejected 0\n"
+                                             "書き写す前の件数：manual none confirmed 1・rejected 0\n")
+            self.assertEqual(applied, {("manual none", "confirmed"): 1})
+            none = [r for r in rows if r["to"] == "none:fuhyo-r6"]
+            self.assertEqual([(r["to_label"], r["kind"], r["status"]) for r in none], [("附表に無い", "新規", "confirmed")])
+            with open(unmatched, encoding="utf-8") as f:   # 判定済みの○の行は一覧から外れる（check_links）
+                self.assertEqual(f.read(), "from\tname\tamount\tkind\tdesc_head\n")
+            self.assertEqual(update_links.run_hosei(hb, path, out_dir)[0], 0)   # 更新しても none の行は変わらない
+            self.assertEqual(ledger.read_ledger(path, "hosei-fuhyo"), rows)
+            with open(unmatched, encoding="utf-8") as f:   # update_links の一覧も同じ
+                self.assertEqual(len(f.read().splitlines()), 1)
+            # 取り消し：rejected の判定だけを受け付け、一覧にまた出る
+            keys, dec = self.decisions(tmp, [dict(d, status="rejected", note="見直し")])
+            code, applied, rows, _, _ = ad.run_hosei(dec, keys, path, hb, out_dir, out=io.StringIO())
+            self.assertEqual((code, applied), (0, {("manual none", "rejected"): 1}))
+            with open(unmatched, encoding="utf-8") as f:
+                self.assertEqual(len(f.read().splitlines()), 2)
+
+    def test_hosei_none_errors(self):
+        hb = hosei_built()
+        d = none_decision()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "hosei-fuhyo.tsv")
+            update_links.run_hosei(hb, path, os.path.join(tmp, "h"))
+            before = ledger.read_ledger(path, "hosei-fuhyo")
+            for name, bad in {"candidate": dict(d, status="candidate", reviewer="", date=""),
+                              "note の頭": dict(d, note="判定：見本"),
+                              "name の行がある○の行": dict(d, **{"from": f"hj:{K1}/m001", "context": "児童手当支給事業"}),
+                              "method が name": dict(d, method="name")}.items():
+                with self.subTest(name=name):
+                    keys, dec = self.decisions(tmp, [bad])
+                    with self.assertRaises(gm.GenError):
+                        ad.write_hosei(dec, keys, path, hb, out=io.StringIO())
             self.assertEqual(ledger.read_ledger(path, "hosei-fuhyo"), before)
 
     def test_gian(self):
@@ -525,6 +640,17 @@ class TestTargets(tr.RecordsTestCase):
         self.assertErr(rep, "(4)")
         rep = tr.run(led=with_target("yaritori", 0, f"hj:{K1}/m001,fh:fuhyo-r6/b002", "名:定員"), inp=inp)
         self.assertFalse(any("(4)" in e for e in rep.errors))
+
+    def test_confirmed_links_skip_none(self):
+        # ○の行と附表の台帳の none の行（附表に当たる事業が無い）は、hj から引ける fh に入れない
+        import check_records
+        b = hosei_built()
+        fh_row = dict(b.rows[0], status="confirmed", reviewer="kken78", date="2026-11-09",
+                      note="判定：依頼者が名前の一致の規則と一覧（1行）を確認して確定")
+        none_row = gh.manual_row(b, f"hj:{K1}/m002", "none:fuhyo-r6", none_decision())[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger.write_ledger(os.path.join(tmp, "hosei-fuhyo.tsv"), [fh_row, none_row], "hosei-fuhyo")
+            self.assertEqual(check_records.confirmed_links(tmp)["hj_fh"], {f"hj:{K1}/m001": {"fh:fuhyo-r6/b001"}})
 
     def test_target_bill(self):
         led = with_target("shitsugi", 0, f"hk:{K1}/out-03", "款:土地")

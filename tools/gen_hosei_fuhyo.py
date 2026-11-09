@@ -20,6 +20,9 @@ tools/apply_decisions.py --ledger hosei-fuhyo から使う）もここに置く�
 - kind（§3）：金額が正なら増額、負なら減額、0 で説明に「財源」の字があれば財源更正。どれにも当たらなければ止める
 - 名前が一致しない○の行：台帳に行を作らず、一覧（name_unmatched.tsv）に出す。kind は説明に「新規計上」か「新たに」の字が
   あれば新規、無ければ附表に無い（候補。PR #19 の問い1）。人が確かめた組だけを manual の confirmed の行として足す（§6）
+- 附表に当たる事業が無いと人が確かめた○の行は、to を none:<附表id>、to_label を「附表に無い」にした manual の confirmed の行
+  として足す（§2・§3・§7。2026-11-09、依頼者の決定。PR #19 の問い1）。機械は none の行を作らず、候補にもしない。
+  confirmed の manual の行（fh か none）がある○の行は、判定が済んだものとして一覧（name_unmatched.tsv）に出さない（§6）
 """
 import os
 import re
@@ -40,6 +43,8 @@ import mention  # noqa: E402
 OUT_DIR = os.path.join(gm.ROOT, "build", "hosei-fuhyo")
 METHOD = "hosei-fuhyo"   # 台帳のファイル名（links/hosei-fuhyo.tsv）
 NAME, MANUAL = "name", "manual"   # 行の method（§3）
+NONE_LABEL = "附表に無い"         # §3：○の行と附表の台帳の none の to_label
+NONE_HEAD = "附表を見た範囲："     # §7 hosei-fuhyo：none の行の note の頭
 COLUMNS = ledger.columns_of(METHOD)
 # §3 の kind の5つ。増額・減額・財源更正は to が fh の行に、新規・附表に無いは to が none の行に付ける
 ZOUGAKU, GENGAKU, ZAIGEN, SHINKI, NASHI = "増額", "減額", "財源更正", "新規", "附表に無い"
@@ -74,6 +79,11 @@ def none_kind(row):
     """附表に当たらない○の行の kind の候補（§3・§7）：説明に「新規計上」か「新たに」の字があれば新規、無ければ附表に無い。
     台帳には付けず、一覧（name_unmatched.tsv）にだけ出す。"""
     return SHINKI if any(w in (row["desc"] or "") for w in SHINKI_WORDS) else NASHI
+
+
+def is_none(to):
+    """to が none（○の行と附表の台帳では none:<附表id>。§2）か。"""
+    return (to or "").startswith("none:")
 
 
 def is_maru_key(t):
@@ -173,12 +183,16 @@ def load_built():
 
 
 def _parts(built, frm, to):
-    """from の○の行と回の年度、to の附表の事業と附表の年度。無ければ None。"""
+    """from の○の行と回の年度、to の附表の事業と附表の年度。無ければ None。to が none:<附表id> のときは、
+    附表の事業は None で、附表の年度は <附表id> の附表の年度（附表が lock に無ければ None）。"""
     t = hosei.KEY_FORMS["hj"].fullmatch(frm or "")
     r = built.inputs.struct.row_of(frm) if t else None
     fy = int(built.inputs.struct.kai[t.group(1)]["fiscal_year"]) if r is not None else None
-    fid, _, k = (to or "")[3:].partition("/")
-    x = next((i for i in built.items.get(fid, []) if i["key"] == k), None) if to.startswith("fh:") else None
+    if is_none(to):
+        fid, x = to[5:], None
+    else:
+        fid, _, k = (to or "")[3:].partition("/")
+        x = next((i for i in built.items.get(fid, []) if i["key"] == k), None) if to.startswith("fh:") else None
     ty = next((y.year for y in built.order if y.fid == fid), None)
     return r, fy, x, fid, ty
 
@@ -191,6 +205,12 @@ def manual_row(built, frm, to, d):
         bad.append(f"from が lock の版の主な内容の行に無い（{frm}）")
     elif not frm.split("/", 1)[1].startswith(MARU_HEAD):
         bad.append(f"from が○の行（key の頭が m）でない（{frm}）")
+    if is_none(to):
+        if fid not in built.items:
+            bad.append(f"to の附表が lock の files に名指しした附表に無い（{to}）")
+        if bad:
+            return None, bad
+        return _none_row(r, frm, to, fy, ty, d)
     if x is None:
         bad.append(f"to が lock の附表の事業に無い（{to}）")
     if bad:
@@ -210,6 +230,31 @@ def manual_row(built, frm, to, d):
     return row, bad
 
 
+def _none_row(r, frm, to, fy, ty, d):
+    """人が附表に当たる事業が無いと確かめた○の行（to が none:<附表id>。§3・§7 hosei-fuhyo）。kind は一覧と同じ決まりで付ける。"""
+    n = mention.normalize(r["name"])
+    bad = []
+    if fy != ty:
+        bad.append(f"from の回の年度（{fy}）と to の附表の年度（{ty}）が違う")
+    if d["context"] != n:
+        bad.append("context が from の名前（§4 の正規化を通した値）と違う")
+    row = {"from": frm, "to": to, "method": MANUAL, "evidence": n, "where": "name", "context": n,
+           "to_label": NONE_LABEL, "status": d["status"], "reviewer": d["reviewer"], "date": d["date"],
+           "note": d["note"], "kind": none_kind(r)}
+    return row, bad
+
+
+def decided_froms(rows):
+    """confirmed の manual の行（to が fh か none）がある○の行（§6：判定が済んだもの。一覧に出さない）。"""
+    return {r["from"] for r in rows if r["method"] == MANUAL and r["status"] == ledger.CONFIRMED}
+
+
+def unmatched_rows(built, rows=()):
+    """name_unmatched.tsv の行（§11）。台帳に confirmed の manual の行がある○の行は除く。"""
+    done = decided_froms(rows)
+    return [u for u in built.unmatched if u["from"] not in done]
+
+
 # ---- ○の行と附表の対応（§11） ----
 
 def hosei_errors(rows, built):
@@ -217,17 +262,26 @@ def hosei_errors(rows, built):
     同じ hj が from に2行以上無い。from が○の行で、その回の年度と to の附表の年度が同じ。name の行は名前が同じで manual の行は違う。
     kind が増額・減額・財源更正を「,」で並べたもの。confirmed の行の from の hj が検収の済んだ行（§2）。confirmed の name の行の
     note に「判定：」があり、「名前の一致の規則と一覧（<N>行）」の N が、date と N の組ごとの行の数と同じ。confirmed の manual の
-    行の note が「説明と概要の一致：「」で始まり、「判定：」がある。manual の candidate は台帳の形の検査（tools/ledger.py）で止める。"""
+    行の note が「説明と概要の一致：「」（to が none の行は「附表を見た範囲：」）で始まり、「判定：」がある。to が none の行は
+    method が manual で、kind が新規か附表に無いのどちらか1つ、附表の年度が回の年度と同じ（§3・§7。PR #19 の問い1）。
+    manual の candidate（none の candidate を含む）は台帳の形の検査（tools/ledger.py）で止める。"""
     st = built.inputs.struct
     errs = []
     for r in rows:
         at = f"{r['from']} {r['to']} {r['method']}"
         ks = r["kind"].split(",") if r["kind"] else []
-        if not ks or any(k not in FH_KINDS for k in ks) or len(set(ks)) != len(ks):
-            errs.append(f"{at}：kind が増額・減額・財源更正を「,」で並べたものでない（{r['kind']!r}。新規・附表に無いは台帳に付けない）")
+        none = is_none(r["to"])
+        if none and r["kind"] not in NONE_KINDS:
+            errs.append(f"{at}：to が none の行の kind が新規か附表に無いのどちらか1つでない（{r['kind']!r}）")
+        if not none and (not ks or any(k not in FH_KINDS for k in ks) or len(set(ks)) != len(ks)):
+            errs.append(f"{at}：kind が増額・減額・財源更正を「,」で並べたものでない（{r['kind']!r}。新規・附表に無いは to が none の行にだけ付ける）")
+        if none and r["method"] != MANUAL:
+            errs.append(f"{at}：to が none の行の method が manual でない（機械は none の行を作らない）")
         if r["status"] == ledger.REJECTED:
             continue
         f, fy, x, _, ty = _parts(built, r["from"], r["to"])
+        if none and f is not None and ty is not None and fy != ty:   # 附表が無ければ §5 の照合で停止になる
+            errs.append(f"{at}：from の回の年度（{fy}）と to の附表の年度（{ty}）が違う")
         if f is not None and x is not None:   # 無ければ §5 の照合で停止になる
             if fy != ty:
                 errs.append(f"{at}：from の回の年度（{fy}）と to の附表の年度（{ty}）が違う")
@@ -242,8 +296,9 @@ def hosei_errors(rows, built):
             errs.append(f"{at}：confirmed の行の from が検収の済んだ行でない（LINK_SCHEMA §2）")
         if r["method"] == NAME and JUDGED not in r["note"]:
             errs.append(f"{at}：confirmed の name の行の note に「{JUDGED}」が無い")
-        if r["method"] == MANUAL and not (r["note"].startswith(MANUAL_HEAD) and JUDGED in r["note"]):
-            errs.append(f"{at}：confirmed の manual の行の note が「{MANUAL_HEAD}」で始まらないか、「{JUDGED}」が無い")
+        head = NONE_HEAD if none else MANUAL_HEAD
+        if r["method"] == MANUAL and not (r["note"].startswith(head) and JUDGED in r["note"]):
+            errs.append(f"{at}：confirmed の manual の行の note が「{head}」で始まらないか、「{JUDGED}」が無い")
     live = [r for r in rows if r["status"] != ledger.REJECTED]
     counts = Counter(r["from"] for r in live)
     errs += [f"{k}：rejected でない行が {n} 行ある（1つまで）" for k, n in sorted(counts.items()) if n > 1]
@@ -259,24 +314,27 @@ def hosei_errors(rows, built):
 
 def count_lines(rows, built):
     """件数の行：主な内容の行の数（○の行・対象にしない t の行）、名前の一致、附表に当たらない○の行（kind ごと）、manual。"""
-    un = Counter(u["kind"] for u in built.unmatched)
+    unmatched = unmatched_rows(built, rows)
+    un = Counter(u["kind"] for u in unmatched)
     name_kind = Counter(k for r in rows if r["method"] == NAME for k in r["kind"].split(","))
     n_maru = sum(1 for k in built.inputs.struct.rows if is_maru_key(k))
     return [f"- 主な内容の行：○の行 {n_maru}・対象にしない特別会計・企業会計の行 {built.toku}",
             f"- 名前の一致の行：{sum(1 for r in rows if r['method'] == NAME)}（kind "
             + ("・".join(f"{k} {name_kind[k]}" for k in FH_KINDS if name_kind[k]) or "0") + "）",
             f"- manual の行：{sum(1 for r in rows if r['method'] == MANUAL)}",
-            f"- 附表に名前の一致する事業が無い○の行：{len(built.unmatched)}（"
+            f"- 附表に名前の一致する事業が無い○の行：{len(unmatched)}（"
             + ("・".join(f"{k} {un[k]}" for k in NONE_KINDS if un[k]) or "0") + "。name_unmatched.tsv。台帳には書かない）",
             f"- 同じ年度の附表に同じ名前の事業が2つ以上ある○の行：{len({a['from'] for a in built.ambiguous})}"
             "（name_ambiguous.tsv）",
             f"- 同じ年度の附表が無い○の行：{len(built.no_fuhyo)}"]
 
 
-def write_lists(outdir, built):
+def write_lists(outdir, built, rows=()):
+    """一覧を書く。rows は台帳の行で、confirmed の manual の行がある○の行は name_unmatched.tsv に出さない（§6）。"""
     os.makedirs(outdir, exist_ok=True)
     return ledger._write_files(outdir, [("name_ambiguous.tsv", AMBIGUOUS_COLUMNS, built.ambiguous),
-                                        ("name_unmatched.tsv", UNMATCHED_COLUMNS, built.unmatched)])
+                                        ("name_unmatched.tsv", UNMATCHED_COLUMNS, unmatched_rows(built, rows))])
+
 
 
 def report_lines(built):

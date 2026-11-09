@@ -13,7 +13,8 @@ links/fuhyo.tsv に合わせて書く。付け替えは使わない（§6）。�
 題から年度・会計・号が取れない議案は件数だけ。§7 gian-yosan）。
 --ledger hosei-fuhyo のときは、tools/gen_hosei_fuhyo.py の build で○の行の名前の一致の候補を作り、links/hosei-fuhyo.tsv
 （kind の列を持つ12列）に合わせて書く。manual の行（人が足した行）は変えない（§6）。附表に名前の一致する事業の無い
-○の行は台帳に書かず、build/links/hosei-fuhyo/name_unmatched.tsv に出す（§7 hosei-fuhyo）。
+○の行は台帳に書かず、build/links/hosei-fuhyo/name_unmatched.tsv に出す（§7 hosei-fuhyo。confirmed の manual の行（to が
+fh か none）がある○の行は出さない。§6）。機械は none の行を作らない。
 どちらも、既存の confirmed・rejected の行（人の判定）は変えない（§6。ほかの台帳と同じ）。
 機械が作るのは candidate だけ（DESIGN.md ADR-2）。
 
@@ -184,7 +185,7 @@ def run_other(method, current_rows_path, gen_rows, corpus, errors_of, outdir, ti
     if code == 0:
         ledger.write_ledger(current_rows_path, merged.rows, method)
     ledger.write_lists(outdir, checked, merged, update=True)
-    write_extra(outdir)
+    write_extra(outdir, merged.rows)
     lines = other_report_lines(title, merged, checked, code == 0, errors, extra_of(merged.rows))
     with open(os.path.join(outdir, "update.md"), "wb") as f:
         f.write(("\n".join(lines) + "\n").encode("utf-8"))
@@ -196,14 +197,14 @@ def run_gian(gbuilt, ledger_path, outdir):
     return run_other(GIAN, ledger_path, gen_gian_yosan.generated_rows(gbuilt), gen_gian_yosan.corpus(gbuilt),
                      lambda rows: check_links.gian_errors(rows, st), outdir, "links/gian-yosan.tsv",
                      lambda rows: gen_gian_yosan.count_lines(rows, gbuilt) + check_links.struct_lines(st),
-                     lambda d: gen_gian_yosan.write_lists(d, gbuilt))
+                     lambda d, rows: gen_gian_yosan.write_lists(d, gbuilt))
 
 
 def run_hosei(hbuilt, ledger_path, outdir):
     return run_other(HOSEI, ledger_path, gen_hosei_fuhyo.generated_rows(hbuilt), gen_hosei_fuhyo.corpus(hbuilt),
                      lambda rows: gen_hosei_fuhyo.hosei_errors(rows, hbuilt), outdir, "links/hosei-fuhyo.tsv",
                      lambda rows: gen_hosei_fuhyo.count_lines(rows, hbuilt),
-                     lambda d: gen_hosei_fuhyo.write_lists(d, hbuilt))
+                     lambda d, rows: gen_hosei_fuhyo.write_lists(d, hbuilt, rows))
 
 
 def main_other(method):

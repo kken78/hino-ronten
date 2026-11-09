@@ -144,7 +144,8 @@ def confirmed_links(links_dir=LINKS_DIR):
     out = {"gian_hs": {}, "hj_fh": {}}
     for method, name, frm in (("gian-yosan", "gian_hs", "gi"), ("hosei-fuhyo", "hj_fh", "hj")):
         for r in ledger.read_ledger(os.path.join(links_dir, f"{method}.tsv"), method, missing_ok=True):
-            if r["status"] == ledger.CONFIRMED and r["from"].startswith(frm + ":"):
+            # ○の行と附表の台帳の to が none の行（附表に当たる事業が無い）は、引ける fh が無いので入れない
+            if r["status"] == ledger.CONFIRMED and r["from"].startswith(frm + ":") and not r["to"].startswith("none:"):
                 out[name].setdefault(r["from"], set()).add(r["to"])
     return out
 

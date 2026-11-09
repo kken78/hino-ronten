@@ -5,7 +5,8 @@
 附表の台帳（links/fuhyo.tsv）は、附表の分類（§11）も確かめる。年度の台帳（links/fuhyo-years.tsv）は、行の method が
 name・manual で、from も to も fh（§3・§11）。年度の対応（§11）は tools/gen_fuhyo_years.py で確かめる。
 議案と回の台帳（links/gian-yosan.tsv）は、from が gi、to が hs、method が title。○の行と附表の台帳
-（links/hosei-fuhyo.tsv）は、from が hj の○の行（key の頭が m）、to が fh、method が name・manual で、11列の後ろに kind の列を持つ
+（links/hosei-fuhyo.tsv）は、from が hj の○の行（key の頭が m）、to が fh か none（none は method が manual の行だけ。
+人が附表に当たる事業が無いと確かめた行。2026-11-09、依頼者の決定。PR #19 の問い1）、method が name・manual で、11列の後ろに kind の列を持つ
 （§3・§11。DESIGN.md ADR-34 の4・5）。○の行と附表の対応（§11）は tools/gen_hosei_fuhyo.py で確かめる。
 §5 に gi の決まりは無いので、議案と回の台帳の from は照合せず、to（hs）だけを照合する。sentinel もかけない
 （context は from の議案の題で、to の照合では変わらないため。台帳と lock の版の検査が議案の題の変わったことを見る）。
@@ -41,7 +42,8 @@ COLUMNS_OF = {"hosei-fuhyo": LEDGER_COLUMNS + ["kind"]}
 MATCH, MOVED, STOPPED = "一致", "移動", "停止"
 NEIGHBORS = 5  # §5：連番の前後5以内
 SENTINEL_MARKS = ("〓", "※")  # §11：context に「〓」が含まれるときは「※」
-NONE_LABEL = "記載なし"  # §3：none の to_label
+NONE_LABEL = "記載なし"  # §3：附表の台帳の none の to_label
+HOSEI_NONE_LABEL = "附表に無い"  # §3：○の行と附表の台帳の none の to_label
 
 KEY_FORMS = {
     "bq": re.compile(r"bq:[0-9]+/[^/\s]+/[0-9]+"),
@@ -60,10 +62,11 @@ MARU_KEY_HEAD = "m"  # §2・§7 hosei-fuhyo：○の行と附表の台帳の fr
 NO_FROM_RULE = ("gi",)  # §5 に照合の決まりが無い from（議案と回の台帳の gi）。from は照合せず、sentinel もかけない
 # §11：台帳ごとの from・to の種類。mention と relink は from が bq・sp、to が plan・lin。fuhyo は from が fh、to が node・none。
 # fuhyo-years は from も to も fh
-# gian-yosan は from が gi、to が hs。hosei-fuhyo は from が hj（○の行だけ）、to が fh（DESIGN.md ADR-34 の4・5。PR #19 の問い1・2）
+# gian-yosan は from が gi、to が hs。hosei-fuhyo は from が hj（○の行だけ）、to が fh か none（none は manual の行だけ）
+# （DESIGN.md ADR-34 の4・5。PR #19 の問い1・2）
 FROM_KINDS_OF = {"fuhyo": ("fh",), "fuhyo-years": ("fh",), "gian-yosan": ("gi",), "hosei-fuhyo": ("hj",)}
 TO_KINDS_OF = {"mention": ("plan", "lin"), "relink": ("plan", "lin"), "fuhyo": ("node", "none"), "fuhyo-years": ("fh",),
-               "gian-yosan": ("hs",), "hosei-fuhyo": ("fh",)}
+               "gian-yosan": ("hs",), "hosei-fuhyo": ("fh", "none")}
 DEFAULT_FROM_KINDS, DEFAULT_TO_KINDS = ("bq", "sp"), ("plan", "lin", "node")  # program・semantic（§3）
 HUMAN_ONLY = ("relink", "manual")  # §6：機械が作らない行の method（relink の台帳、年度の台帳と○の行と附表の台帳の manual）。candidate を置かない
 WHERES = {"bq": tuple(gm.BQ_FIELDS), "sp": ("text",), "fh": ("name",), "hj": ("name",), "gi": ("title",)}
@@ -103,6 +106,8 @@ def _row_errors(n, r, method):
         errs.append(f"{method} の台帳の to に {tk} は使えない（{r['to']}）")
     if method == "hosei-fuhyo" and fk == "hj" and not r["from"].partition("/")[2].startswith(MARU_KEY_HEAD):
         errs.append(f"{method} の台帳の from は○の行（key の頭が {MARU_KEY_HEAD}）だけ（{r['from']}）")
+    if method == "hosei-fuhyo" and tk == "none" and r["method"] != "manual":
+        errs.append(f"{method} の台帳の to が none の行は method が manual だけ（{r['method']!r}。機械は none の行を作らない）")
     allowed = ROW_METHODS.get(method)
     if allowed is None and r["method"] != method:
         errs.append(f"method が台帳のファイル（{method}）と違う（{r['method']!r}）")
@@ -298,7 +303,8 @@ def match_row(row, corpus, context=None):
 
 
 def match_label(row, corpus):
-    """to の照合（§5）。plan・lin は名称、node は計画の事業の有無と事業名、none は「記載なし」と manifest の id、
+    """to の照合（§5）。plan・lin は名称、node は計画の事業の有無と事業名、none は「記載なし」と manifest の id
+    （○の行と附表の台帳の none（method が manual）は「附表に無い」と、lock の files に名指しした附表の id）、
     fh（年度の台帳・○の行と附表の台帳）は附表の事業の有無と事業名、hs は回の有無と題。"""
     kind = _kind(row["to"])
     if kind == "hs":
@@ -322,8 +328,15 @@ def match_label(row, corpus):
         if item["name"] != row["to_label"]:
             return Match(STOPPED, reason=f"事業名が違う（いまの事業名：{item['name']}）")
         return Match(MATCH)
+    if kind == "none" and row["method"] == "manual":   # ○の行と附表の台帳の none:<附表id>（§5）
+        if row["to_label"] != HOSEI_NONE_LABEL:
+            return Match(STOPPED, reason=f"to_label が「{HOSEI_NONE_LABEL}」でない")
+        if not any(fid == row["to"][5:] for fid, _ in corpus.fuhyo):
+            return Match(STOPPED, reason="附表が lock の files に無い")
+        return Match(MATCH)
     if kind == "none":
         if row["to_label"] != NONE_LABEL:
+
             return Match(STOPPED, reason=f"to_label が「{NONE_LABEL}」でない")
         if row["to"][5:] not in corpus.names:
             return Match(STOPPED, reason="計画が manifest に無い")

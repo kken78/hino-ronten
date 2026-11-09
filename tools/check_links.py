@@ -12,7 +12,8 @@ links/gian-yosan.tsv（議案と回の台帳）には、台帳の形・§5 の�
 根拠の消失・台帳と lock の版をかけ、confirmed の行の to の hs が検収の済んだ行（§2）でなければ止める。sentinel は
 かけない（tools/ledger.py の NO_FROM_RULE。§5 gi）。回の表に行のある年度の、資料の無い回の議案を no_kai.tsv に出す。
 links/hosei-fuhyo.tsv（○の行と附表の台帳）には、mention と同じ検査と、○の行と附表の対応（§11）をかける。manual の行
-（人が足した行）は、生成の結果に無くても根拠の消失に数えない（§6）。名前の一致しない○の行を name_unmatched.tsv に出す。
+（人が足した行。to が fh か none）は、生成の結果に無くても根拠の消失に数えない（§6）。名前の一致しない○の行を
+name_unmatched.tsv に出す（confirmed の manual の行がある○の行は出さない）。
 どちらも、無ければ tools/update_links.py --ledger gian-yosan・--ledger hosei-fuhyo を先に動かすよう示して止める。
 台帳には書かない。一覧と報告は build/links/mention/ に、relink の一覧は build/links/relink/ に、
 附表の一覧と報告は build/links/fuhyo/ に、年度の台帳の一覧と報告は build/links/fuhyo-years/ に、
@@ -310,7 +311,7 @@ def run_hosei(hbuilt, ledger_path, outdir):
                               relink_rows=None)
     errors = gen_hosei_fuhyo.hosei_errors(rows, hbuilt)
     ledger.write_lists(outdir, rep.checked, rep.merged, update=False)
-    gen_hosei_fuhyo.write_lists(outdir, hbuilt)
+    gen_hosei_fuhyo.write_lists(outdir, hbuilt, rows)
     with open(os.path.join(outdir, "check.md"), "wb") as f:
         f.write(("\n".join(hosei_report_lines(rows, rep, errors, hbuilt)) + "\n").encode("utf-8"))
     return (1 if rep.exit_code or errors else 0), rows, rep, errors
