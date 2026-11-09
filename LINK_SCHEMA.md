@@ -188,7 +188,7 @@ none：to_label が「記載なし」でないか、`<id>` が manifest に無�
 
 plan・lin：to_label と、manifest または `ref/lineage.tsv` の name が一致しなければ停止する。
 
-rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1件だけ見つかれば、移動の一覧（moved.tsv）に出す（人が from を書き換える。§6 のとおり、移動先に candidate を作らない）。移動先が0件または2件以上の場合は、一覧（rejected_unmatched.tsv）に出すだけで、終了コード1にはしない（rejected は出力に使わないため）。bq・node・plan・lin の rejected の行は照合しない。
+rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1件だけ見つかれば、移動の一覧（moved.tsv）に出す（人が from を書き換える。§6 のとおり、移動先に candidate を作らない）。移動先が0件または2件以上の場合は、一覧（rejected_unmatched.tsv）に出すだけで、終了コード1にはしない（rejected は出力に使わないため）。bq・node・fh・hs・hj・plan・lin の rejected の行は照合しない。
 
 停止したときは、人が原本で確認し、from・to を直すか、status を rejected にして note に理由を書く。
 
@@ -386,18 +386,18 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 年度の対応 | 年度の台帳で、confirmed と candidate の行について、from の附表の年度が to の附表の年度より前。同じ fh が from に2行以上、または to に2行以上無い（§7 fuhyo-years）。name の行は from と to の事業名が同じで、manual の行は違う。manual の行の status は confirmed か rejected で、candidate は置かない。name の行の note の間の年度が、lock の附表の年度と合う。confirmed の name の行の note に「判定：」がある。note に「名前の一致の規則と一覧（<N>行）」のある confirmed の name の行を、date と N の組ごとに数え、その数が N と同じ。confirmed の manual の行の note が「概要の一致：「」で始まり、「判定：」がある。誤りは、台帳の更新（`tools/update_links.py --ledger fuhyo-years`。台帳を書かない）でも検査（`tools/check_links.py`）でも止め、件数と該当の行を表示して終了コード1。年度の組ごとに、つないだ数・前の年度だけの事業の数・後の年度だけの事業の数を表示する |
 | ○の行と附表の対応 | ○の行と附表の台帳（hosei-fuhyo）で、confirmed の行について同じ hj が from に2行以上無い（candidate の間は、none の行と fh の行が並んでよい）。kind の値が、to が fh の行では増額・減額・財源更正、to が none の行では新規・附表に無いのどれか。同じ fh が to に2行以上あることは許し、年度の対応の「同じ fh が to に2行以上無い」の検査は当てない（§7 hosei-fuhyo。DESIGN.md ADR-34 の5）。kind が §3 の5つの値を「,」で並べたもの。manual の行の status は confirmed か rejected で、candidate は置かない。confirmed の行の from の hj と、議案と回の台帳の confirmed の行の to の hs が、検収の済んだ行（§2）でなければ終了コード1（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12） |
 | 記録の台帳 | `records/` の9つの台帳が §1 と §15 の形に合う。行の同一性（§15 の各台帳）の重複が0件。status・種類などの値が §15 の決まりのどれか。引用（quote）が、§15.1 のとおり資料の本文にある。参照（answers・yaritori・upper_ref・lower_ref・sources など）が、指す先の行や資料にある。やりとりの記録と質疑の記録で、n が1からの整数で、round が「最初の問い」か「再質問」と1からの整数を続けたもので、答えの行の n が answers の指す問いの行の n と同じ。round が turns から求めた値と違う行は、件数を表示して一覧（build/records/round_diff.tsv）に出すが、終了コードは変えない（round は人が決め、turns から求めた値は候補のため。§15.2）。事柄の記録の point が、その行のテーマの kind 事柄の値のどれか。事柄の記録の value が、空か、§4 の正規化のあとで引用（quote）の中にある。やりとりの記録と質疑の記録と審査報告の記録の point が、空か、その問いかそのまとまりかその報告を持つテーマの kind 事柄か記載の値のどれか。審査報告の記録の question が §2 の rp の形で、bill が §2 の gi の形で gian.json にある（§15.10）。構造にしていない記載の about が、空か、そのテーマの kind 事柄か記載の値のどれか。同じテーマ・同じ point の事柄の記録の行で、program が同じ（空を除く）。つながりの記録の upper・lower が、そのテーマの kind 記載の値のどれか。施設の記録の facility が ref/shisetsu.tsv にあり、aspect が §15.8 の4つのどれか。やりとりの記録の bq が §2 の bq の形で、議会だよりにある。記録しない文の question・n が、やりとりの記録か質疑の記録にある問い（question が rp のときは、審査報告の記録にある報告で、n は空）で、sid がその問いかその報告の発言で、quote がその発言の本文にある（§15.9）。合わなければ、テーマのノートのデータを作らずに終了コード1。引用が本文に無い行は、一覧（build/records/quote_mismatch.tsv）に出す。kotogara・tsunagari・kisai に theme の列が無く、kotogara に program の列が無い（§15.3・§15.4・§15.6）。kotogara の point と kisai の about がテーマの定義の kind 事柄・記載の値のどれかにある（テーマは問わない）。kisai の同じ title が違う about を持たない。note の頭が §15.1 の「下書き：」の形で、confirmed の行は note に「判定：」の出どころがある |
-| 対象の形 | やりとりの記録・質疑の記録・審査報告の記録（§15.2・§15.7・§15.10）の target が、空か、§2 の fh・hs・hj・hk・hz の形のキーを「,」で区切ったもので、同じ行に同じキーが2つ無い。target_text が、空か、「種類:字」を「;」で区切ったもので、種類が名・款・頁・額・源のどれか。target が空でない行は target_text も空でない。合わなければ、件数と該当の行を表示して終了コード1（DESIGN.md ADR-34 の1・2。2026-11-09、依頼者の決定。ADR-34 の12） |
+| 対象の形 | やりとりの記録・質疑の記録・審査報告の記録（§15.2・§15.7・§15.10）の target が、空か、§2 の fh・hs・hj・hk・hz の形のキーを「,」で区切ったもので、同じ行に同じキーが2つ無い。target_text が、空か、「種類:字」を「;」で区切ったもので、種類が名・款・頁・額・源のどれか。検査は区切りの字（半角の「;」と、種類の後ろの半角の「:」）だけを見る（字の中の半角の「;」「:」は §15.2 により全角で書かれているので、「;」で分けた各部分に半角の「:」は1つだけある）。target が空でない行は target_text も空でない。合わなければ、件数と該当の行を表示して終了コード1（DESIGN.md ADR-34 の1・2。2026-11-09、依頼者の決定。ADR-34 の12） |
 | 対象の照合 | target のキーごとに次を確かめる。(1) fh は lock の版の附表に同じ key の事業がある。hs は `hosei-kai.tsv` に同じ id の回がある。hj・hk・hz は `hosei-maru.tsv`・`hosei-kan.tsv`・`hosei-jiko.tsv` に同じ kai と key の行がある。(2) hs・hj・hk・hz が検収の済んだ行（§2）である。(3) target_text の字（「種類:」の後ろ）が、その行の sid の発言の本文に §4 の正規化のあとである。(4) 同じ行の target に、hj と、その hj から○の行と附表の台帳の confirmed の行で引ける fh が両方ある、ということが無い。(1)・(3)・(4) に合わない行と、(2) に合わない confirmed の行があれば、件数と該当の行を表示して終了コード1。(2) に合わない candidate の行は、一覧（target_unchecked.tsv）に出すだけで、終了コードは変えない（§15.1）（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12） |
 | 対象と議案・名前 | 次の2つを一覧に出す。終了コードは変えない。人が見て、行を直すか note に書く。(a) 質疑の記録と審査報告の記録で、target の hs・hj・hk・hz の回が、その行の bills（審査報告の記録は bill）から議案と回の台帳の confirmed の行で引いた回のどれでもない行（target_bill.tsv。前の号の行やほかの会計の回を聞く発言があるため）。(b) hj・hz の行の name、hk の行の kan_no か name（どれも §4 の正規化のあと）が、target_text の名・款の字のどれにも当たらない行（target_name.tsv）（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12） |
 | 発言の取りこぼし | やりとりの記録の問い（question と n の組）ごとに、行のある発言のうち審議の記録の turns の順で最初のものから最後のものまでを見る。最後の行の発言が議員の発言でなければ、そのあとの議員の最初の発言（次の問いの頭。締めくくりの要望や意見が入る）も見る。質疑の記録は、まとまりの全部の発言を見て、テーマの語（§12 の kind 語）を含む文だけを残す。審査報告の記録も、報告の区切りの全部の発言を見て、テーマの語を含む文だけを残す（報告は1つの発言が長く、全文を見ると記録しない文の台帳に報告の大半が写り、不変の制約9 に触れるため。DESIGN.md ADR-34 の7）。見る発言の本文を §4 の正規化にかけ、「。」「？」「！」（正規化のあとの「?」「!」を含む）のあとで文に分ける。同じ発言を引いた行の引用と1字も重ならず、記録しない文の台帳（§15.9）にも無い文を、件数を表示して一覧（build/records/torikoboshi.tsv）に出す。終了コードは変えない。人が、行を足すか、記録しない文の台帳に理由を書く（DESIGN.md ADR-24） |
 | 引用の前後 | 記録の台帳の引用のうち、§4 の正規化のあとの頭が指示語（その・この・これ・それ・あの・こうした・そうした・こういった・そういった・上記・前述・同様・先ほど・さきほど・今申し上げ・以上）で始まるもの（つなぎの言葉と時の語「それと」「それから」「それぞれ」「それでは」「これまで」「これから」「このあと」で始まるものは数えない）と、引用の終わりが本文の文の終わり（「。」「？」「！」の直前か、本文の終わり。§4 の正規化のあとの「?」「!」を含む）でないものを、件数を表示して一覧（build/records/quote_context.tsv）に出す。終了コードは変えない。審査報告の記録の引用は文の途中で切ってよい（§15.10）ので、一覧には出すが止めない。指す先や文の続きを引用に入れるか、行を分けるか、note に書くかは、人がそのつど決める（§15.1） |
 | 届き先 | 確定した事柄・記載の行（kotogara・kisai・tsunagari）のうち、views の無い点の行の数と一覧（signal_todoku.tsv）。やりとりの記録と質疑の記録で、問いごとに点が空の行の割合（signal_point.tsv）。テーマごとに、確定した記録の行のうち、テーマの定義の kind 名前の行の note に書いた中心の見方に出る行の割合（signal_chushin.tsv）。どれも一覧と件数を出すだけで、終了コードは変えない。止める値は、幼保と介護で測ってから決める（DESIGN.md ADR-31 の4） |
 
-テーマの定義・施設の参照表・記録の台帳・発言の取りこぼし・引用の前後は、`tools/check_records.py` で確かめる。報告と一覧は `build/records/` に出す（check.md・round_diff.tsv・quote_mismatch.tsv・torikoboshi.tsv・quote_context.tsv）。記録しない文の台帳（§15.9）が無ければ、0行として扱う。ほかの検査は、リンク台帳の道具（`tools/update_links.py`・`tools/check_links.py`）で行う。
+テーマの定義・施設の参照表・記録の台帳・対象の形・対象の照合・「対象と議案・名前」・発言の取りこぼし・引用の前後は、`tools/check_records.py` で確かめる。報告と一覧は `build/records/` に出す（check.md・round_diff.tsv・quote_mismatch.tsv・target_unchecked.tsv・target_bill.tsv・target_name.tsv・torikoboshi.tsv・quote_context.tsv）。記録しない文の台帳（§15.9）が無ければ、0行として扱う。ほかの検査は、リンク台帳の道具（`tools/update_links.py`・`tools/check_links.py`）で行う。
 
 target のキーの消失は、対象の照合の (1) で止まる。値の変化は、hino-town-docs が検収を戻す（DOCS_SCHEMA §13.10。値が変わると台帳の key が変わり、未検収になる）ので、対象の照合の (2) で止まるか、一覧に出る。lock を上げるときの版どうしの比べ方は §10 にある。check.md には、target のキーの種類（fh・hs・hj・hk・hz）ごとの数と、target_text の種類ごとの数を出す（docs/kasetsu.md の H-7 の確かめのため）。役職と課の参照表（§12.2）の role の検査は、参照表を書くときに足す（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12）。
 
-一覧は `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順）で出す。
+リンク台帳の一覧は、リンク台帳の道具が `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順。no_kai.tsv は from の文字コード順）で出す。下の表の target_ で始まる3つは、記録の台帳の一覧で、`tools/check_records.py` が `build/records/` に、§1 の形（行は ledger → question の文字コード順、同じ question の中は row の数の順）で出す（2026-11-09 の決定、PR #17 の問い3）。
 
 | ファイル | 内容 | 列 |
 | --- | --- | --- |
@@ -410,6 +410,10 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 | relink_conflict.tsv | 付け替えの重なりになった relink の行と mention の行 | from・to・relink_status・mention_status・context |
 | name_ambiguous.tsv | 年度の台帳で、名前の一致の候補が2つ以上になった事業（§7 fuhyo-years） | from・to・name・kan・dept |
 | rename_candidates.tsv | 年度の台帳で、名前の一致でつながらなかった隣り合う年度の事業の組（§7 fuhyo-years。台帳には書かない。行は Dice 係数の順） | from・to・from_name・to_name・dice_desc・dice_name |
+| no_kai.tsv | 議案と回の台帳（`build/links/gian-yosan/`）で、題の年度・会計・号に当たる回が lock の版の回の表に無い議案（§7 gian-yosan。行は作らない） | from・title |
+| target_unchecked.tsv | 対象の照合の (2) に合わない candidate の記録の行（`build/records/`）。key は検収の済んでいない target のキー（1行に1つ） | ledger・question・row・status・key |
+| target_bill.tsv | 「対象と議案・名前」の (a) に当たる記録の行（`build/records/`）。key はその行の target の hs・hj・hk・hz のキー、kai は bills（審査報告の記録は bill）から引いた hs を「,」で区切ったもの | ledger・question・row・key・bills・kai |
+| target_name.tsv | 「対象と議案・名前」の (b) に当たる記録の行（`build/records/`） | ledger・question・row・key・name・target_text |
 | update.md・check.md | 更新・検査の件数の報告 | — |
 
 ---
@@ -725,7 +729,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - 事業名が同じ回の○の行に当たれば hj だけを書き、附表の事業は○の行と附表の台帳（`links/hosei-fuhyo.tsv`）から引く。fh を書くのは、○の行に当たらず附表に当たるとき（当初予算の事業を聞いている発言）だけ。hj と fh の両方は書かない
 - 見方のキー（node・plan・fa・dist・org）は target に書かない。事業・施設・期の計画との関係は、附表の台帳（`links/fuhyo.tsv`）と点の見方（`ref/themes.tsv` の views）から引く（DESIGN.md ADR-31 の2）
 - 対象が無い行は target を空とし、note に理由を書かない（対象の無い問いが多いため）
-- target_text の種類は、名（事業・事項の名前）・款（款項目節。発言の区切りのまま。例「款:２款総務費、１項総務管理費、５目財産管理費」）・頁（例「頁:23ページ」）・額（例「額:168万2,000円」）・源（財源の語）の5つ。正規化しない。発言の字に半角の「;」「:」が出たときは note に書く。キーに当たらない字（予算書のページ、まだ指す先の無い款項目節）も target_text に残す（DESIGN.md ADR-34 の2・8）
+- target_text の種類は、名（事業・事項の名前）・款（款項目節。発言の区切りのまま。例「款:２款総務費、１項総務管理費、５目財産管理費」）・頁（例「頁:23ページ」）・額（例「額:168万2,000円」）・源（財源の語）の5つ。字は、次の置き換えのほかは正規化しない。発言の字に半角の「;」「:」が出たときは、全角の「；」「：」に置き換えて書き、置き換えたことを note に書く（§11 の対象の形の検査は区切りの字だけを見るため。対象の照合の (3) は §4 の正規化のあとで比べるので、置き換えた字も発言の本文に当たる。2026-11-09 の決定、PR #17 の問い2）。キーに当たらない字（予算書のページ、まだ指す先の無い款項目節）も target_text に残す（DESIGN.md ADR-34 の2・8）
 
 ### 15.3 事柄の記録 `records/kotogara.tsv`
 
