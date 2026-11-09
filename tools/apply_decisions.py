@@ -29,6 +29,9 @@ manual の行の組み立ては tools/gen_hosei_fuhyo.py の manual_row）。書
 「。」と判定の note を足し、判定の note に「判定：」が要る。rejected は「。却下：」と理由を足す）。quote は直さない
 （直すときは rejected にして、行を作り直す）。書き写す前の件数は、status ごとに表示する。
 書いたあとに tools/check_records.py の確かめを動かす。
+--ledger katei のときは、過程の記録 records/katei.tsv の candidate の行に、teian と同じ形で書き写す（§11 判定の範囲・§15.5）。
+判定の一覧の列は theme・step・status・reviewer・date・note、範囲の一覧の列は theme・step で、行のキーは (theme, step)。
+書き写す前の件数は、theme と status ごとに表示する。
 
 実行: python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger fuhyo --keys <判定した範囲の TSV> <判定の一覧の TSV>
@@ -36,6 +39,7 @@ manual の行の組み立ては tools/gen_hosei_fuhyo.py の manual_row）。書
       python3 -B tools/apply_decisions.py --ledger hosei-fuhyo --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger gian-yosan --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger teian --keys <判定した範囲の TSV> <判定の一覧の TSV>
+      python3 -B tools/apply_decisions.py --ledger katei --keys <判定した範囲の TSV> <判定の一覧の TSV>
 終了コード：0 は書き写し、確かめも合格。1 は止めた（使い方の誤り、入力の読み込み、範囲の一覧・判定の一覧の誤り、
 範囲と判定の一覧の食い違い、附表の分類の誤りで止めたときは台帳に書かない。書いたあとの確かめで合格しなかったときは、
 台帳は書いたまま、件数と該当を表示する）。
@@ -72,7 +76,7 @@ HEADERS = (DECISION_COLUMNS, DECISION_COLUMNS + [RELINK_TO])  # いまの8列か
 KEY_COLUMNS = ["from", "to", "method"]  # 判定した範囲の一覧（--keys）の列
 DECIDED = (ledger.CONFIRMED, ledger.REJECTED)
 USAGE = ("使い方：python3 -B tools/apply_decisions.py [--ledger fuhyo | --ledger fuhyo-years | --ledger hosei-fuhyo | "
-         "--ledger gian-yosan | --ledger teian] "
+         "--ledger gian-yosan | --ledger teian | --ledger katei] "
          "--keys <判定した範囲の TSV> <判定の一覧の TSV>")
 COUNT_PREFIX = "書き写す前の件数："
 REJECT_PREFIX, REJECT_BASIS = "却下：", "。判別の根拠："  # decided_note の rejected の形
@@ -497,18 +501,37 @@ def run_gian(decisions_path, keys_path, ledger_path, gbuilt, outdir, out=None):
     return code, applied, rows, rep, errors
 
 
-# ---- 提案理由の記録（records/teian.tsv。§11 判定の範囲・§15.11、DESIGN.md ADR-35） ----
+# ---- 記録の台帳（records/teian.tsv・records/katei.tsv。§11 判定の範囲・§15.5・§15.11、DESIGN.md ADR-35） ----
 
 TEIAN = "teian"
+KATEI = "katei"
+RECORD_LEDGERS = (TEIAN, KATEI)
 TEIAN_PATH = os.path.join(gm.ROOT, "records", f"{TEIAN}.tsv")
+KATEI_PATH = os.path.join(gm.ROOT, "records", f"{KATEI}.tsv")
+RECORD_PATHS = {TEIAN: TEIAN_PATH, KATEI: KATEI_PATH}
 TEIAN_KEY_COLUMNS = list(records.KEYS[TEIAN])                       # maru・sid・quote
 TEIAN_DECISION_COLUMNS = TEIAN_KEY_COLUMNS + ["status", "reviewer", "date", "note"]
+KATEI_KEY_COLUMNS = list(records.KEYS[KATEI])                       # theme・step
 JUDGED = "判定："
 REJECT_TEIAN = "却下："
 
 
-def _teian_table(data, columns, name):
-    """判定の一覧・範囲の一覧（提案理由の記録）を読む。返り値は（行番号、行）の一覧。キーの重複も示して止める。"""
+def _key_columns(ledger_name):
+    return list(records.KEYS[ledger_name])
+
+
+def _decision_columns(ledger_name):
+    return _key_columns(ledger_name) + ["status", "reviewer", "date", "note"]
+
+
+def _label(d, ledger_name):
+    """誤りの表示に使う行の名前（teian は maru、ほかは行のキーを「/」でつないだもの）。"""
+    return d["maru"] if ledger_name == TEIAN else "/".join(d[c] for c in _key_columns(ledger_name))
+
+
+def _teian_table(data, columns, name, ledger_name=TEIAN):
+    """判定の一覧・範囲の一覧（記録の台帳）を読む。返り値は（行番号、行）の一覧。キーの重複も示して止める。"""
+    kc = _key_columns(ledger_name)
     lines = _lines(data, name)
     if lines[0].split("\t") != columns:
         raise DecisionError(f"{name}のヘッダが {columns} でない（{lines[0].split(chr(9))}）")
@@ -519,21 +542,22 @@ def _teian_table(data, columns, name):
             errs.append(f"{n}行目：列の数が {len(cells)}（{len(columns)} のはず）")
             continue
         rows.append((n, dict(zip(columns, cells))))
-    counts = Counter(tuple(d[c] for c in TEIAN_KEY_COLUMNS) for _, d in rows)
-    errs += [f"{n}行目 {d['maru']}：同じ (maru, sid, quote) が{name}に {counts[k]} 回ある"
-             for n, d in rows if counts[(k := tuple(d[c] for c in TEIAN_KEY_COLUMNS))] > 1]
+    counts = Counter(tuple(d[c] for c in kc) for _, d in rows)
+    errs += [f"{n}行目 {_label(d, ledger_name)}：同じ ({', '.join(kc)}) が{name}に {counts[k]} 回ある"
+             for n, d in rows if counts[(k := tuple(d[c] for c in kc))] > 1]
     if not rows and not errs:
         errs.append(f"{name}の行が0件")
     _fail(f"{name}の形の誤り", errs)
     return rows
 
 
-def teian_scope_errors(keys, decisions):
-    """§11 判定の範囲（提案理由の記録）：範囲の外の判定と、範囲にあって判定の無い行。"""
-    key = lambda d: tuple(d[c] for c in TEIAN_KEY_COLUMNS)  # noqa: E731
+def teian_scope_errors(keys, decisions, ledger_name=TEIAN):
+    """§11 判定の範囲（記録の台帳）：範囲の外の判定と、範囲にあって判定の無い行。"""
+    kc = _key_columns(ledger_name)
+    key = lambda d: tuple(d[c] for c in kc)  # noqa: E731
     in_keys, decided = {key(d) for _, d in keys}, {key(d) for _, d in decisions}
-    return ([f"判定の一覧 {n}行目 {d['maru']}：範囲の外の行" for n, d in decisions if key(d) not in in_keys]
-            + [f"範囲の一覧 {n}行目 {d['maru']}：判定が無い" for n, d in keys if key(d) not in decided])
+    return ([f"判定の一覧 {n}行目 {_label(d, ledger_name)}：範囲の外の行" for n, d in decisions if key(d) not in in_keys]
+            + [f"範囲の一覧 {n}行目 {_label(d, ledger_name)}：判定が無い" for n, d in keys if key(d) not in decided])
 
 
 def teian_count_lines(decisions):
@@ -542,16 +566,29 @@ def teian_count_lines(decisions):
     return [f"{COUNT_PREFIX}{ledger.CONFIRMED} {counts[ledger.CONFIRMED]}・{ledger.REJECTED} {counts[ledger.REJECTED]}"]
 
 
-def apply_teian(ledger_rows, decisions):
-    """判定を提案理由の記録の candidate の行に書き写した新しい行を返す。合わない行が1行でもあれば、すべて示して止める。"""
-    key = lambda d: tuple(d[c] for c in TEIAN_KEY_COLUMNS)  # noqa: E731
+def katei_count_lines(decisions):
+    """書き写す前の件数の行（theme と status ごと。theme ごとに 0件の status も書く）。"""
+    counts = Counter((d["theme"], d["status"]) for _, d in decisions)
+    themes = sorted({d["theme"] for _, d in decisions})
+    return [f"{COUNT_PREFIX}{t} {ledger.CONFIRMED} {counts[(t, ledger.CONFIRMED)]}・"
+            f"{ledger.REJECTED} {counts[(t, ledger.REJECTED)]}" for t in themes]
+
+
+def record_count_lines(decisions, ledger_name):
+    return katei_count_lines(decisions) if ledger_name == KATEI else teian_count_lines(decisions)
+
+
+def apply_teian(ledger_rows, decisions, ledger_name=TEIAN):
+    """判定を記録の台帳の candidate の行に書き写した新しい行を返す。合わない行が1行でもあれば、すべて示して止める。"""
+    kc = _key_columns(ledger_name)
+    key = lambda d: tuple(d[c] for c in kc)  # noqa: E731
     by_key = {key(r): r for r in ledger_rows}
     errs, changes = [], {}
     for n, d in decisions:
-        at, bad = f"{n}行目 {d['maru']}", []
+        at, bad = f"{n}行目 {_label(d, ledger_name)}", []
         r = by_key.get(key(d))
         if r is None:
-            bad.append("台帳に同じ (maru, sid, quote) の行が無い")
+            bad.append(f"台帳に同じ ({', '.join(kc)}) の行が無い")
         elif r["status"] != ledger.CANDIDATE:
             bad.append(f"台帳の行が candidate でない（{r['status']}）")
         if d["status"] not in DECIDED:
@@ -577,34 +614,44 @@ def apply_teian(ledger_rows, decisions):
     return [dict(r, **changes[key(r)]) if key(r) in changes else r for r in ledger_rows]
 
 
-def write_teian(decisions_path, keys_path, ledger_path, out=None):
-    """判定の一覧を提案理由の記録に書き写して書く。返り値は書き写した行の数（status の Counter）。"""
+def write_teian(decisions_path, keys_path, ledger_path, out=None, ledger_name=TEIAN):
+    """判定の一覧を記録の台帳に書き写して書く。返り値は書き写した行の数（status の Counter）。"""
+    kc = _key_columns(ledger_name)
     with open(decisions_path, "rb") as f:
-        decisions = _teian_table(f.read(), TEIAN_DECISION_COLUMNS, "判定の一覧")
+        decisions = _teian_table(f.read(), _decision_columns(ledger_name), "判定の一覧", ledger_name)
     with open(keys_path, "rb") as f:
-        keys = _teian_table(f.read(), TEIAN_KEY_COLUMNS, "範囲の一覧")
-    _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", teian_scope_errors(keys, decisions))
+        keys = _teian_table(f.read(), kc, "範囲の一覧", ledger_name)
+    _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", teian_scope_errors(keys, decisions, ledger_name))
     with open(ledger_path, "rb") as f:
         try:
-            current = records.parse_tsv(f.read(), records.COLUMNS[TEIAN], TEIAN)
+            current = records.parse_tsv(f.read(), records.COLUMNS[ledger_name], ledger_name)
         except records.RecordsError as e:
             raise DecisionError(str(e)) from None
-    rows = apply_teian(current, decisions)
-    print("\n".join(teian_count_lines(decisions)), file=out or sys.stdout)
+    rows = apply_teian(current, decisions, ledger_name)
+    print("\n".join(record_count_lines(decisions, ledger_name)), file=out or sys.stdout)
     with open(ledger_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(records.format_tsv(records.COLUMNS[TEIAN], rows))
-    old = {tuple(r[c] for c in TEIAN_KEY_COLUMNS): r for r in current}
-    return Counter(r["status"] for r in rows if old[tuple(r[c] for c in TEIAN_KEY_COLUMNS)] != r)
+        f.write(records.format_tsv(records.COLUMNS[ledger_name], rows))
+    old = {tuple(r[c] for c in kc): r for r in current}
+    return Counter(r["status"] for r in rows if old[tuple(r[c] for c in kc)] != r)
 
 
-def main_teian(keys_path, decisions_path):
+def write_katei(decisions_path, keys_path, ledger_path, out=None):
+    """判定の一覧を過程の記録に書き写して書く（§11 判定の範囲・§15.5）。返り値は write_teian と同じ。"""
+    return write_teian(decisions_path, keys_path, ledger_path, out, KATEI)
+
+
+def main_records(ledger_name, keys_path, decisions_path):
     try:
-        applied = write_teian(decisions_path, keys_path, TEIAN_PATH)
+        applied = write_teian(decisions_path, keys_path, RECORD_PATHS[ledger_name], ledger_name=ledger_name)
     except gm.GenError as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
     print("書き写した：" + "・".join(f"{s} {applied[s]}" for s in DECIDED))
     return check_records.main(["check_records.py"])
+
+
+def main_teian(keys_path, decisions_path):
+    return main_records(TEIAN, keys_path, decisions_path)
 
 
 def main_hosei(keys_path, decisions_path):
@@ -671,6 +718,8 @@ def main(argv):
         return main_gian(argv[4], argv[5])
     if len(argv) == 6 and argv[1:3] == ["--ledger", TEIAN] and argv[3] == "--keys":
         return main_teian(argv[4], argv[5])
+    if len(argv) == 6 and argv[1:3] == ["--ledger", KATEI] and argv[3] == "--keys":
+        return main_records(KATEI, argv[4], argv[5])
     if len(argv) != 4 or argv[1] != "--keys":
         print(USAGE, file=sys.stderr)
         return 1

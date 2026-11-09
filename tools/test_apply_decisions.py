@@ -19,6 +19,7 @@ import apply_decisions as ad  # noqa: E402
 import gen_fuhyo as gf  # noqa: E402
 import gen_mentions as gm  # noqa: E402
 import ledger  # noqa: E402
+import records as rc  # noqa: E402
 from test_gen_fuhyo import NONE, FuhyoTestCase, fh, node  # noqa: E402
 from test_ledger import BQ, FILLER, TEXTS, TEXTS_TWO, LedgerTestCase, sid  # noqa: E402
 
@@ -585,6 +586,80 @@ class TestFuhyo(FuhyoTestCase):
                     self.assertEqual(ad.main(["apply_decisions.py"] + args), 1)
                 self.assertIn(ad.USAGE, err.getvalue())
                 self.assertEqual((out.getvalue(), self.ledger_bytes()), ("", before))
+
+
+def katei_row(theme, step, status="candidate"):
+    return {"theme": theme, "step": step, "cycle": "", "name": f"段階{step}", "from": "2024-01", "to": "2024-01",
+            "sources": "doc:x/1", "quote": "令和6年1月", "status": status, "reviewer": "", "date": "",
+            "note": "下書き：2026-11-10・Opus 5.5（プロンプトの版なし）"}
+
+
+class TestKatei(unittest.TestCase):
+    """--ledger katei（LINK_SCHEMA §11 判定の範囲・§15.5）。行のキーは (theme, step)、件数は theme と status ごと。"""
+    KEYS_H = "theme\tstep\n"
+    DEC_H = "theme\tstep\tstatus\treviewer\tdate\tnote\n"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.tmp.name, "katei.tsv")
+        rows = [katei_row("chiiki", "1"), katei_row("chiiki", "2"), katei_row("hoiku", "1", "confirmed")]
+        with open(self.path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(rc.format_tsv(rc.COLUMNS["katei"], rows))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def read(self):
+        with open(self.path, encoding="utf-8") as f:
+            return f.read()
+
+    def files(self, keys, decs):
+        k, d = os.path.join(self.tmp.name, "k.tsv"), os.path.join(self.tmp.name, "d.tsv")
+        with open(k, "w", encoding="utf-8", newline="\n") as f:
+            f.write(self.KEYS_H + "".join("\t".join(x) + "\n" for x in keys))
+        with open(d, "w", encoding="utf-8", newline="\n") as f:
+            f.write(self.DEC_H + "".join("\t".join(x) + "\n" for x in decs))
+        return k, d
+
+    def test_apply(self):
+        kp, dp = self.files([["chiiki", "1"], ["chiiki", "2"]],
+                            [["chiiki", "1", "confirmed", "kken78", "2026-11-10", "判定：行ごと（確認ページ 16C）"],
+                             ["chiiki", "2", "rejected", "kken78", "2026-11-10", "段階でない"]])
+        out = io.StringIO()
+        applied = ad.write_katei(dp, kp, self.path, out)
+        self.assertIn("書き写す前の件数：chiiki confirmed 1・rejected 1", out.getvalue())
+        self.assertEqual((applied["confirmed"], applied["rejected"]), (1, 1))
+        with open(self.path, "rb") as f:
+            rows = rc.parse_tsv(f.read(), rc.COLUMNS["katei"], "katei")
+        self.assertEqual([r["status"] for r in rows], ["confirmed", "rejected", "confirmed"])
+        self.assertTrue(rows[0]["note"].endswith("。判定：行ごと（確認ページ 16C）"))
+        self.assertEqual(rows[0]["reviewer"], "kken78")
+        self.assertEqual(rows[0]["date"], "2026-11-10")
+        self.assertTrue(rows[1]["note"].endswith("。却下：段階でない"))
+        self.assertEqual(rows[2], katei_row("hoiku", "1", "confirmed"))
+
+    def test_refused(self):
+        ok = ["chiiki", "1", "confirmed", "k", "2026-11-10", "判定：x"]
+        cases = [([["chiiki", "1"]], [["chiiki", "2", "confirmed", "k", "2026-11-10", "判定：x"]], "範囲の外"),
+                 ([["chiiki", "1"], ["chiiki", "2"]], [ok], "判定が無い"),
+                 ([["chiiki", "1"], ["chiiki", "1"]], [ok], "2 回ある"),
+                 ([["hoiku", "1"]], [["hoiku", "1", "confirmed", "k", "2026-11-10", "判定：x"]], "candidate でない"),
+                 ([["chiiki", "9"]], [["chiiki", "9", "confirmed", "k", "2026-11-10", "判定：x"]], "行が無い"),
+                 ([["chiiki", "1"]], [["chiiki", "1", "confirmed", "k", "2026-11-10", "メモだけ"]], "判定："),
+                 ([["chiiki", "1"]], [["chiiki", "1", "confirmed", "", "2026-11-10", "判定：x"]], "reviewer が空")]
+        before = self.read()
+        for keys, decs, msg in cases:
+            kp, dp = self.files(keys, decs)
+            with self.assertRaises(gm.GenError) as cm:
+                ad.write_katei(dp, kp, self.path, io.StringIO())
+            self.assertIn(msg, str(cm.exception))
+            self.assertEqual(self.read(), before)
+
+    def test_usage(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(ad.main(["apply_decisions.py", "--ledger", "katei", "k.tsv"]), 1)
+        self.assertIn("--ledger katei", err.getvalue())
 
 
 if __name__ == "__main__":
