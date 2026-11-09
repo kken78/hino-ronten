@@ -13,8 +13,17 @@ inputs.lock.json の版の入力（会議録の索引と審議の記録・議案
   signal_todoku.tsv  届き先の信号：views の無い点の確定行（ADR-31 の4。終了コードは変えない）
   signal_point.tsv   届き先の信号：問いごとの点が空の割合（終了コードは変えない）
   signal_chushin.tsv 届き先の信号：テーマごとの、中心の見方に出る行の割合（終了コードは変えない）
+  target_unchecked.tsv 対象の照合の (2) に合わない candidate の行（§11。終了コードは変えない）
+  target_bill.tsv    対象と議案・名前の (a)（終了コードは変えない）
+  target_name.tsv    対象と議案・名前の (b)（終了コードは変えない）
+  target_changed.tsv lock の hino-town-docs を上げるときの比べ方（--prev を渡したときだけ。§10）
+
+target のキーは、lock の版の附表（fh）と hino-town-docs の構造化の層（hs・hj・hk・hz。tools/hosei.py）で照らし、
+links/gian-yosan.tsv・links/hosei-fuhyo.tsv の confirmed の行（無ければ0行）で議案の回と○の行の附表を引く。
 
 実行: python3 -B tools/check_records.py
+      python3 -B tools/check_records.py --prev <前の版の hino-town-docs の40桁の SHA>
+        （lock の hino-town-docs を上げるとき。前の版といまの lock の版の検収の台帳の key を比べ、target_changed.tsv を書く）
 終了コード：0 は合格。1 は止めた（誤りを表示する）。
 """
 import os
@@ -23,7 +32,10 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import gen_fuhyo  # noqa: E402
 import gen_mentions as gm  # noqa: E402
+import hosei  # noqa: E402
+import ledger  # noqa: E402
 import mention  # noqa: E402
 import records  # noqa: E402
 
@@ -33,7 +45,9 @@ THEMES = os.path.join(gm.ROOT, "ref", "themes.tsv")
 SHISETSU = os.path.join(gm.ROOT, "ref", "shisetsu.tsv")
 CHIKU = os.path.join(gm.ROOT, "ref", "chiku.tsv")       # 地区の参照表（§12.1）。無ければ0行
 SOSHIKI = os.path.join(gm.ROOT, "ref", "soshiki.tsv")   # 組織の参照表（§12.1）。無ければ0行
+LINKS_DIR = os.path.join(gm.ROOT, "links")
 EXAMPLES = 20
+USAGE = "使い方：python3 -B tools/check_records.py [--prev <前の版の hino-town-docs の SHA>]"
 
 
 def read_file(path, columns, optional=False):
@@ -114,12 +128,25 @@ def read_inputs(gi):
     refs = mention.load_refs(gm.LINEAGE, gm.ALIASES)
     series = {r.series for r in refs.lineage}
     plans_in_lineage = {r.plan for r in refs.lineage if r.plan}   # views の plan キーを照らす（§12）
+    fuhyo_keys = {f"fh:{fid}/{it['key']}" for fid, p in gen_fuhyo.named_fuhyo(gi.lock)
+                  for it in gen_fuhyo.fuhyo_items(fid, gen_fuhyo.read_fuhyo_json(gi, fid, p))}
     return records.Inputs(
         statements=statements, order=[e["sid"] for e in index], segments=segments, gian=gian,
         bulletin=bulletin_texts(questions), docs={r["id"] for r in docs_rows},
         doc_text=lambda did, layer: text_of(gm.TD, f"data/{layer}/{did}.txt", doc_files),
         pt_text=lambda pid, name, layer: text_of(gm.SP, f"data/{layer}/{pid}/{name}.txt", pt_files),
-        plans=plan_ids, nodes=nodes, series=series, plans_in_lineage=plans_in_lineage)
+        plans=plan_ids, nodes=nodes, series=series, plans_in_lineage=plans_in_lineage,
+        fuhyo_keys=fuhyo_keys, struct=hosei.read_struct(gi), **confirmed_links())
+
+
+def confirmed_links(links_dir=LINKS_DIR):
+    """議案と回の台帳・○の行と附表の台帳の confirmed の行（台帳が無ければ0行）。gian_hs と hj_fh を返す。"""
+    out = {"gian_hs": {}, "hj_fh": {}}
+    for method, name, frm in (("gian-yosan", "gian_hs", "gi"), ("hosei-fuhyo", "hj_fh", "hj")):
+        for r in ledger.read_ledger(os.path.join(links_dir, f"{method}.tsv"), method, missing_ok=True):
+            if r["status"] == ledger.CONFIRMED and r["from"].startswith(frm + ":"):
+                out[name].setdefault(r["from"], set()).add(r["to"])
+    return out
 
 
 def _breakdown(counts):
@@ -145,9 +172,30 @@ def report_lines(rep):
     L.append(f"- 届き先の信号：問いごとの点が空の割合（signal_point.tsv。問い {len(rep.signal_point)}）")
     L.append(f"- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ {len(rep.signal_chushin)}）")
     L.append("- 参照表の行の数：" + "・".join(f"{n} {c}" for n, c in rep.ref_counts.items()))
+    L.append("- target のキーの種類ごとの数：" + "・".join(f"{k} {rep.target_counts.get(k, 0)}" for k in records.TARGET_KINDS))
+    L.append("- target_text の種類ごとの数：" + "・".join(f"{k} {rep.text_counts.get(k, 0)}" for k in records.TEXT_KINDS))
+    L.append(f"- 対象の照合の (2) に合わない candidate の行：{len(rep.target_unchecked)}（target_unchecked.tsv）")
+    L.append(f"- 対象と議案・名前：(a) {len(rep.target_bill)}（target_bill.tsv）・(b) {len(rep.target_name)}（target_name.tsv）")
+    L += struct_lines(rep.struct)
+    changed = rep.target_changed
+    if changed is not None:
+        by = {}
+        for r in changed:
+            by[r["change"]] = by.get(r["change"], 0) + 1
+        L.append(f"- lock を上げるときの比べ方（前の版 {rep.prev_sha[:7]}）：" + "・".join(
+            f"{c} {by.get(c, 0)}" for c in ("key が変わった", "行が無くなった", "検収が済まなくなった"))
+            + "（target_changed.tsv）")
     if rep.errors:
         L += ["", "## 誤り", ""] + [f"- {e}" for e in rep.errors]
     return L
+
+
+def struct_lines(st):
+    if st is None:
+        return []
+    same, diff, orphan, other = st.rekey_counts()
+    return [f"- 検収の台帳の key の作り直し：同じ {same}・違う {diff}・表に行の無い台帳の行 {orphan}・"
+            f"読まない表（hosei-kaikei など）の台帳の行 {other}"]
 
 
 def write_outputs(outdir, rep):
@@ -160,7 +208,12 @@ def write_outputs(outdir, rep):
         "signal_todoku.tsv": (records.SIGNAL_TODOKU_COLUMNS, rep.signal_todoku),
         "signal_point.tsv": (records.SIGNAL_POINT_COLUMNS, rep.signal_point),
         "signal_chushin.tsv": (records.SIGNAL_CHUSHIN_COLUMNS, rep.signal_chushin),
+        "target_unchecked.tsv": (records.TARGET_UNCHECKED_COLUMNS, rep.target_unchecked),
+        "target_bill.tsv": (records.TARGET_BILL_COLUMNS, rep.target_bill),
+        "target_name.tsv": (records.TARGET_NAME_COLUMNS, rep.target_name),
     }
+    if rep.target_changed is not None:
+        files["target_changed.tsv"] = (records.TARGET_CHANGED_COLUMNS, rep.target_changed)
     for name, (cols, rows) in files.items():
         with open(os.path.join(outdir, name), "w", encoding="utf-8", newline="\n") as f:
             f.write(records.format_tsv(cols, rows))
@@ -168,12 +221,21 @@ def write_outputs(outdir, rep):
         f.write("\n".join(report_lines(rep)) + "\n")
 
 
-def main():
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv[1:]
+    if args and (len(args) != 2 or args[0] != "--prev"):
+        print(USAGE, file=sys.stderr)
+        return 1
     try:
         lock = gm.load_lock(gm.LOCK_PATH)
         gi = gm.GitInputs(gm.INPUTS_ROOT, lock)
         gi.verify()
         inp = read_inputs(gi)
+        prev = None
+        if args:
+            pgi = gm.GitInputs(gm.INPUTS_ROOT, hosei.lock_with_sha(lock, args[1]))
+            pgi.verify()
+            prev = hosei.read_struct(pgi, optional=True)
         ledgers = {n: read_file(os.path.join(RECORDS_DIR, f"{n}.tsv"), records.COLUMNS[n], n in records.OPTIONAL)
                    for n in records.LEDGERS}
         themes = read_file(THEMES, records.THEME_COLUMNS)
@@ -183,8 +245,13 @@ def main():
         print(f"停止：{e}", file=sys.stderr)
         return 1
     rep = records.check_all(ledgers, themes, shisetsu, inp, chiku, soshiki)
+    rep.struct = inp.struct
+    if prev is not None:
+        rep.prev_sha = args[1]
+        rep.target_changed = records.target_changed(ledgers, prev, inp.struct)
     write_outputs(OUT_DIR, rep)
-    print("\n".join(report_lines(rep)[2:12]))
+    lines = report_lines(rep)
+    print("\n".join(lines[2:lines.index("## 誤り") - 1] if "## 誤り" in lines else lines[2:]))
     if rep.errors:
         for e in rep.errors[:EXAMPLES]:
             print(f"  {e}", file=sys.stderr)
