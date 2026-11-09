@@ -188,7 +188,7 @@ none：to_label が「記載なし」でないか、`<id>` が manifest に無�
 
 plan・lin：to_label と、manifest または `ref/lineage.tsv` の name が一致しなければ停止する。
 
-rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1件だけ見つかれば、移動の一覧（moved.tsv）に出す（人が from を書き換える。§6 のとおり、移動先に candidate を作らない）。移動先が0件または2件以上の場合は、一覧（rejected_unmatched.tsv）に出すだけで、終了コード1にはしない（rejected は出力に使わないため）。bq・node・fh・hs・hj・plan・lin の rejected の行は照合しない。
+rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1件だけ見つかれば、移動の一覧（moved.tsv）に出す（人が from を書き換える。§6 のとおり、移動先に candidate を作らない）。移動先が0件または2件以上の場合は、一覧（rejected_unmatched.tsv）に出すだけで、終了コード1にはしない（rejected は出力に使わないため）。from が sp でない rejected の行は照合しない（bq・node・fh・hs・hj と、to の plan・lin・none のどれも。2026-11-09、PR #18 の問い1）。
 
 停止したときは、人が原本で確認し、from・to を直すか、status を rejected にして note に理由を書く。
 
@@ -414,6 +414,7 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 | target_unchecked.tsv | 対象の照合の (2) に合わない candidate の記録の行（`build/records/`）。key は検収の済んでいない target のキー（1行に1つ） | ledger・question・row・status・key |
 | target_bill.tsv | 「対象と議案・名前」の (a) に当たる記録の行（`build/records/`）。key はその行の target の hs・hj・hk・hz のキー、kai は bills（審査報告の記録は bill）から引いた hs を「,」で区切ったもの | ledger・question・row・key・bills・kai |
 | target_name.tsv | 「対象と議案・名前」の (b) に当たる記録の行（`build/records/`） | ledger・question・row・key・name・target_text |
+| target_changed.tsv | lock の hino-town-docs を上げるときに、`tools/check_records.py` に前の版の SHA を渡して出す（`build/records/`。§10）。記録の台帳の target にある hs・hj・hk・hz のキーのうち、前の版と新しい版で、検収の台帳の key が変わった行・行が無くなったもの・検収が済まなくなったもの。change はその3つのどれか（2026-11-09、PR #18 の問い3） | ledger・question・row・key・change |
 | update.md・check.md | 更新・検査の件数の報告 | — |
 
 ---
