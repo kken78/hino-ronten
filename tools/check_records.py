@@ -17,13 +17,8 @@ inputs.lock.json の版の入力（会議録の索引と審議の記録・議案
   target_bill.tsv    対象と議案・名前の (a)（終了コードは変えない）
   target_name.tsv    対象と議案・名前の (b)（終了コードは変えない）
   target_changed.tsv lock の hino-town-docs を上げるときの比べ方（--prev を渡したときだけ。§10）
-  teian_segment.tsv  提案理由の記録で、sid が bill の提案の区切りに入っていない行（§11。終了コードは変えない）
-  teian_name.tsv     提案理由の記録の事情の行で、○の行の名前が引用に無い行（終了コードは変えない）
-  teian_no_jijo.tsv  提案理由の記録に行のある回の○の行のうち、事情の行の無い行（終了コードは変えない）
-  teian_group.tsv    同じ文で説明された行の組（同じ面・sid で、もとの1文が同じ行。終了コードは変えない。DESIGN.md ADR-35）
-  teian_narabi.tsv   同じ年度・同じ会計で名前が同じ○の行の、回の順の並び（判断を含まない。終了コードは変えない）
-  teian_sashihiki.tsv 額が差し引きの行の候補（概要の説明の型と、事情の行の gaku。終了コードは変えない）
-  teian_ の一覧には、○の行の概要の説明（desc）を並べる（LINK_SCHEMA §15.11）
+  teian_segment.tsv  提案理由の記録で、sid が bill の提案の区切りに入っていない行（§11。終了コードは変えない。
+                     ○の行の概要の説明（desc）を並べる。LINK_SCHEMA §15.11）
 
 target のキーは、lock の版の附表（fh）と hino-town-docs の構造化の層（hs・hj・hk・hz。tools/hosei.py）で照らし、
 links/gian-yosan.tsv・links/hosei-fuhyo.tsv の confirmed の行（無ければ0行）で議案の回と○の行の附表を引く。
@@ -35,7 +30,6 @@ links/gian-yosan.tsv・links/hosei-fuhyo.tsv の confirmed の行（無ければ
 """
 import os
 import sys
-from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -187,24 +181,7 @@ def report_lines(rep):
     L.append(f"- 対象の照合の (2) に合わない candidate の行：{len(rep.target_unchecked)}（target_unchecked.tsv）")
     L.append(f"- 対象と議案・名前：(a) {len(rep.target_bill)}（target_bill.tsv）・(b) {len(rep.target_name)}（target_name.tsv）")
     if rep.counts.get("teian"):
-        groups = {}
-        for r in rep.teian_group:
-            groups[r["group"]] = int(r["size"])
-        L.append(f"- 提案理由の記録：sid が提案の区切りに入っていない行 {len(rep.teian_segment)}（teian_segment.tsv）・"
-                 f"名前が引用に無い事情の行 {len(rep.teian_name)}（teian_name.tsv）・事情の行の無い○の行 "
-                 f"{len(rep.teian_no_jijo)}（teian_no_jijo.tsv）・同じ文で説明された行の組 {len(groups)}"
-                 + (f"（大きさ {'・'.join(f'{k}行 {v}組' for k, v in sorted(Counter(groups.values()).items()))}）"
-                    if groups else "") + "（teian_group.tsv）")
-        narabi = {}
-        for r in rep.teian_narabi:
-            narabi[r["group"]] = int(r["size"])
-        kata_only = sum(1 for r in rep.teian_sashihiki if r["kata"] and not r["gaku"])
-        gaku_only = sum(1 for r in rep.teian_sashihiki if r["gaku"] and not r["kata"])
-        L.append(f"- 提案理由の記録：同じ名前の○の行の並び {len(narabi)}組・{sum(narabi.values())}行（teian_narabi.tsv）・"
-                 f"額が差し引きの行の候補 {len(rep.teian_sashihiki)}（型に当たる "
-                 f"{sum(1 for r in rep.teian_sashihiki if r['kata'])}・gaku が差し引き "
-                 f"{sum(1 for r in rep.teian_sashihiki if r['gaku'])}・型に当たるが gaku が空 {kata_only}・"
-                 f"型に当たらないが gaku が差し引き {gaku_only}）（teian_sashihiki.tsv）")
+        L.append(f"- 提案理由の記録：sid が提案の区切りに入っていない行 {len(rep.teian_segment)}（teian_segment.tsv）")
     L += struct_lines(rep.struct)
     changed = rep.target_changed
     if changed is not None:
@@ -241,11 +218,6 @@ def write_outputs(outdir, rep):
         "target_bill.tsv": (records.TARGET_BILL_COLUMNS, rep.target_bill),
         "target_name.tsv": (records.TARGET_NAME_COLUMNS, rep.target_name),
         "teian_segment.tsv": (records.TEIAN_SEGMENT_COLUMNS, rep.teian_segment),
-        "teian_name.tsv": (records.TEIAN_NAME_COLUMNS, rep.teian_name),
-        "teian_no_jijo.tsv": (records.TEIAN_NO_JIJO_COLUMNS, rep.teian_no_jijo),
-        "teian_group.tsv": (records.TEIAN_GROUP_COLUMNS, rep.teian_group),
-        "teian_narabi.tsv": (records.TEIAN_NARABI_COLUMNS, rep.teian_narabi),
-        "teian_sashihiki.tsv": (records.TEIAN_SASHIHIKI_COLUMNS, rep.teian_sashihiki),
     }
     if rep.target_changed is not None:
         files["target_changed.tsv"] = (records.TARGET_CHANGED_COLUMNS, rep.target_changed)

@@ -1,21 +1,20 @@
-"""提案理由の記録（records/teian.tsv）の下書きの手がかりとして、○の行ごとに、提案理由の発言の中の候補の文を出す
-（LINK_SCHEMA.md §15.11、DESIGN.md ADR-35）。
+"""提案理由の記録（records/teian.tsv）の下書きの手がかりとして、○の行ごとに、提案理由の発言の歳入の段の候補の文を出す
+（LINK_SCHEMA.md §15.11、DESIGN.md ADR-35。提案理由の記録は財源の面だけ）。
 
 inputs.lock.json の版の会議録の索引と、hino-town-docs の構造化の層（tools/hosei.py）と、議案と回の台帳
 （links/gian-yosan.tsv）の confirmed の行を読み、一般会計の回の○の行ごとに次を build/teian/ に書く。台帳には書かない。
-候補の文を選んで下書きの TSV を作るのは生成AI（下書き）で、判定は人（CLAUDE.md 不変の制約11 の (4)）。
-候補の文は文の全体で、行ごとに切って「…」で省くのは下書き（§15.11 の引用の切り方）。
-  candidates.tsv  ○の行ごとの候補の文（事情は歳出の段から3つまで、財源は歳入の段から2つまで）。kata は、概要の説明が
-                  差し引きの型（§15.11。tools/records.py の sashihiki_kata）に当たった字（下書きが gaku を書く手がかり）
+機械は候補まで。候補のうち、歳入の説明の使い道の字がその○の行の取り組みを言う文を選ぶのは人で、確定は依頼者が
+1行ずつ行う（CLAUDE.md 不変の制約11 の (1)）。補助金・助成金の性格を知らないと決められない文は、候補にせず保留にする。
+科目の名と○の行の名の字の一致は、条件にも並べ方にも使わない（補助金の科目は国・県の事業名で立つため）。
+  candidates.tsv  ○の行ごとの歳入の段の候補の文（3つまで）
   report.md       件数
 
 提案理由の発言の見つけ方：議案（gi）の会議の発言のうち、役職が議員と議長でないもので、索引の並びで最初に、
 「<議案番号>、」と回の題（§4 の正規化のあと）を同じ文に含む発言。その文から、次の「日程第」か、ほかの議案の
 「議第N号、」「報第N号、」で始まる項目の前の文までを、その議案の部分とする。部分の中で、「歳入」の字のある最初の文から、
-そのあとの「歳出」の字のある最初の文の前までを歳入の段、そこから終わりまでを歳出の段とする（歳入の文が無ければ全部を歳出の段）。
-候補の並べ方：事情は、○の行の名前（括弧の中と末尾の「ほか」を除く。tools/records.py の base_name）が文にあるか、
-次に概要の説明（desc）と文の重なり（difflib の一致した字の数 ÷ desc の字数）の大きい順。財源は、名前が文にあるか、
-次に名前と文の重なりの大きい順。desc は候補を探す手がかりにだけ使う（ADR-35 の4）。
+そのあとの「歳出」の字のある最初の文の前までを歳入の段とする（歳入の文が無ければ候補を出さない）。
+候補の並べ方：○の行の概要の説明（desc）と文の重なり（difflib の一致した字の数 ÷ 概要の説明の字数）の大きい順。
+使い道の字（「〜に伴い」など）と概要の説明の字が重なる文が上に来る。
 
 実行: python3 -B tools/gen_teian.py
 終了コード：0 は書き出しまで終えた。1 は入力の誤りで止めた。
@@ -34,8 +33,8 @@ import hosei  # noqa: E402
 import records  # noqa: E402
 
 OUT_DIR = os.path.join(gm.ROOT, "build", "teian")
-COLUMNS = ["maru", "name", "amount", "men", "rank", "name_in", "score", "bill", "sid", "sentence", "desc", "kata"]
-JIJO_TOP, ZAIGEN_TOP = 3, 2
+COLUMNS = ["maru", "name", "amount", "rank", "score", "bill", "sid", "sentence", "desc"]
+TOP = 3
 CHAIR = "議長"
 RE_ITEM = re.compile(r"(?:議|報)第[0-9]+号、")
 
@@ -89,13 +88,13 @@ def find_speech(inp, bill, title):
     return None
 
 
-def sections(part):
-    """部分 → (歳入の段, 歳出の段)。"""
+def income(part):
+    """部分 → 歳入の段の文の並び（歳入の文が無ければ []）。"""
     i = next((k for k, s in enumerate(part) if "歳入" in s), None)
     if i is None:
-        return [], part
+        return []
     j = next((k for k in range(i + 1, len(part)) if "歳出" in part[k]), len(part))
-    return part[i:j], part[j:]
+    return part[i:j]
 
 
 def overlap(a, b):
@@ -106,11 +105,10 @@ def overlap(a, b):
     return sum(x.size for x in difflib.SequenceMatcher(None, a, b, autojunk=False).get_matching_blocks()) / len(a)
 
 
-def ranked(sents, name, key_text, top):
-    base = records.base_name(name)
-    scored = [(base in norm(s), overlap(key_text, s), -i, s) for i, s in enumerate(sents)]
+def ranked(sents, desc, top):
+    scored = [(overlap(desc, s), -i, s) for i, s in enumerate(sents)]
     scored.sort(reverse=True)
-    return [(r + 1, hit, sc, s) for r, (hit, sc, _, s) in enumerate(scored[:top])]
+    return [(r + 1, sc, s) for r, (sc, _, s) in enumerate(scored[:top])]
 
 
 def candidates(inp, st, report=None):
@@ -119,7 +117,7 @@ def candidates(inp, st, report=None):
     for gi, hss in inp.gian_hs.items():
         for h in hss:
             bill_of.setdefault(h[3:], []).append(gi)
-    out, no_bill, no_speech, rows_n = [], set(), set(), 0
+    out, no_bill, no_speech, no_income, rows_n = [], set(), set(), set(), 0
     for (table, kid, key), r in sorted(st.rows.items()):
         if table != hosei.MARU or not key.startswith("m") or st.kai[kid]["kaikei"] != records.IPPAN:
             continue
@@ -133,20 +131,16 @@ def candidates(inp, st, report=None):
             no_speech.add(kid)
             continue
         sid, part = found
-        inc, outs = sections(part)
-        maru = f"hj:{kid}/{key}"
-        kata = ",".join(records.sashihiki_kata(r["desc"]))
-        for men, sents, key_text, top in ((records.JIJO, outs, r["desc"], JIJO_TOP),
-                                         (records.ZAIGEN, inc, r["name"], ZAIGEN_TOP)):
-            for rank, hit, sc, s in ranked(sents, r["name"], key_text, top):
-                out.append({"maru": maru, "name": r["name"], "amount": r["amount"], "men": men, "rank": str(rank),
-                            "name_in": "1" if hit else "0", "score": f"{sc:.2f}", "bill": bills[0], "sid": f"sp:{sid}",
-                            "sentence": s, "desc": r["desc"], "kata": kata})
+        inc = income(part)
+        if not inc:
+            no_income.add(kid)
+            continue
+        for rank, sc, s in ranked(inc, r["desc"], TOP):
+            out.append({"maru": f"hj:{kid}/{key}", "name": r["name"], "amount": r["amount"], "rank": str(rank),
+                        "score": f"{sc:.2f}", "bill": bills[0], "sid": f"sp:{sid}", "sentence": s, "desc": r["desc"]})
     if report is not None:
-        top1 = [c for c in out if c["men"] == records.JIJO and c["rank"] == "1"]
-        report.update(rows=rows_n, no_bill=sorted(no_bill), no_speech=sorted(no_speech), targets=len(top1),
-                      top1_name=sum(1 for c in top1 if c["name_in"] == "1"),
-                      kata=sum(1 for c in top1 if c["kata"]))
+        report.update(rows=rows_n, no_bill=sorted(no_bill), no_speech=sorted(no_speech), no_income=sorted(no_income),
+                      targets=len({c["maru"] for c in out}))
     return out
 
 
@@ -157,8 +151,9 @@ def report_lines(rep, n):
             + (f"（{'・'.join(rep['no_bill'])}）" if rep["no_bill"] else ""),
             f"- 提案理由の発言が見つからない回：{len(rep['no_speech'])}"
             + (f"（{'・'.join(rep['no_speech'])}）" if rep["no_speech"] else ""),
-            f"- 候補の文を出した○の行：{rep['targets']}（事情の1番目の文に名前がある行 {rep['top1_name']}）",
-            f"- 概要の説明が差し引きの型に当たる○の行：{rep['kata']}",
+            f"- 歳入の段の無い回：{len(rep['no_income'])}"
+            + (f"（{'・'.join(rep['no_income'])}）" if rep["no_income"] else ""),
+            f"- 候補の文を出した○の行：{rep['targets']}",
             f"- 候補の行：{n}"]
 
 

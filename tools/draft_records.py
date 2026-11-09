@@ -55,7 +55,7 @@ SHEET_FIELDS = {
     "yaritori": ("n", "row", "side", "round", "stage", "kind", "point"),
     "shitsugi": ("n", "row", "side", "round", "stage", "kind", "point"),
     "nozoki": ("n", "sid", "reason"),
-    "teian": ("men", "gaku", "bill", "sid"),
+    "teian": ("bill", "sid"),
 }
 # 見直しの一覧（review.md）で「資料のキー」とする列
 SOURCE_COLUMN = {"yaritori": "sid", "shitsugi": "sid", "nozoki": "sid", "katei": "sources", "teian": "sid"}
