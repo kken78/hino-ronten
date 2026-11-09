@@ -85,6 +85,8 @@ RE_SQ = re.compile(r"sq:" + SID)
 RE_BQ = re.compile(r"bq:[0-9]+/[^/\s]+/[0-9]+")
 RE_DOC_PAGE = re.compile(r"doc:([a-z0-9][a-z0-9-]*)/([1-9][0-9]*)")
 RE_DOC = re.compile(r"doc:([a-z0-9][a-z0-9-]*)")
+# 記録の台帳とテーマの定義に書かない資料（§2・§11 書かない資料）：定例記者会見の掲載ページ。id の形で見る
+RE_DOC_UNUSED = re.compile(r"doc:kaiken-[0-9]{8}-page(?![a-z0-9-])(?:/[0-9]+)?")
 RE_PT_PAGE = re.compile(r"pt:([a-z0-9][a-z0-9-]*)/([A-Za-z0-9_.-]+)/([1-9][0-9]*)")
 RE_GI = re.compile(r"gi:([0-9]{10})/([^/,\s]+)")
 RE_NODE = re.compile(r"node:([a-z0-9][a-z0-9-]*)/([A-Za-z0-9_-]+)")
@@ -1246,6 +1248,25 @@ def teian_context(inp, rows, rep):
 
 # ---- 全体 ----
 
+# 資料を書く欄（§11 書かない資料）。記録の台帳と、テーマの定義
+UNUSED_LEDGER_COLUMNS = ("source", "sources", "upper_ref", "lower_ref")
+UNUSED_THEME_COLUMNS = ("value", "source")
+
+
+def check_unused_docs(ledgers, themes_rows, rep):
+    """§2 で書かないとした資料（定例記者会見の掲載ページ）が、記録の台帳の資料の欄とテーマの定義に無いこと（§11）。"""
+    for name in LEDGERS:
+        for r in ledgers.get(name, []):
+            for c in UNUSED_LEDGER_COLUMNS:
+                for m in RE_DOC_UNUSED.finditer(r.get(c, "")):
+                    rep.err(label(name, r), f"{c} に書かない資料がある（{m.group(0)}。記者会見の掲載ページ。§2）")
+    for r in themes_rows:
+        for c in UNUSED_THEME_COLUMNS:
+            for m in RE_DOC_UNUSED.finditer(r.get(c, "")):
+                rep.err(f"ref/themes.tsv {r['theme']}/{r['kind']}/{r['value']}",
+                        f"{c} に書かない資料がある（{m.group(0)}。記者会見の掲載ページ。§2）")
+
+
 def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=()):
     """ledgers：台帳の名前 → 行の並び（nozoki は無ければ []）。chiku_rows・soshiki_rows は地区・組織の参照表の行
     （ファイルが無ければ []。§12.1）。Report を返す。"""
@@ -1271,6 +1292,7 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
     check_shisetsu(ledgers["shisetsu"], inp, theme, shisetsu_keys, rep)
     check_nozoki(ledgers.get("nozoki", []), inp, {**yar, **shi}, rep)
     check_teian(ledgers.get("teian", []), inp, rep)
+    check_unused_docs(ledgers, themes_rows, rep)
     for name in TARGET_LEDGERS:
         check_targets(name, ledgers[name], inp, rep)
     rep.target_unchecked = target_order(rep.target_unchecked)
