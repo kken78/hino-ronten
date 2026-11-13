@@ -145,7 +145,7 @@
 - from：補正予算の概要の○の行（hj のうち key の頭が m の行。hino-town-docs `hosei-maru.tsv` の kind が maru の行）。特別会計・企業会計の主な内容の行（key の頭が t の行）は対象にしない（2026-11-09、依頼者の決定。PR #19 の問い2）。to：同じ年度の附表の事業（fh）。附表に当たる事業が無い○の行は台帳に書かず、一覧（name_unmatched.tsv。§7 hosei-fuhyo・§11）に出す（2026-11-09、依頼者の決定。PR #19 の問い1）。method：name（事業名の一致）か manual（名前の一致しない組を人がつないだもの）。この台帳は、method が台帳のファイル名と違う（§11 方法の制限）
 - evidence・context：from の行の名前（§4 の正規化を通した値。evidence と context は同じ）。where：name
 - to_label：to の事業名（items[].name）。表記は元のデータのまま
-- kind：補正の種類。列は note の次（12列目）。増額（附表の事業の増額）・減額（附表の事業の減額）・財源更正（補正額が0で、説明に財源の字がある）・新規（附表に無く、概要の説明に「新規計上」か「新たに」の字がある）・附表に無い（附表に無く、新規の字も無い。新規か主な事業でないかは原典では決まらない）のどれか。台帳の行には増額・減額・財源更正だけを付ける。新規と附表に無いは、附表に名前の一致する事業の無い○の行の一覧（name_unmatched.tsv）にだけ出す（2026-11-09、PR #19 の問い1 の決定による）。1行に2つ以上あるときは「,」で並べる（1行に新規と増額が混ざる行がある）
+- kind：補正の種類。列は note の次（12列目）。増額（附表の事業の増額）・減額（附表の事業の減額）・財源更正（補正額が0で、説明に財源の字がある）・新規（附表に無く、概要の説明に「新規計上」か「新たに」の字がある）・附表に無い（附表に無く、新規の字も無い。新規か主な事業でないかは原典では決まらない）のどれか。台帳の行には増額・減額・財源更正だけを付ける。新規と附表に無いは、附表に名前の一致する事業の無い○の行の一覧（name_unmatched.tsv）にだけ出す（2026-11-09、PR #19 の問い1 の決定による）。名前が一致しても、金額が0で説明に「財源」の字が無い○の行は、kind が決まらないので台帳に行を作らず、一覧（kind_undecided.tsv。§7 hosei-fuhyo・§11）に出す。新しい kind は作らない（2026-11-13、依頼者の決定）。1行に2つ以上あるときは「,」で並べる（1行に新規と増額が混ざる行がある）
 - note：候補を作った決まり（§7 hosei-fuhyo）、manual の行の根拠（○の行の説明と附表の事業概要の一致する部分）、判定の出どころ
 
 ---
@@ -213,7 +213,7 @@ rejected の行：sp の行に 1・2 と同じ手順をかける。移動先が1
 - 計画期間の前の行（§7）：発言がその計画の策定（策定の予定・審議会・パブリックコメント・案など）を指していれば confirmed とする。その時点で計画期間中だった前の版を指していれば、理由を書いて rejected とする（期の番号が無い前の版は、付け替えの対象にしない）
 - 付け替え：人は、却下した mention の行の発言が、別の計画（manifest にある plan か、`ref/lineage.tsv` にある lin）を指していると分かるときは、`links/relink.tsv` に method が relink の行を足して、その計画に結び付けてよい。from・evidence・where・context は却下した行と同じにし、to に正しい計画、to_label にその名称（§3）、status に confirmed、reviewer・date に付け替えた人と日を書く。note は「付け替え：<却下した行の to> の却下から。<理由>」の形にする。relink の行は機械が作らず、台帳の更新（tools/update_links.py）でも変えない。付け替えを取り消すときは、行を消さずに status を rejected にして note に理由を書く。期の番号が無い前の版の計画は、系譜表に載せる方法が決まるまで付け替えの対象にしない。附表の台帳（fuhyo）では付け替えを使わない
 - 年度の台帳（fuhyo-years）：name の行は、機械が candidate を作り、この節のとおり台帳に合わせる。manual の行は機械が作らず、人が確かめた行だけを書き写しの道具（`tools/apply_decisions.py`）で confirmed として足す。台帳の更新（tools/update_links.py）は manual の行を変えない。manual の行を取り消すときは、行を消さずに status を rejected にして note に理由を書く。年度の台帳では付け替えを使わない
-- ○の行と附表の台帳（hosei-fuhyo）：name の行は、機械が candidate を作り、この節のとおり台帳に合わせる。附表に名前の一致する事業の無い○の行は、機械は台帳に行を作らず、一覧（name_unmatched.tsv）に出す。manual の行は機械が作らず、人が確かめた行だけを書き写しの道具（`tools/apply_decisions.py`）で confirmed として足す。台帳の更新（tools/update_links.py）は manual の行を変えない。manual の行を取り消すときは、行を消さずに status を rejected にして note に理由を書く。この台帳では付け替えを使わない（年度の台帳と同じ扱い。2026-11-09、依頼者の決定。PR #19 の問い1）
+- ○の行と附表の台帳（hosei-fuhyo）：name の行は、機械が candidate を作り、この節のとおり台帳に合わせる。附表に名前の一致する事業の無い○の行は、機械は台帳に行を作らず、一覧（name_unmatched.tsv）に出す。名前が一致しても kind（§3）の決まらない○の行も、機械は台帳に行を作らず、一覧（kind_undecided.tsv）に出す（§7 hosei-fuhyo。2026-11-13、依頼者の決定）。manual の行は機械が作らず、人が確かめた行だけを書き写しの道具（`tools/apply_decisions.py`）で confirmed として足す。台帳の更新（tools/update_links.py）は manual の行を変えない。manual の行を取り消すときは、行を消さずに status を rejected にして note に理由を書く。この台帳では付け替えを使わない（年度の台帳と同じ扱い。2026-11-09、依頼者の決定。PR #19 の問い1）
 - 再生成で出なくなった行：candidate は削除し、一覧（removed.tsv）に出す。confirmed と rejected は削除せず、一覧（vanished.tsv）に出す。confirmed のうち再生成で出なくなったものがあれば、ビルドを停止する（別名辞書や系譜表の変更が既存の確定に影響したことを見落とさないため）。ただし、§5 で移動となり、移動先の (sid, to, method) が生成の結果にある confirmed・rejected は、出なくなった行に数えず、移動の一覧（moved.tsv）にだけ出す
 - 台帳と lock の版：台帳は、lock の版の入力でこの節のとおり更新した結果と同じでなければならない。台帳を検査する道具（`tools/check_links.py`）は、更新と同じ処理で台帳を作り直していまの台帳と比べ、違えば停止して、更新の道具を先に動かすよう示す（§10）
 - 出力に使うのは、confirmed で、かつ §5 の照合が「一致」の行だけとする
@@ -288,6 +288,7 @@ hosei-fuhyo（補正予算の概要の○の行と附表の事業の対応。DES
 - manual の行の kind は、name の行と同じく○の行の金額の符号と額から付ける（増額・減額・財源更正）。決まらなければ足さない。note は「説明と概要の一致：「<○の行の説明と附表の事業概要に共通する部分>」」で始め、依頼者の説明があれば「。」でつなぎ、最後に「。判定：依頼者が会話で確認（YYYY-MM-DD）」を付ける。説明と概要の文は原典の表記のまま引く（§7 fuhyo-years の manual の行と同じ形）
 - 1つの○の行は、附表の1つの事業（fh）にしか確定しない。推測でつながない。同じ事業が年度の中で何度も補正されるため、1つの fh が複数の hj の to になることは許す（§7 fuhyo-years の、同じ fh が to に2行以上無いという決まりは当てない）
 - kind（§3）：増額・減額・財源更正は、○の行の金額の符号と額から、新規は説明の字から、機械で候補を付ける。推定で新規にしない
+- kind の決まらない名前の一致：名前が一致した○の行で、金額が0で、説明に「財源」の字が無いものは、kind が決まらないので、台帳に行を作らず、一覧（build/links/hosei-fuhyo/kind_undecided.tsv。§11）に出す。新しい kind は作らない。上の manual の行の「決まらなければ足さない」と同じ考えを name の行にも当てる。lock の hino-town-docs を 60cd50b に上げたとき、令和4年度一般会計補正予算（第3号）の1行（hj:r4-ippan-03/m003「社会資本整備総合交付金事業（防災・安全）」0千円。附表 fh:fuhyo-r4/b140 と名前が一致する。説明は「町道小御門十禅師線の歩道新設に伴い、学校施設の物件の移転補償をするため、工事請負費を減額し、補償金を新規計上します。」で、歳出の中の組み替え）が当たった（2026-11-13、依頼者の決定）。台帳にこの○の行の confirmed の name の行があれば、再生成で出なくなるので §6 の根拠の消失で止まる。金額が数でない○の行は、これまでどおり止める
 - 判定：name の行は、依頼者が、この規則と候補の一覧を見て確定する（CLAUDE.md 不変の制約11 の (2)）。確定した行の note は、候補の note の後ろに「。メモ：判定：依頼者が名前の一致の規則と一覧（<N>行）を確認して確定」を付けた形になる（§7 fuhyo-years と同じ。確認ページで決めたときは、その後ろに「（確認ページ <名前>）」を付ける）。<N> は、書き写した時点で、その判定（同じ date）で確定した name の行の実数とする。manual の行は、依頼者が会話で確認する（同じく (2)。DESIGN.md ADR-33 の4 と同じ）
 - 名前が一致しない○の行は、附表とつながず、「附表に無い」も記録しない。行ごとの補正の事情は概要の説明（`hosei-maru.tsv` の desc）により、提案理由が言う財源は提案理由の記録（§15.11）で記録する（2026-11-09、依頼者の決定。DESIGN.md ADR-35）。上の manual の行の決まりは、いまのまま残す（DESIGN.md 判断事項37。2026-11-09、取りまとめ役の決定）。一覧 name_unmatched.tsv の kind（新規・附表に無い）の候補も残す。manual の行は、人が確かめた組があるときだけ足す
 
@@ -407,7 +408,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 
 target のキーの消失は、対象の照合の (1) で止まる。値の変化は、hino-town-docs が検収を戻す（DOCS_SCHEMA §13.10。値が変わると台帳の key が変わり、未検収になる）ので、対象の照合の (2) で止まるか、一覧に出る。lock を上げるときの版どうしの比べ方は §10 にある。check.md には、target のキーの種類（fh・hs・hj・hk・hz）ごとの数と、target_text の種類ごとの数を出す（docs/kasetsu.md の H-7 の確かめのため）。役職と課の参照表（§12.2）の role の検査は、参照表を書くときに足す（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12）。
 
-リンク台帳の一覧は、リンク台帳の道具が `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順。no_kai.tsv と name_unmatched.tsv は from の文字コード順）で出す。下の表の target_ で始まる3つは、記録の台帳の一覧で、`tools/check_records.py` が `build/records/` に、§1 の形（行は ledger → question の文字コード順、同じ question の中は row の数の順）で出す（2026-11-09 の決定、PR #17 の問い3）。teian_segment.tsv も `tools/check_records.py` が `build/records/` に出す。行は maru → sid → quote の文字コード順とする（DESIGN.md ADR-35）。
+リンク台帳の一覧は、リンク台帳の道具が `build/links/<method>/` に、§1 の形（行は from → to → method の文字コード順。no_kai.tsv と name_unmatched.tsv と kind_undecided.tsv は from の文字コード順）で出す。下の表の target_ で始まる3つは、記録の台帳の一覧で、`tools/check_records.py` が `build/records/` に、§1 の形（行は ledger → question の文字コード順、同じ question の中は row の数の順）で出す（2026-11-09 の決定、PR #17 の問い3）。teian_segment.tsv も `tools/check_records.py` が `build/records/` に出す。行は maru → sid → quote の文字コード順とする（DESIGN.md ADR-35）。
 
 | ファイル | 内容 | 列 |
 | --- | --- | --- |
@@ -420,6 +421,7 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 | relink_conflict.tsv | 付け替えの重なりになった relink の行と mention の行 | from・to・relink_status・mention_status・context |
 | name_ambiguous.tsv | 年度の台帳で、名前の一致の候補が2つ以上になった事業（§7 fuhyo-years）と、○の行と附表の台帳（`build/links/hosei-fuhyo/`）で、同じ年度の附表に同じ名前の事業が2つ以上ある○の行（§7 hosei-fuhyo。from は○の行、to・name・kan・dept は附表の事業） | from・to・name・kan・dept |
 | name_unmatched.tsv | ○の行と附表の台帳（`build/links/hosei-fuhyo/`）で、同じ年度の附表に名前の一致する事業が無い○の行（§7 hosei-fuhyo。台帳には書かない。行は from の文字コード順）。name・amount は `hosei-maru.tsv` の字のまま。kind は §3 の新規か附表に無い（機械が付けた候補）。desc_head は説明（desc）の先頭40字（原典の字のまま。40字に満たなければ全部）（2026-11-09、PR #19 の問い1 の決定による） | from・name・amount・kind・desc_head |
+| kind_undecided.tsv | ○の行と附表の台帳（`build/links/hosei-fuhyo/`）で、同じ年度の附表に名前の一致する事業が1つあるが、金額が0で説明に「財源」の字が無く、kind（§3）が決まらない○の行（§7 hosei-fuhyo。台帳には書かない。行は from の文字コード順）。to は名前の一致した附表の事業。name・amount は `hosei-maru.tsv` の字のまま。desc_head は name_unmatched.tsv と同じ（2026-11-13、依頼者の決定） | from・to・name・amount・desc_head |
 | rename_candidates.tsv | 年度の台帳で、名前の一致でつながらなかった隣り合う年度の事業の組（§7 fuhyo-years。台帳には書かない。行は Dice 係数の順） | from・to・from_name・to_name・dice_desc・dice_name |
 | no_kai.tsv | 議案と回の台帳（`build/links/gian-yosan/`）で、題の年度が回の表に行のある年度で、題の年度・会計・号に当たる回が lock の版の回の表に無い議案（§7 gian-yosan。ほかの年度の議案と、題から年度・会計・号が取れない議案は件数だけを報告に出す。2026-11-09、依頼者の決定。PR #19 の問い3。行は作らない） | from・title |
 | target_unchecked.tsv | 対象の照合の (2) に合わない candidate の記録の行（`build/records/`）。key は検収の済んでいない target のキー（1行に1つ） | ledger・question・row・status・key |
