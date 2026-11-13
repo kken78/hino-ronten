@@ -340,6 +340,11 @@ kaigo	議案	gi:0000008942/議第109号	hino-council-search public/data/gian.jso
 kaigo	議案	gi:0000008942/議第115号	hino-council-search public/data/gian.json 会議 0000008942 令和８年度日野町一般会計予算		kken78	2026-11-04	
 kaigo	議案	gi:0000008942/議第117号	hino-council-search public/data/gian.json 会議 0000008942 令和８年度日野町介護保険特別会計予算		kken78	2026-11-04	
 kaigo	資料	doc:jigyo-kaigo-chosa-r7	hino-town-docs data/sources.tsv（c1de9d4） jigyo-kaigo-chosa-r7 日野町高齢者福祉計画・ 介護保険事業計画（第10期）策定に係るアンケート調査（報告書）		kken78	2026-11-04	
+kaigo	資料	doc:kansa-r3-14	hino-town-docs data/sources.tsv（60cd50b） kansa-r3-14 令和3年度監査等の結果 2月長寿福祉課		kken78	2026-11-13	依頼者が会話で確認（2026-11-13。H-12 の確かめ）
+kaigo	資料	doc:kansa-r4-04	hino-town-docs data/sources.tsv（60cd50b） kansa-r4-04 令和4年度監査等の結果 6月長寿福祉課		kken78	2026-11-13	依頼者が会話で確認（2026-11-13。H-12 の確かめ）
+kaigo	資料	doc:kansa-r5-02	hino-town-docs data/sources.tsv（60cd50b） kansa-r5-02 令和5年度監査等の結果 5月長寿福祉課		kken78	2026-11-13	依頼者が会話で確認（2026-11-13。H-12 の確かめ）
+kaigo	資料	doc:kansa-r6-04	hino-town-docs data/sources.tsv（60cd50b） kansa-r6-04 令和6年度監査等の結果 6月長寿福祉課		kken78	2026-11-13	依頼者が会話で確認（2026-11-13。H-12 の確かめ）
+kaigo	資料	doc:kansa-r7-02	hino-town-docs data/sources.tsv（60cd50b） kansa-r7-02 令和7年度監査等の結果 5月長寿福祉課		kken78	2026-11-13	依頼者が会話で確認（2026-11-13。H-12 の確かめ）
 kaigo	資料	doc:kessan-r3-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r3-ikensho 令和3年度日野町各会計決算審査意見書		kken78	2026-11-04	
 kaigo	資料	doc:kessan-r4-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r4-ikensho 令和4年度日野町各会計決算審査意見書		kken78	2026-11-04	
 kaigo	資料	doc:kessan-r5-ikensho	hino-town-docs data/sources.tsv（c1de9d4） kessan-r5-ikensho 令和5年度日野町各会計決算審査意見書		kken78	2026-11-04	
