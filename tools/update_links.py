@@ -13,7 +13,8 @@ links/fuhyo.tsv に合わせて書く。付け替えは使わない（§6）。�
 題から年度・会計・号が取れない議案は件数だけ。§7 gian-yosan）。
 --ledger hosei-fuhyo のときは、tools/gen_hosei_fuhyo.py の build で○の行の名前の一致の候補を作り、links/hosei-fuhyo.tsv
 （kind の列を持つ12列）に合わせて書く。manual の行（人が足した行）は変えない（§6）。附表に名前の一致する事業の無い
-○の行は台帳に書かず、build/links/hosei-fuhyo/name_unmatched.tsv に出す（§7 hosei-fuhyo）。
+○の行は台帳に書かず、build/links/hosei-fuhyo/name_unmatched.tsv に出す。名前は一致したが kind の決まらない○の行も
+台帳に書かず、kind_undecided.tsv に出す（§7 hosei-fuhyo）。
 どちらも、既存の confirmed・rejected の行（人の判定）は変えない（§6。ほかの台帳と同じ）。
 機械が作るのは candidate だけ（DESIGN.md ADR-2）。
 
