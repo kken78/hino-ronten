@@ -160,6 +160,23 @@ class TestStruct(unittest.TestCase):
         with self.assertRaises(gm.GenError):
             hosei.build_struct(tables, []).kaikei_names()
 
+    def test_kaikei_names_title_forms(self):
+        # §2（2026-11-13）：「補正予算」の字の無い題と、号の前に「（専決処分）」の付く題も会計の名前が取れる
+        extra = [dict(kai_rows()[0], id="r7-ippan-06", fiscal_year="2025", gou="6",
+                      title="令和７年度日野町一般会計補正予算（専決処分）（第６号）"),
+                 dict(kai_rows()[1], id="r7-koki-01", fiscal_year="2025", kaikei="koki",
+                      title="後期高齢者医療特別会計（第１号）"),
+                 dict(kai_rows()[1], id="r7-koki-02", fiscal_year="2025", kaikei="koki", gou="2",
+                      title="後期高齢者医療特別会計補正予算（第２号）")]
+        tables = {hosei.KAI: kai_rows() + extra, hosei.SHIRYO: [], hosei.KAN: [], hosei.MARU: [], hosei.JIKO: []}
+        self.assertEqual(hosei.build_struct(tables, []).kaikei_names(),
+                         {"一般会計": "ippan", "国民健康保険特別会計": "kokuho", "後期高齢者医療特別会計": "koki"})
+        # 号の無い題は、これまでどおり止める
+        bad = [dict(kai_rows()[1], id="r7-koki-03", kaikei="koki", title="後期高齢者医療特別会計補正予算")]
+        tables = {hosei.KAI: kai_rows() + bad, hosei.SHIRYO: [], hosei.KAN: [], hosei.MARU: [], hosei.JIKO: []}
+        with self.assertRaises(gm.GenError):
+            hosei.build_struct(tables, []).kaikei_names()
+
     def test_changes(self):
         prev = struct()
         keys = [f"hj:{K1}/m001", f"hj:{K1}/m002", f"hk:{K1}/out-03", f"hs:{K2}", f"hj:{K1}/m009"]

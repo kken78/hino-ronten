@@ -55,9 +55,10 @@ KEY_FORMS = {
 }
 TABLE_OF = {"hj": MARU, "hk": KAN, "hz": JIKO}
 PREFIX_OF = {MARU: "hj", KAN: "hk", JIKO: "hz"}
-# 回の題から会計の名前を取る（§2：「令和N年度日野町」と「補正予算（第N号）」を除いた字。§4 の正規化のあと）
+# 回の題から会計の名前を取る（§2：題の頭の「令和N年度日野町」（あれば）と、題の終わりの「補正予算」（あれば）・
+# 「（専決処分）」（あれば）・「（第N号）」を除いた字。§4 の正規化のあと。2026-11-13、依頼者の決定）
 TITLE_HEAD = re.compile(r"^令和(?:[0-9]+|元)年度日野町")
-TITLE_TAIL = re.compile(r"補正予算\(第[0-9]+号\)$")
+TITLE_TAIL = re.compile(r"(?:補正予算)?(?:\(専決処分\))?\(第[0-9]+号\)$")
 
 
 def kind_of(key):
@@ -179,7 +180,8 @@ class Struct:
     # ---- 会計の名前（§2・§7 gian-yosan） ----
 
     def kaikei_names(self):
-        """回の題から「令和N年度日野町」と「補正予算（第N号）」を除いた字（§4 の正規化のあと）→ kaikei。
+        """回の題から、頭の「令和N年度日野町」（あれば）と、終わりの「補正予算」（あれば）・「（専決処分）」（あれば）・
+        「（第N号）」を除いた字（§4 の正規化のあと）→ kaikei。
         同じ名前が2つの kaikei に当たるか、同じ kaikei に2つの名前があれば止める。"""
         by_name, by_kaikei, errs = {}, {}, []
         for kid, r in sorted(self.kai.items()):
