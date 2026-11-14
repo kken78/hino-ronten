@@ -331,9 +331,12 @@ kaigo	語	老人	jisshi e102・e103 の事業名		kken78	2026-11-04
 kaigo	語	認知症	sogo6 e090 の名前		kken78	2026-11-04	
 kaigo	語	重層的支援	jisshi e086・e093・e109・e110 の事業名		kken78	2026-11-04	
 kaigo	語	高齢者	kaigo9 の計画名、sogo6 e028 の名前		kken78	2026-11-04	
+kaigo	議案	gi:0000006801/議第58号	hino-council-search public/data/gian.json 会議 0000006801 令和３年度日野町介護保険特別会計歳入歳出決算について		kken78	2026-11-14	依頼者が会話で議案を特定して決めた（2026-11-14。介護保険特別会計の決算の議案。DESIGN.md ADR-37 の経過）
+kaigo	議案	gi:0000007383/議第86号	hino-council-search public/data/gian.json 会議 0000007383 令和４年度日野町介護保険特別会計歳入歳出決算について		kken78	2026-11-14	依頼者が会話で議案を特定して決めた（2026-11-14。介護保険特別会計の決算の議案。DESIGN.md ADR-37 の経過）
 kaigo	議案	gi:0000007861/議第17号	hino-council-search public/data/gian.json 会議 0000007861 日野町介護保険条例の一部を改正する条例の制定について		kken78	2026-11-04	
 kaigo	議案	gi:0000007861/議第29号	hino-council-search public/data/gian.json 会議 0000007861 令和６年度日野町一般会計予算		kken78	2026-11-04	質疑（K2b）の対象
 kaigo	議案	gi:0000007861/議第31号	hino-council-search public/data/gian.json 会議 0000007861 令和６年度日野町介護保険特別会計予算		kken78	2026-11-04	
+kaigo	議案	gi:0000008116/議第64号	hino-council-search public/data/gian.json 会議 0000008116 令和５年度日野町介護保険特別会計歳入歳出決算について		kken78	2026-11-14	依頼者が会話で議案を特定して決めた（2026-11-14。介護保険特別会計の決算の議案。DESIGN.md ADR-37 の経過）
 kaigo	議案	gi:0000008397/議第13号	hino-council-search public/data/gian.json 会議 0000008397 日野町介護保険条例の一部を改正する条例の制定について		kken78	2026-11-04	
 kaigo	議案	gi:0000008397/議第14号	hino-council-search public/data/gian.json 会議 0000008397 日野町地域包括支援センターの包括的支援事業の実施に関する基準を定める条例および日野町指定介護予防支援等の事業の人員および運営ならびに指定介護予防支援等に係る介護予防のための効果的な支援の方法に関する基準を定める条例の一部を改正する条例の制定について		kken78	2026-11-04	
 kaigo	議案	gi:0000008397/議第25号	hino-council-search public/data/gian.json 会議 0000008397 令和７年度日野町一般会計予算		kken78	2026-11-04	質疑（K2b）の対象
