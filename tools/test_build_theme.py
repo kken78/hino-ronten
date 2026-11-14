@@ -82,8 +82,7 @@ def make_data():
     d.doc_files = {"data/text/teigen.txt", "data/ocr/teigen.txt"}
     d.doc_text = dict(DOC_TEXT)
     d.scenes = gm.scene_of([d.index[s] for s in d.inp.order], d.proceedings)
-    d.votes = {(M, "議第1号"): [vote]}
-    d.debates = {(M, "議第1号"): [debate]}
+    d.segs = {(M, "議第1号"): [vote, debate]}
     return d
 
 
@@ -844,9 +843,38 @@ class FrameBuildTest(unittest.TestCase):
             {"n": 1, "docs": [{"doc": "doc:teigen", "date": "2024-02", "suji": ["suji:teigen/1"], "nosuji": 0}]},
             {"n": 2, "docs": []}]}])
         self.assertEqual(next(x for x in data["waku"] if x["key"] == "waku:keikaku")["nendo"], [])
+        # 議案を置く枠組みの要素は kessan-nintei の3・4・5 だけ（LINK_SCHEMA §13.4）
+        self.assertEqual(bt.GIAN_ELEMENTS, {"kessan-nintei": (3, 4, 5)})
         self.assertNotIn(law, data["names"]["sources"])
         self.assertEqual(bt.check_no_empty_url(data), [])
         self.assertEqual(data["shiryo"][0]["waku"], "waku:nagare/1")
+
+    def test_kessan_bill(self):
+        # 決算の議案（LINK_SCHEMA §13.4 の bills の kessan）：年度は題の字から。議決の会議（decidedIn）の区切りも見る
+        self.assertEqual([bt.kessan_year(t) for t in ("令和６年度日野町介護保険特別会計歳入歳出決算について", "令和元年度決算", "平成３０年度決算", "決算")],
+                         ["2024", "2019", "2018", ""])
+        d = make_data()
+        M2 = "0000009999"
+        d.gian[M] = {"agenda": [{"no": "議第1号", "kind": "決算", "title": "令和６年度日野町介護保険特別会計歳入歳出決算について",
+                                 "result": "認定", "method": "起立多数", "decidedIn": M2}]}
+        d.meetings[M2] = {"id": M2, "name": "令和7年12月定例会議", "date": "2025-12-01", "url": ""}
+        prop = {"kind": "proposal", "date": "2025-03-03", "role": "町長", "member": "堀江和博", "from": f"{M}_20250303_0001", "bills": ["議第1号"]}
+        rpt = {"kind": "report", "date": "2025-12-01", "member": "髙橋源三郎", "seat": "9番", "committee": "予算決算特別委員会",
+               "from": f"{M2}_20251201_0008", "bills": ["議第1号", "議第2号"]}
+        deb = {"kind": "debate", "date": "2025-12-01", "member": "加藤和幸", "seat": "10番", "stance": "反対", "from": f"{M2}_20251201_0011", "bills": ["議第1号"]}
+        vote2 = {"kind": "vote", "date": "2025-12-01", "sid": f"{M2}_20251201_0020", "bills": ["議第1号"]}
+        d.segs = {(M, "議第1号"): [prop], (M2, "議第1号"): [rpt, deb, vote2]}
+        (b,) = bt.build_bills(d, {f"gi:{M}/議第1号"})
+        k = b["kessan"]
+        self.assertEqual((b["date"], k["fiscal_year"], k["decided_meeting_id"], k["decided_meeting"], k["vote_date"]),
+                         ("2025-12-01", "2024", M2, "令和7年12月定例会議", "2025-12-01"))
+        self.assertEqual([(x["date"], x["role"]) for x in k["proposals"]], [("2025-03-03", "町長")])
+        self.assertNotIn("member", k["proposals"][0])
+        self.assertEqual([(x["kind"], x["member"]["seat"], x["committee"], x["nbills"], x["stance"]) for x in k["steps"]],
+                         [("委員長の報告", "9番", "予算決算特別委員会", 2, ""), ("討論", "10番", "", 1, "反対")])
+        self.assertEqual([x["stance"] for x in b["debates"]], ["反対"])
+        # 決算でない議案は kessan が空
+        self.assertEqual(build()["bills"][0]["kessan"], {})
 
     def test_without_frame(self):
         # 参照表が無ければ、waku・shiryo・suji は空で、行の shurui も空（ほかの題材の画面は変わらない）

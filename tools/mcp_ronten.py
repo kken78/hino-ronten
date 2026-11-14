@@ -112,7 +112,7 @@ class Server:
                       f"議決結果：{b.get('result')}。採決方法：{b.get('method')}。討論：{deb}（出典：{b.get('url')}）")
         for n, x in enumerate(d.get("issues") or [], 1):
             self._add(f"issue:{n}", f"照合結果（未確認）：{x['type']}", "", r.issue_statement(x))
-        for x in d.get("suji") or []:     # 同じ項目の記載（列 suji。書かれた順。ADR-37）
+        for x in d.get("suji") or []:     # 項目の全文（列 suji。書かれた順。ADR-37）
             date = x["rows"][0]["source_date"] if x.get("rows") else ""
             self._add(x["key"], "項目", date, f"資料の種類：{x.get('shurui') or r.kind_of(x['doc'])}。{r.suji_text_full(x)}",
                       " ".join(y.get("point") or "" for y in x["rows"]))
@@ -192,14 +192,22 @@ class Server:
             out += ["", f"## {w['name']}（年度ごと。項目は fetch で suji: を取る）"]
             for y in w["nendo"]:
                 out.append(f"### {br.fy_name(int(y['fiscal_year']))}")
+                gpos = [z["n"] for z in y["elements"] if "gian" in z]
                 for ye in y["elements"]:
                     e = next((z for z in w["elements"] if z["n"] == ye["n"]), {})
                     head = f"- 要素{ye['n']}：{e.get('name', '')}" + (f"（{e['source']}）" if e.get("source") else "")
+                    if "gian" in ye:     # 議案を置く枠組みの要素（LINK_SCHEMA §14・§16.1）
+                        bills = [b for b in d.get("bills") or [] if b["key"] in ye["gian"]]
+                        if not bills:
+                            out.append(f"{head}。{br.NO_BILL}")
+                        for b in bills:
+                            out.append(f"{head}。" + " ".join(r.bill_lines(gpos.index(ye["n"]), b)))
+                        continue
                     if not ye["docs"]:
                         out.append(f"{head}。{br.NOREC if e.get('shiryo') else br.NO_SHURUI}")
                     for x in ye["docs"]:
                         out.append(f"{head}。{r.doc_title(x['doc'], r.suji.get((x['suji'] or [''])[0]))}（{br.jd(x['date'])}）：" + "、".join(f"[{k}]" for k in x["suji"])
-                                   + (f"。このほか、項目に分けていない記録の行が{x['nosuji']}件" if x.get("nosuji") else ""))
+                                   + (f"。項目の番号の無い行が{x['nosuji']}件" if x.get("nosuji") else ""))
         for sh, items in r.sections.items():     # 枠組みの要素に当たらない資料の種類（資料ごと）
             out += ["", f"## {sh}（資料ごと。項目は fetch で suji: を取る）"]
             by = {}

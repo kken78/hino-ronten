@@ -217,6 +217,22 @@ class FrameTest(unittest.TestCase):
                       "［事実］「令和10年度の開設を目指します。」（事項：開園時期）【未確認】［要望］「留意されたい。」（事項：開園時期）（出典：", honpen)
         self.assertNotIn("：定期監査の報告：", built()[0])
 
+    def test_bill_lines(self):
+        # 議案を置く枠組みの要素（LINK_SCHEMA §16.1・§17.2）：提出・審議・議決。無いものは決まった文
+        b = {"meeting": "令和7年9月定例会議", "no": "議第70号", "title": "決算について", "url": U + "m.html", "result": "認定",
+             "method": "起立多数", "kessan": {"decided_meeting": "令和7年12月定例会議", "vote_date": "2025-12-01", "proposals": [],
+             "steps": [{"kind": "質疑", "date": "2025-09-11", "member": {"name": "松田洋子", "seat": "4番"}, "nbills": 2, "stance": "", "url": "u1"},
+                       {"kind": "委員長の報告", "date": "2025-12-01", "member": {"name": "x", "seat": ""}, "committee": "予算決算特別委員会",
+                        "nbills": 7, "stance": "", "url": "u2"},
+                       {"kind": "討論", "date": "2025-12-01", "member": {"name": "加藤和幸", "seat": "10番"}, "nbills": 3, "stance": "反対", "url": "u3"}]}}
+        self.assertEqual(br.Rag.bill_lines(0, b), ["議案：令和7年9月定例会議の議第70号「決算について」（出典：" + U + "m.html）", br.NO_PROPOSAL])
+        self.assertEqual(br.Rag.bill_lines(1, b), ["［2025年9月11日］質疑：4番 松田洋子 議員（2議案について）（出典：u1）",
+                                                   "［2025年12月1日］委員長の報告：予算決算特別委員会（7議案について）（出典：u2）",
+                                                   "［2025年12月1日］討論：10番 加藤和幸 議員。賛否：反対（出典：u3）", br.NO_IINKAI])
+        self.assertEqual(br.Rag.bill_lines(2, b), ["議決：認定。採決の方法：起立多数。採決の日付：2025年12月1日。議決の会議：令和7年12月定例会議（出典：" + U + "m.html）"])
+        b["kessan"]["steps"] = []
+        self.assertEqual(br.Rag.bill_lines(1, b), [br.NO_STEPS, br.NO_IINKAI])
+
     def test_flow(self):
         # 要素に資料の種類が当たる枠組みは、年度ごとの節目の<枠組みの名前>（年度）に要素を番号の順に全部
         d = json.loads(frame_data())
@@ -233,7 +249,7 @@ class FrameTest(unittest.TestCase):
         self.assertIn("### 認定こども園整備事業：年度ごとの節目：決算の流れ（令和6年度）", honpen)
         self.assertIn("要素1：調製（地方自治法233条1項）。" + br.NO_SHURUI, honpen)
         self.assertIn("要素2：審査（地方自治法233条2項）。資料：再編整備計画（2025年3月）", honpen)
-        self.assertIn("このほか、項目に分けていない記録の行が2件あります", honpen)
+        self.assertIn("項目の番号の無い行が2件あります", honpen)
         self.assertIn("枠組み：決算の流れ。出典：地方自治法（昭和二十二年法律第六十七号）第233条\n", honpen)
         self.assertIn("- 要素1：調製（地方自治法233条1項）。該当する事項：該当する事項なし。", honpen)
         # 流れに置いた項目は、資料の種類の節に重ねない

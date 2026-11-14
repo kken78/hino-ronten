@@ -155,11 +155,11 @@ ul.plain{margin:0;padding-left:1.1em;display:grid;gap:5px;font-size:13.5px}
 .pair .q,.pair .a{display:grid;grid-template-columns:5.5em 1fr;gap:8px;font-size:13.5px}
 .pair .k{font-size:11px;color:var(--muted)}
 td.date,.date{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12.5px}
-/* 同じ項目の記載（列 suji）：項目の段落と、置き場所への移り先（ADR-37 の経過 2026-11-14） */
+/* 項目の全文（列 suji）：項目の段落と、置き場所への移り先（ADR-37 の経過 2026-11-14） */
 .suji{margin-top:4px}
 .kd{display:inline-block;font-size:11px;padding:0 5px;border:1px solid var(--ink);border-radius:2px;white-space:nowrap;margin-right:4px}
 .um{font-size:11px;color:var(--muted);margin-left:6px}
-/* 項目の段落と、決算の認定までの流れなど枠組みの段階（LINK_SCHEMA §16.1。ADR-37 の経過 2026-11-14）。札と印で示し、色に意味を持たせない */
+/* 項目の段落と、決算の認定までの流れなど枠組みの要素（LINK_SCHEMA §16.1。ADR-37 の経過 2026-11-14）。札と印で示し、色に意味を持たせない */
 .para{margin:0 0 10px;font-size:13.5px;line-height:1.85;max-width:52em}
 .fuda{display:inline-block;font-size:11px;line-height:1.5;padding:0 5px;margin:0 4px 0 4px;border:1px solid var(--rule);border-radius:2px;color:var(--muted);white-space:nowrap}
 ol.flow{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
@@ -292,7 +292,7 @@ const exByMeeting=()=>{const g={};D.exchanges.forEach(x=>{(g[x.meeting_id]=g[x.m
 const exLinks=g=>`関連する質問 ${g.urls.length}件：会議録 ${g.urls.map((u,i)=>A(u,String(i+1))).join('・')}`;
 const qa={}; ['yaritori','shitsugi'].forEach(n=>R[n].forEach(q=>q.rows.forEach(r=>{if(r.point)(qa[r.point]=qa[r.point]||[]).push({q,r,n})})));
 /* 記載の行と項目（LINK_SCHEMA §16.1・§16.2。DESIGN.md ADR-37 と経過 2026-11-14）：事項の欄に、about がその事項の記載の行を事柄の行と一緒に資料の日付の順に出す。
-   資料の種類の参照表に当たる資料の項目（suji）のある行は (資料, suji) ごとに1行にし、「同じ項目の記載（N文）」で項目の段落を開く */
+   資料の種類の参照表に当たる資料の項目（suji）のある行は (資料, suji) ごとに1行にし、「項目の全文（N文）」で項目の段落を開く */
 const SUJI=new Map((D.suji||[]).map(x=>[x.key,x]));
 const kis={}; (R.kisai||[]).forEach(r=>{if(r.about)(kis[r.about]=kis[r.about]||[]).push(r)});
 const refOf=(led,r)=>led==='kisai'?['records/kisai',r.title,r.source].join('/'):kotRef(r);
@@ -303,7 +303,7 @@ const UM=layer=>layer&&layer!=='確定'?'<span class="um">未確認</span>':'';
 const wa=y=>y>=2019?`令和${y===2019?'元':y-2018}年度`:`${y}年度`;
 const docOf=k=>{const m=String(k||'').match(/^doc:([a-z0-9-]+)/);return m?D.docs.find(x=>x.id===m[1]):null};
 const docTitle=(k,src)=>{const x=docOf(k);return x?x.title:lab(src||k)};
-/* 項目の置き場所（LINK_SCHEMA §16.1）：要素に資料の種類が当たる枠組みの年度ごとの段階か、<資料の種類>の節 */
+/* 項目の置き場所（LINK_SCHEMA §16.1）：要素に資料の種類が当たる枠組みの年度ごとの要素か、<資料の種類>の節 */
 const anchorOf=key=>'k-'+String(key).replace(/[^A-Za-z0-9]/g,'-');
 const FLOWS=(D.waku||[]).filter(w=>(w.nendo||[]).length);
 const PLACE=new Map();
@@ -313,7 +313,7 @@ const SECTIONS={}; (D.suji||[]).forEach(x=>{if(PLACE.has(x.key))return;const sh=
 const fuda=(b,pt)=>b.points.filter(x=>x.point).map(x=>`<span class="fuda${pt&&x.point===pt?' self':''}">${esc(x.point)}${x.kind!==b.kind?`（${esc(x.kind)}）`:''}</span>`).join('');
 const para=(x,withId,pt)=>`<p class="para"${withId?` id="${anchorOf(x.key)}"`:''}>${(x.bun||[]).map(b=>`${KD(b.kind)}${esc(b.quote)}${UM(b.layer)}${fuda(b,pt)}`).join(' ')}</p>`;
 const jump=key=>{const pl=PLACE.get(key);return pl?`<a href="#unei/${pl.id}">${esc(pl.label)}の所へ</a>`:''};
-function sujiBlock(x,pt){return `<details class="suji"><summary>同じ項目の記載（${(x.bun||[]).length}文）</summary>${para(x,false,pt)}<div class="note">${jump(x.key)}</div></details>`}
+function sujiBlock(x,pt){return `<details class="suji"><summary>項目の全文（${(x.bun||[]).length}文）</summary>${para(x,false,pt)}<div class="note">${jump(x.key)}</div></details>`}
 /* 事項の欄の1行：事柄の記録か記載の行。資料の種類の参照表に当たる資料の項目のある行は (資料, suji) ごとに1行（LINK_SCHEMA §16.1） */
 const pointRow=(led,r)=>`<div class="row"><span class="d">${esc(jd(r.source_date))}</span><span><span class="tag ${r.source.startsWith('sp:')?'t-a':'t-doc'}">${esc(shuruiOf(r))}</span></span><span>${KD(kindOf(led,r))}${led==='kisai'&&r.target?`<span class="um">対象の時期：${esc(r.target)}</span> `:''}${esc(r.quote)}${UM(r.layer)}<div class="src">${A(r.url,lab(r.source))}${led==='kotogara'&&r.kind==='変更'?'　変更前：'+esc(r.prev):''}</div></span></div>`;
 /* 項目の行（同じ事項の行の文を、同じ文は1回にして項目の中の順に） */
@@ -413,12 +413,20 @@ function ronten(){
 const itemOrder=(a,b)=>{const ra=a.rows[0]||{},rb=b.rows[0]||{};return (ra.page-rb.page)||((ra.pos<0)-(rb.pos<0))||(ra.pos-rb.pos)||(a.n-b.n)};
 /* 年度ごとの節目の<枠組みの名前>（LINK_SCHEMA §16.1）：資料の年度ごとに要素を番号の順に全部。要素に当たる資料の項目を段落で */
 function flowHtml(W){
-  const NO_SH='未記録（この段階に当たる資料の種類は、まだ決めていません）';
-  const head=`<p class="note">${esc(W.name)}の段階を順に置き、段階に当たる資料の記載を、項目ごとの段落で示します。年度は資料の年度です。文の頭の印は記載の種類、文の後ろの札は対応づけた事項（論点）です。出典：${W.url?A(W.url,lab(W.source)):esc(W.source)}</p>`+KIND_NOTE;
-  return head+W.nendo.slice().map(y=>`<div class="yrblk" id="${anchorOf(W.key+'/'+y.fiscal_year)}"><h3>${esc(W.name)}（${esc(wa(+y.fiscal_year))}）</h3><ol class="flow">${y.elements.map(ye=>{const e=W.elements.find(z=>z.n===ye.n)||{};
-    const body=ye.docs.length?ye.docs.map(x=>`<div class="dochead">${esc(docTitle(x.doc,((SUJI.get(x.suji[0])||{}).rows||[{}])[0].source))}　${esc(jd(x.date))}　${A((docOf(x.doc)||{}).url||(SUJI.get(x.suji[0])||{}).url,'出典')}</div>`+x.suji.map(k=>SUJI.get(k)).filter(Boolean).map(it=>para(it,true)).join('')+(x.nosuji?`<div class="note">このほか、項目に分けていない記録の行が${esc(x.nosuji)}件あります（事項の欄に出ます）。</div>`:'')).join('')
+  const NO_SH='資料は、まだ記録していません。', NO_BILL='この年度の決算の議案は、まだ記録していません。';
+  const BILL=new Map(D.bills.map(b=>[b.key,b]));
+  const giin=m=>`${m.seat?esc(m.seat)+' ':''}${esc(m.name)} 議員`;
+  /* 議案を置く枠組みの要素（LINK_SCHEMA §16.1）：番号の順に、提出（提案の説明）・審議（質疑・委員長の報告・討論）・議決 */
+  const billHtml=(pos,b)=>{const k=b.kessan||{};
+    if(pos===0)return `<div class="dochead">${esc(b.meeting)}　${A(b.url,b.no+'「'+b.title+'」')}</div>`+((k.proposals||[]).length?`<ul class="plain">${k.proposals.map(x=>`<li>${esc(jd(x.date))}　提案の説明　${esc(x.role)}　${A(x.url,'会議録')}</li>`).join('')}</ul>`:'<div class="note">提案の説明は、会議録の区切りのデータにありません。</div>');
+    if(pos===1)return ((k.steps||[]).length?`<ul class="plain">${k.steps.map(x=>`<li>${esc(jd(x.date))}　${x.kind==='委員長の報告'?`${esc(x.committee)}の委員長の報告（${esc(x.nbills)}議案について）`:x.kind==='質疑'?`質疑　${giin(x.member)}（${esc(x.nbills)}議案について）`:`討論　${giin(x.member)}${x.stance?`（${esc(x.stance)}）`:''}`}　${A(x.url,'会議録')}</li>`).join('')}</ul>`:'<div class="note">質疑・委員長の報告・討論は、会議録の区切りのデータにありません。</div>')+'<div class="note">委員会の会議録はありません。</div>';
+    return `<div><b>${esc(b.result)}</b>（${esc(b.method)}）${k.vote_date?'　'+esc(jd(k.vote_date)):''}　${esc(k.decided_meeting||b.meeting)}</div>`};
+  const head=`<p class="note">${esc(W.name)}の要素を番号の順に置き、要素に当たる資料と議案を示します。資料の記載は項目ごとの段落です。年度は資料の年度です。文の頭の印は記載の種類、文の後ろの札は対応づけた事項（論点）です。出典：${W.url?A(W.url,lab(W.source)):esc(W.source)}</p>`+KIND_NOTE;
+  return head+W.nendo.slice().map(y=>{const gpos=y.elements.filter(e=>e.gian).map(e=>e.n);return `<div class="yrblk" id="${anchorOf(W.key+'/'+y.fiscal_year)}"><h3>${esc(W.name)}（${esc(wa(+y.fiscal_year))}）</h3><ol class="flow">${y.elements.map(ye=>{const e=W.elements.find(z=>z.n===ye.n)||{};
+    const body=ye.gian?(ye.gian.length?ye.gian.map(k=>BILL.get(k)).filter(Boolean).map(b=>billHtml(gpos.indexOf(ye.n),b)).join(''):`<span class="note">${NO_BILL}</span>`)
+      :ye.docs.length?ye.docs.map(x=>`<div class="dochead">${esc(docTitle(x.doc,((SUJI.get(x.suji[0])||{}).rows||[{}])[0].source))}　${esc(jd(x.date))}　${A((docOf(x.doc)||{}).url||(SUJI.get(x.suji[0])||{}).url,'出典')}</div>`+x.suji.map(k=>SUJI.get(k)).filter(Boolean).map(it=>para(it,true)).join('')+(x.nosuji?`<div class="note">項目の番号の無い行が${esc(x.nosuji)}件あります（事項の欄に出ます）。</div>`:'')).join('')
       :`<span class="note">${(e.shiryo||[]).length?NOREC:NO_SH}</span>`;
-    return `<li><div class="st">${esc(e.n)}. ${esc(e.name)}${e.source?`<small>${esc(e.source)}</small>`:''}</div><div class="bd">${body}</div></li>`}).join('')}</ol></div>`).join('');
+    return `<li><div class="st">${esc(e.n)}. ${esc(e.name)}${e.source?`<small>${esc(e.source)}</small>`:''}</div><div class="bd">${body}</div></li>`}).join('')}</ol></div>`}).join('');
 }
 
 /* ===== 事業の運営 ===== */

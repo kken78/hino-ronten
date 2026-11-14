@@ -176,14 +176,18 @@ class Data:
             | set(gi.expand(gm.TD, "data/ocr/*.txt"))
         self.doc_text = {p: gi.read_bytes(gm.TD, p).decode("utf-8") for p in sorted(self.doc_files)}
         self.scenes = gm.scene_of([self.index[s] for s in inp.order], self.proceedings)
-        self.votes, self.debates = {}, {}
+        self.segs = {}     # (会議の id, 議案の番号) → その会議の区切りのうち bills にその議案を含むもの（会議録の順）
         for mid, m in self.proceedings.items():
             for sg in m.get("segments") or []:
                 for b in sg.get("bills") or []:
-                    if sg.get("kind") == "vote":
-                        self.votes.setdefault((mid, b), []).append(sg)
-                    elif sg.get("kind") == "debate":
-                        self.debates.setdefault((mid, b), []).append(sg)
+                    self.segs.setdefault((mid, b), []).append(sg)
+
+    def bill_segments(self, mid, no, kind):
+        """議案の審議の区切り（LINK_SCHEMA §13.4 の bills）：議案の会議と、gian.json の decidedIn（議決の会議）が別なら
+        その会議の、kind の区切りのうち bills にその議案を含むもの。"""
+        a = next((x for x in (self.gian.get(mid) or {}).get("agenda") or [] if x["no"] == no), {})
+        mids = [mid] + ([a["decidedIn"]] if a.get("decidedIn") and a["decidedIn"] != mid else [])
+        return [sg for m in mids for sg in self.segs.get((m, no)) or [] if sg.get("kind") == kind]
 
     def sp_url(self, sid):
         """会議録の発言：やりとり（一般質問・議案の質疑）の中なら検索の画面、外なら会議録の原本 PDF（§13）。"""
@@ -412,16 +416,50 @@ def build_bills(d, keys):
     for key in sorted(keys):
         mid, no = key[3:].split("/")
         a = next(x for x in d.gian[mid]["agenda"] if x["no"] == no)
-        votes = d.votes.get((mid, no)) or []
+        votes = sorted(d.bill_segments(mid, no, "vote"), key=lambda sg: sg.get("date", ""))
         date = votes[0]["date"] if votes else (d.meetings.get(mid) or {}).get("date", "")
         debates = [dict(date=sg.get("date", ""), member=member_of(sg), stance=sg.get("stance", ""), sid=f"sp:{sg['from']}",
-                        url=d.sp_url(sg["from"])) for sg in d.debates.get((mid, no)) or []]
+                        url=d.sp_url(sg["from"])) for sg in d.bill_segments(mid, no, "debate")]
         out.append(dict(key=key, meeting_id=mid, meeting=meeting_name(d, mid), date=date, no=no,
                         kind=a.get("kind", ""), title=a.get("title", ""), committee=a.get("committee", ""),
                         result=a.get("result", ""), method=a.get("method", ""),
                         debates=sorted(debates, key=lambda x: (x["date"], x["sid"])),
-                        url=(d.meetings.get(mid) or {}).get("url", ""), layer=CONFIRMED))
+                        url=(d.meetings.get(mid) or {}).get("url", ""),
+                        kessan=bill_kessan(d, mid, no, a, votes) if a.get("kind") == KESSAN else {}, layer=CONFIRMED))
     return sorted(out, key=lambda x: (x["date"], x["key"]))
+
+
+KESSAN = "決算"
+RE_KESSAN_FY = re.compile(r"(令和|平成)(元|[0-9]+)年度")
+ERA_BASE = {"令和": 2018, "平成": 1988}
+STEP_KIND = {"shitsugi": "質疑", "report": "委員長の報告", "debate": "討論"}
+
+
+def kessan_year(title):
+    """決算の議案の題（§4 の正規化のあと）の「令和N年度」「平成N年度」（元年は1）→ 西暦の年度（YYYY）。取れなければ空。"""
+    m = RE_KESSAN_FY.search(unicodedata.normalize("NFKC", title or ""))
+    if not m:
+        return ""
+    return str(ERA_BASE[m.group(1)] + (1 if m.group(2) == "元" else int(m.group(2))))
+
+
+def bill_kessan(d, mid, no, a, votes):
+    """決算の議案の審議（LINK_SCHEMA §13.3・§13.4 の bills の kessan。DESIGN.md ADR-37 の経過、2026-11-14 の2つめ）。"""
+    dec = a.get("decidedIn") or mid
+    proposals = [dict(date=sg.get("date", ""), role=sg.get("role") or "", sid=f"sp:{sg['from']}", url=d.sp_url(sg["from"]))
+                 for sg in d.bill_segments(mid, no, "proposal") if sg.get("from")]
+    steps = []
+    for kind in STEP_KIND:
+        for sg in d.bill_segments(mid, no, kind):
+            if not sg.get("from"):
+                continue
+            steps.append(dict(kind=STEP_KIND[kind], date=sg.get("date", ""), member=member_of(sg), committee=sg.get("committee") or "",
+                              nbills=len(sg.get("bills") or []), stance=sg.get("stance") or "", sid=f"sp:{sg['from']}",
+                              url=d.sp_url(sg["from"])))
+    return dict(fiscal_year=kessan_year(a.get("title")), decided_meeting_id=dec, decided_meeting=meeting_name(d, dec),
+                vote_date=votes[0]["date"] if votes else "",
+                proposals=sorted(proposals, key=lambda x: (x["date"], x["sid"])),
+                steps=sorted(steps, key=lambda x: (x["date"], x["sid"])))
 
 
 def build_docs(d, keys):
@@ -922,16 +960,22 @@ def build_waku(d, data, themes_rows, theme, tk, waku):
                                  shiryo=shiryo, points=points, rec=rec, gikai=gikai))
         out.append(dict(key=key, name=head.get("name", ""), source=head.get("source", ""),
                         url=source_url(d, head.get("source", "")), note=head.get("note", ""), elements=elements,
-                        nendo=build_nendo(d, data, elements), layer=CONFIRMED))
+                        nendo=build_nendo(d, data, elements, key[5:]), layer=CONFIRMED))
     return out
 
 
-def build_nendo(d, data, elements):
+def build_nendo(d, data, elements, waku_id=""):
     """要素に資料の種類が当たる枠組みの、資料の年度ごとの要素と資料と項目（§13.3・§13.4 の waku の nendo）。
     資料の年度は hino-town-docs の data/sources.tsv の fiscal_year。年度の無い資料は入れず、件数を表示する。"""
     by_shurui = {sh: e["n"] for e in elements for sh in e["shiryo"]}
     if not by_shurui:
         return []
+    gian_ns = GIAN_ELEMENTS.get(waku_id, ())
+    bills = {}
+    for b in data["bills"] if gian_ns else []:
+        fy = (b.get("kessan") or {}).get("fiscal_year")
+        if fy:
+            bills.setdefault(fy, []).append(b["key"])
     R = data["records"]
     docs = {}     # 資料の id → {n, date, nosuji}
     for name in ("kotogara", "kisai"):
@@ -947,7 +991,7 @@ def build_nendo(d, data, elements):
     suji = {}
     for x in data["suji"]:
         suji.setdefault(x["doc"], []).append(x)
-    years, skipped = {}, []
+    years, skipped = {fy: {} for fy in bills}, []
     for did in sorted(docs):
         fy = (d.docs.get(did) or {}).get("fiscal_year", "")
         if not fy:
@@ -959,8 +1003,15 @@ def build_nendo(d, data, elements):
             doc=f"doc:{did}", date=docs[did]["date"], suji=[x["key"] for x in items], nosuji=docs[did]["nosuji"]))
     if skipped:
         print(f"  資料の年度（fiscal_year）の無い資料：{len(skipped)}件（{'・'.join(skipped)}。nendo に入れない）")
-    return [dict(fiscal_year=fy, elements=[dict(n=e["n"], docs=years[fy].get(e["n"], [])) for e in elements])
+    return [dict(fiscal_year=fy, elements=[dict(n=e["n"], docs=years[fy].get(e["n"], []),
+                                                 **({"gian": sorted(bills.get(fy, []))} if e["n"] in gian_ns else {}))
+                                            for e in elements])
             for fy in sorted(years)]
+
+
+# 議案を置く枠組みの要素（ref/waku.tsv の n）。参照表に列を足さないため、この決まりで持つ
+# （LINK_SCHEMA §13.4 の waku の nendo の議案。DESIGN.md ADR-37 の経過、2026-11-14 の2つめ）
+GIAN_ELEMENTS = {"kessan-nintei": (3, 4, 5)}
 
 
 def quote_pos(d, source, quote):

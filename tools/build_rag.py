@@ -130,7 +130,12 @@ def kis_ref(r):
     return "records/kisai/" + "/".join(str(r[c]) for c in records.KEYS["kisai"])
 
 
-NO_SHURUI = "未記録（この段階に当たる資料の種類は、まだ決めていません）"   # LINK_SCHEMA §16.4（ADR-37 の経過、2026-11-14）
+# LINK_SCHEMA §16.4 の決まった文（DESIGN.md ADR-37 の経過、2026-11-14 の2つめ）
+NO_SHURUI = "資料は、まだ記録していません。"
+NO_BILL = "この年度の決算の議案は、まだ記録していません。"
+NO_PROPOSAL = "提案の説明は、会議録の区切りのデータにありません。"
+NO_STEPS = "質疑・委員長の報告・討論は、会議録の区切りのデータにありません。"
+NO_IINKAI = "委員会の会議録はありません。"
 WAKU_NOTE = ("要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。"
              "「資料別の記載年」は資料の日付の年で、未確認の記録を含みます。"
              "「議会での質問・答弁の記録数」は、その事項について記録した一般質問・議案質疑の、確定した行の数です。")
@@ -192,7 +197,7 @@ class Rag:
                 self.kis.setdefault(r["about"], []).append(r)
         for rows in self.kis.values():
             rows.sort(key=lambda r: (r["source_date"], r["source"], r["title"]))
-        # 項目の置き場所（LINK_SCHEMA §16.1・§17.2）：要素に資料の種類が当たる枠組みの年度ごとの段階か、<資料の種類>の節
+        # 項目の置き場所（LINK_SCHEMA §16.1・§17.2）：要素に資料の種類が当たる枠組みの年度ごとの要素か、<資料の種類>の節
         self.flows = [w for w in data.get("waku") or [] if w.get("nendo")]
         self.place = {}
         for w in self.flows:
@@ -392,7 +397,8 @@ class Rag:
         doc.li("欄「記載の種類」の事実・見通し・評価・要望は、資料の作成者（監査委員など）が記した内容の種類です。"
                "評価・要望・見通しの区分は論点ノートによる評価ではありません")
         doc.li("欄「項目」は、その記載が資料のどの項目（監査委員の資料では意見の項目）の何件目の文かを示します。項目の全部の文は、本編の「年度ごとの節目」の枠組みの流れ（決算の認定までの流れなど）か、資料の種類の節（定期監査の報告など）に、項目ごとの段落で書いています。"
-               "項目の段落では、文の前の［ ］が記載の種類、文の後ろの（事項：…）が対応づけた事項（論点）です")
+               "項目の段落では、文の前の［ ］が記載の種類、文の後ろの（事項：…）が対応づけた事項（論点）です。"
+               "決算の認定までの流れでは、要素ごとに、要素に当たる資料の項目か、議案（提案の説明・質疑・委員長の報告・討論・議決）を書いています")
         doc.li("「【未確認】」の段落と「照合結果（未確認）」の節は、機械による照合の結果か、人による確認が済んでいない記録です")
         doc.li(ARCHIVE_NOTE)
         doc.li("評価や判断は加えていません。議員ごとの件数や順位は示していません")
@@ -538,10 +544,21 @@ class Rag:
         for w in self.flows:
             for y in w["nendo"]:
                 doc.h(3, f"{self.pname}：年度ごとの節目：{w['name']}（{fy_name(int(y['fiscal_year']))}）")
-                doc.p(f"{w['name']}の段階を順に置き、段階に当たる資料の記載を、項目ごとの段落で示します。年度は資料の年度です。")
+                doc.p(f"{w['name']}の要素を番号の順に置き、要素に当たる資料と議案を示します。資料の記載は項目ごとの段落です。年度は資料の年度です。")
+                gpos = [z["n"] for z in y["elements"] if "gian" in z]
                 for ye in y["elements"]:
                     e = next((z for z in w["elements"] if z["n"] == ye["n"]), {})
                     head = f"要素{ye['n']}：{e.get('name', '')}" + (f"（{e['source']}）" if e.get("source") else "")
+                    if "gian" in ye:
+                        bills = [b for b in self.d.get("bills") or [] if b["key"] in ye["gian"]]
+                        if not bills:
+                            doc.p(f"{head}。{NO_BILL}")
+                        for b in bills:
+                            doc.p(f"{head}。")
+                            for t in self.bill_lines(gpos.index(ye["n"]), b):
+                                doc.li(t)
+                            doc.end_list()
+                        continue
                     if not ye["docs"]:
                         doc.p(f"{head}。{NOREC if e.get('shiryo') else NO_SHURUI}")
                         continue
@@ -552,7 +569,30 @@ class Rag:
                                 doc.li(self.item_text(self.suji[k]))
                         doc.end_list()
                         if x.get("nosuji"):
-                            doc.p(f"このほか、項目に分けていない記録の行が{x['nosuji']}件あります（事項の所に出ます）。")
+                            doc.p(f"項目の番号の無い行が{x['nosuji']}件あります（事項の所に出ます）。")
+
+    @staticmethod
+    def bill_lines(pos, b):
+        """議案を置く枠組みの要素の箇条（LINK_SCHEMA §16.1・§17.2）。pos は議案を置く要素の中の順（0 提出・1 審議・2 議決）。"""
+        k = b.get("kessan") or {}
+        giin = lambda m: f"{(m.get('seat') + ' ') if m.get('seat') else ''}{m.get('name')} 議員"
+        if pos == 0:
+            out = [f"議案：{b.get('meeting')}の{b.get('no')}「{b.get('title')}」（出典：{b.get('url')}）"]
+            out += [f"［{jd(x['date'])}］提案の説明：{x.get('role')}（出典：{x.get('url')}）" for x in k.get("proposals") or []] or [NO_PROPOSAL]
+            return out
+        if pos == 1:
+            out = []
+            for x in k.get("steps") or []:
+                if x["kind"] == "質疑":
+                    out.append(f"［{jd(x['date'])}］質疑：{giin(x['member'])}（{x['nbills']}議案について）（出典：{x.get('url')}）")
+                elif x["kind"] == "委員長の報告":
+                    out.append(f"［{jd(x['date'])}］委員長の報告：{x.get('committee')}（{x['nbills']}議案について）（出典：{x.get('url')}）")
+                else:
+                    out.append(f"［{jd(x['date'])}］討論：{giin(x['member'])}" + (f"。賛否：{x['stance']}" if x.get("stance") else "")
+                               + f"（出典：{x.get('url')}）")
+            return (out or [NO_STEPS]) + [NO_IINKAI]
+        return [f"議決：{b.get('result')}。採決の方法：{b.get('method')}。" + (f"採決の日付：{jd(k['vote_date'])}。" if k.get("vote_date") else "")
+                + f"議決の会議：{k.get('decided_meeting') or b.get('meeting')}（出典：{b.get('url')}）"]
 
     def section_lines(self, doc):
         """<資料の種類>の節（LINK_SCHEMA §16.1・§17.2）：資料ごとに項目の段落。資料の並びは資料の日付の順。"""
