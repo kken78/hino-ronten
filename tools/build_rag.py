@@ -161,6 +161,52 @@ WAKU_NOTE = ("要素の名前は出典の語のままです。要素間の関係
              "「議会での質問・答弁の記録数」は、その事項について記録した一般質問・議案質疑の、確定した行の数です。")
 
 
+def para_text(rows):
+    """提案の説明の発言の段落の記録の行（bills の kessan の proposals の paras の rows。LINK_SCHEMA §17、2026-11-15）：
+    ［<記載の種類>］「<文>」（事項：<事項の名前>）…。同じ文を2つ以上の行に記録したときは、文を1回だけ書き、事項を「、」で並べる
+    （記載の種類が文と違う行の事項は「<事項の名前>（<記載の種類>）」）。記録（未確認）の文は【未確認】を付ける。"""
+    bun = []
+    for r in rows:
+        if bun and bun[-1]["quote"] == r["quote"]:
+            bun[-1]["points"].append(r)
+            bun[-1]["layer"] = bun[-1]["layer"] if r.get("layer") == CONFIRMED else r.get("layer")
+        else:
+            bun.append(dict(quote=r["quote"], kind=r["kind"], layer=r.get("layer"), points=[r]))
+    parts = []
+    for b in bun:
+        pts = [y["point"] + (f"（{y['kind']}）" if y["kind"] != b["kind"] else "") for y in b["points"] if y.get("point")]
+        parts.append(f"{'【未確認】' if b['layer'] != CONFIRMED else ''}［{b['kind']}］「{b['quote']}」" + (f"（事項：{'、'.join(pts)}）" if pts else ""))
+    return "".join(parts)
+
+
+def qa_head(st, r, giin):
+    """質疑の記録の発言の見出し（LINK_SCHEMA §16.1・§17）：問いは「問い　<議席と議員の名前>」、回が再質問なら「再質問N　…」、
+    答えは「答え　<役職>」。"""
+    if r["side"] == "問い":
+        return f"{r['round'] if r.get('round') and r['round'] != '最初の問い' else '問い'}　{giin(st['member'])}"
+    return f"答え　{r.get('speaker')}"
+
+
+def qa_lines(st, giin):
+    """質疑の記録の行（steps の rows。LINK_SCHEMA §17、2026-11-15）：発言ごとに「<見出し>：「<文>」「<文>」…（事項：<事項の名前>）」。
+    事項は、同じ事項が続く間は書かず、事項が変わる所の前と、箇条の終わりに書く。事項の無い文は書かない。"""
+    groups = []
+    for r in st.get("rows") or []:
+        if groups and groups[-1][-1]["sid"] == r["sid"]:
+            groups[-1].append(r)
+        else:
+            groups.append([r])
+    out = []
+    for g in groups:
+        parts = []
+        for i, r in enumerate(g):
+            nx = g[i + 1] if i + 1 < len(g) else None
+            parts.append(f"{'【未確認】' if r.get('layer') != CONFIRMED else ''}「{r['quote']}」"
+                         + (f"（事項：{r['point']}）" if r.get("point") and (nx is None or nx.get("point") != r["point"]) else ""))
+        out.append(f"{qa_head(st, g[0], giin)}：{''.join(parts)}")
+    return out
+
+
 class Rag:
     def __init__(self, data, data_bytes, view):
         self.d = data
@@ -598,13 +644,16 @@ class Rag:
         giin = lambda m: f"{(m.get('seat') + ' ') if m.get('seat') else ''}{m.get('name')} 議員"
         if pos == 0:
             out = [f"議案：{b.get('meeting')}の{b.get('no')}「{b.get('title')}」（出典：{b.get('url')}）"]
-            out += [f"［{jd(x['date'])}］提案の説明：{x.get('role')}（出典：{x.get('url')}）" for x in k.get("proposals") or []] or [NO_PROPOSAL]
-            return out
+            for x in k.get("proposals") or []:
+                out.append(f"［{jd(x['date'])}］提案の説明：{x.get('role')}（出典：{x.get('url')}）")
+                out += [f"提案の説明の記載（{x.get('role')}。段落{g['p']}）：{para_text(g.get('rows') or [])}" for g in x.get("paras") or []]
+            return out if k.get("proposals") else out + [NO_PROPOSAL]
         if pos == 1:
             out = []
             for x in k.get("steps") or []:
                 if x["kind"] == "質疑":
                     out.append(f"［{jd(x['date'])}］質疑：{giin(x['member'])}（{x['nbills']}議案について）（出典：{x.get('url')}）")
+                    out += qa_lines(x, giin)
                 elif x["kind"] == "委員長の報告":
                     out.append(f"［{jd(x['date'])}］委員長の報告：{x.get('committee')}（{x['nbills']}議案について）（出典：{x.get('url')}）")
                 else:

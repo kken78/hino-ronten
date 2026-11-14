@@ -876,6 +876,66 @@ class FrameBuildTest(unittest.TestCase):
         # 決算でない議案は kessan が空
         self.assertEqual(build()["bills"][0]["kessan"], {})
 
+    def test_kessan_paras_and_rows(self):
+        # 提案の説明の paras と、質疑の rows（LINK_SCHEMA §13.4 の bills の kessan。2026-11-15）
+        import types
+        text = "前置きです。\n\n介護保険は３年目です。給付費は８１．６％でした。\n　\n後期高齢者医療は増えました。\n一体的な実施が始まっています。連携をお願いします。"
+        self.assertEqual([p for p, _ in bt.speech_paras(text)], [1, 2, 3, 4])      # 空の段落（空白だけを含む）を除いて1から
+        self.assertEqual(bt.para_of(text, "給付費は81.6%でした。")[0], 2)           # §4 の正規化のあとで探す
+        self.assertEqual(bt.para_of(text, "でした。後期高齢者")[0], 2)                # 段落の境をまたぐときは始まりの段落
+        self.assertIsNone(bt.para_of(text, "無い文。"))
+        d = types.SimpleNamespace(index={"P1": {"text": text}, "P2": {"text": "ほかの発言。"}})
+        kot = lambda **kw: dict(dict(point="給付費の計画と実績", source="sp:P1", source_date="2024-09-02", quote="", value="", target="",
+                                     kind="いまのこと", prev="", reason="", yaritori="", suji="", status="confirmed", reviewer="", date="",
+                                     note="", layer=bt.CONFIRMED), **kw)
+        kis = lambda **kw: dict(dict(title="t", about="介護予防の取り組み", source="sp:P1", source_date="2024-09-02", quote="", kind="要望",
+                                     target="", suji="", status="candidate", reviewer="", date="", note="", layer=bt.UNCONFIRMED), **kw)
+        sq = lambda row, **kw: dict(dict(question="sq:Q1", n="1", row=row, bills="", side="問い", sid="sp:Q1", quote=f"文{row}。",
+                                         speaker="議員", round="最初の問い", stage="", kind="", answers="", target="", target_text="",
+                                         point="", status="confirmed", reviewer="", date="", note="", layer=bt.CONFIRMED), **kw)
+        member = {"key": "mb:松田洋子", "name": "松田洋子", "seat": "4番"}
+        data = {"records": {
+            "kotogara": [kot(quote="給付費は81.6%でした。"), kot(quote="ほかの発言。", source="sp:P2")],
+            "kisai": [kis(quote="連携をお願いします。", title="a"), kis(quote="一体的な実施が始まっています。", kind="事実", title="b"),
+                      kis(quote="資料の文。", source="doc:x/1", title="c")],
+            "shitsugi": [{"question": "sq:Q1", "rows": [sq("10", side="答え", sid="sp:Q2", speaker="厚生主監", point="A"),
+                                                        sq("2", point="A"), sq("1")]}]},
+            "bills": [{"kessan": {}},
+                      {"kessan": {"proposals": [dict(date="2024-09-02", role="代表監査委員", sid="sp:P1", url="u"),
+                                                dict(date="2024-09-02", role="町長", sid="sp:P3", url="u")],
+                                  "steps": [dict(kind="質疑", sid="sp:Q1", member=member), dict(kind="質疑", sid="sp:Q9", member=member),
+                                            dict(kind="委員長の報告", sid="sp:R1", member=member)]}}]}
+        bt.add_kessan_records(d, data)
+        k = data["bills"][1]["kessan"]
+        p1, p3 = k["proposals"]
+        self.assertEqual([(g["p"], [(r["ledger"], r["point"], r["kind"], r["quote"], r["layer"]) for r in g["rows"]]) for g in p1["paras"]],
+                         [(2, [("kotogara", "給付費の計画と実績", "事実", "給付費は81.6%でした。", bt.CONFIRMED)]),
+                          (4, [("kisai", "介護予防の取り組み", "事実", "一体的な実施が始まっています。", bt.UNCONFIRMED),
+                               ("kisai", "介護予防の取り組み", "要望", "連携をお願いします。", bt.UNCONFIRMED)])])
+        self.assertEqual(set(p1["paras"][0]["rows"][0]), {"ledger", "ref", "point", "kind", "quote", "layer"})
+        self.assertTrue(p1["paras"][0]["rows"][0]["ref"].startswith("records/kotogara/"))
+        self.assertEqual(p3["paras"], [])                      # 記録の行が無ければ空
+        q1, q9, rpt = k["steps"]
+        self.assertEqual([(r["row"], r["side"], r["sid"], r["speaker"], r["point"]) for r in q1["rows"]],
+                         [("1", "問い", "sp:Q1", "議員", ""), ("2", "問い", "sp:Q1", "議員", "A"), ("10", "答え", "sp:Q2", "厚生主監", "A")])
+        self.assertEqual(set(q1["rows"][0]), {"row", "side", "sid", "speaker", "round", "quote", "point", "layer"})
+        self.assertEqual(q9["rows"], [])
+        self.assertNotIn("rows", rpt)                         # 質疑のほかの行には持たない
+        self.assertEqual(data["bills"][0]["kessan"], {})
+        # about が空で source が発言の kisai の行は、同じ段落にテーマの行があるときだけ入れる（rejected は入れない）
+        led = {"kisai": [kis(quote="介護保険は３年目です。", about="", kind="事実", title="e", status="confirmed"),
+                         kis(quote="後期高齢者医療は増えました。", about="", kind="事実", title="f", status="confirmed"),
+                         kis(quote="前置きです。", about="", kind="事実", title="g", status="rejected")]}
+        bt.add_kessan_records(d, data, led)
+        self.assertEqual([(g["p"], [(r["point"], r["kind"], r["quote"], r["layer"]) for r in g["rows"]]) for g in p1["paras"]],
+                         [(2, [("", "事実", "介護保険は３年目です。", bt.CONFIRMED), ("給付費の計画と実績", "事実", "給付費は81.6%でした。", bt.CONFIRMED)]),
+                          (4, [("介護予防の取り組み", "事実", "一体的な実施が始まっています。", bt.UNCONFIRMED),
+                               ("介護予防の取り組み", "要望", "連携をお願いします。", bt.UNCONFIRMED)])])
+        # 引用が発言の本文に無い行は止める
+        data["records"]["kisai"].append(kis(quote="本文に無い文。", title="d"))
+        with self.assertRaises(bt.BuildError):
+            bt.add_kessan_records(d, data)
+
     def test_without_frame(self):
         # 参照表が無ければ、waku・shiryo・suji は空で、行の shurui も空（ほかの題材の画面は変わらない）
         data = build()

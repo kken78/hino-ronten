@@ -419,9 +419,18 @@ function flowHtml(W){
   const BILL=new Map(D.bills.map(b=>[b.key,b]));
   const giin=m=>`${m.seat?esc(m.seat)+' ':''}${esc(m.name)} 議員`;
   /* 議案を置く枠組みの要素（LINK_SCHEMA §16.1）：番号の順に、提出（提案の説明）・審議（質疑・委員長の報告・討論）・議決 */
+  /* 提案の説明の発言の記録の行（bills の kessan の proposals の paras。LINK_SCHEMA §16.1、2026-11-15）：段落ごとに項目の段落と同じ形。
+     同じ文を2つ以上の行に記録したときは、文を1回だけ出して札を行の数だけ付ける */
+  const bunOf=rows=>{const out=[];rows.forEach(r=>{const l=out[out.length-1],pt={point:r.point,kind:r.kind};if(l&&l.quote===r.quote){l.points.push(pt);if(r.layer!=='確定')l.layer=r.layer}else out.push({quote:r.quote,kind:r.kind,layer:r.layer,points:[pt]})});return out};
+  const propParas=x=>(x.paras||[]).map(g=>para({bun:bunOf(g.rows||[])},false)).join('');
+  /* 質疑の記録の行（steps の rows。LINK_SCHEMA §16.1、2026-11-15）：発言ごとに見出しと、引用を字のまま row の順に1つの段落に。
+     事項の札は、同じ事項が続く間は付けず、事項が変わる所の前と段落の終わりに付ける */
+  const qaHead=(st,r)=>r.side==='問い'?`${r.round&&r.round!=='最初の問い'?esc(r.round):'問い'}　${giin(st.member)}`:`答え　${esc(r.speaker)}`;
+  const qaRows=st=>{const g=[];(st.rows||[]).forEach(r=>{const l=g[g.length-1];if(l&&l.sid===r.sid)l.rows.push(r);else g.push({sid:r.sid,rows:[r]})});
+    return g.map(s=>`<div class="dochead">${qaHead(st,s.rows[0])}</div><p class="para">${s.rows.map((r,i)=>{const nx=s.rows[i+1];return esc(r.quote)+UM(r.layer)+(r.point&&(!nx||nx.point!==r.point)?`<span class="fuda">${esc(r.point)}</span>`:'')}).join(' ')}</p>`).join('')};
   const billHtml=(pos,b)=>{const k=b.kessan||{};
-    if(pos===0)return `<div class="dochead">${esc(b.meeting)}　${A(b.url,b.no+'「'+b.title+'」')}</div>`+((k.proposals||[]).length?`<ul class="plain">${k.proposals.map(x=>`<li>${esc(jd(x.date))}　提案の説明　${esc(x.role)}　${A(x.url,'会議録')}</li>`).join('')}</ul>`:'<div class="note">提案の説明は、この会議の会議録にあります。発言ごとの出典は、まだ示していません。</div>');
-    if(pos===1)return ((k.steps||[]).length?`<ul class="plain">${k.steps.map(x=>`<li>${esc(jd(x.date))}　${x.kind==='委員長の報告'?`${esc(x.committee)}の委員長の報告（${esc(x.nbills)}議案について）`:x.kind==='質疑'?`質疑　${giin(x.member)}（${esc(x.nbills)}議案について）`:`討論　${giin(x.member)}${x.stance?`（${esc(x.stance)}）`:''}`}　${A(x.url,'会議録')}</li>`).join('')}</ul>`:'<div class="note">質疑・委員長の報告・討論は、まだ記録していません。</div>')+'<div class="note">委員会の会議録はありません。</div>';
+    if(pos===0)return `<div class="dochead">${esc(b.meeting)}　${A(b.url,b.no+'「'+b.title+'」')}</div>`+((k.proposals||[]).length?`<ul class="plain">${k.proposals.map(x=>`<li>${esc(jd(x.date))}　提案の説明　${esc(x.role)}　${A(x.url,'会議録')}${propParas(x)}</li>`).join('')}</ul>`:'<div class="note">提案の説明は、この会議の会議録にあります。発言ごとの出典は、まだ示していません。</div>');
+    if(pos===1)return ((k.steps||[]).length?`<ul class="plain">${k.steps.map(x=>`<li>${esc(jd(x.date))}　${x.kind==='委員長の報告'?`${esc(x.committee)}の委員長の報告（${esc(x.nbills)}議案について）`:x.kind==='質疑'?`質疑　${giin(x.member)}（${esc(x.nbills)}議案について）`:`討論　${giin(x.member)}${x.stance?`（${esc(x.stance)}）`:''}`}　${A(x.url,'会議録')}${x.kind==='質疑'?qaRows(x):''}</li>`).join('')}</ul>`:'<div class="note">質疑・委員長の報告・討論は、まだ記録していません。</div>')+'<div class="note">委員会の会議録はありません。</div>';
     return `<div><b>${esc(b.result)}</b>（${esc(b.method)}）${k.vote_date?'　'+esc(jd(k.vote_date)):''}　${esc(k.decided_meeting||b.meeting)}</div>`};
   const la=lawArticle(W.source);
   const head=`<p class="note">${la?`${esc(la)}の手続きの順に、資料と議案を示します。`:`${esc(W.name)}の要素の順に、資料と議案を示します。`}資料の記載は項目ごとの段落です。年度は資料の年度です。文の頭の印は記載の種類、文の後ろの札は対応づけた事項（論点）です。出典：${W.url?A(W.url,lab(W.source)):esc(W.source)}</p>`+KIND_NOTE;
