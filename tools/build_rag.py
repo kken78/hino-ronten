@@ -133,8 +133,28 @@ def kis_ref(r):
 # LINK_SCHEMA §16.4 の決まった文（DESIGN.md ADR-37 の経過、2026-11-14 の2つめ）
 NO_SHURUI = "資料は、まだ記録していません。"
 NO_BILL = "この年度の決算の議案は、まだ記録していません。"
-NO_PROPOSAL = "提案の説明は、会議録の区切りのデータにありません。"
-NO_STEPS = "質疑・委員長の報告・討論は、会議録の区切りのデータにありません。"
+NO_PROPOSAL = "提案の説明は、まだ記録していません。"
+NO_STEPS = "質疑・委員長の報告・討論は、まだ記録していません。"
+RE_LAW_ARTICLE = re.compile(r"([^\s（）、・0-9]+?(?:法律|法))(?:（[^）]*）)?第?([0-9]+)条")
+
+
+def law_article(text):
+    """法令の条項の字（ref/waku.tsv の source、ref/shiryo.tsv の konkyo）の最初の条項 →「地方自治法233条」。取れなければ空
+    （LINK_SCHEMA §16.4。2026-11-14 の3つめ）。"""
+    m = RE_LAW_ARTICLE.match(text or "")
+    return f"{m.group(1)}{m.group(2)}条" if m else ""
+
+
+def flow_lead(w):
+    """年度ごとの節目の<枠組みの名前>の頭の最初の文（LINK_SCHEMA §16.4）。"""
+    la = law_article(w.get("source"))
+    return f"{la}の手続きの順に、資料と議案を示します。" if la else f"{w.get('name')}の要素の順に、資料と議案を示します。"
+
+
+def section_lead(sh_row, shurui, flows):
+    """<資料の種類>の節の頭の文（LINK_SCHEMA §16.4）。konkyo から法令の条が取れなければ最初の文を書かない。"""
+    la = law_article((sh_row or {}).get("konkyo"))
+    return (f"{la}による{shurui}です。" if la else "") + (f"{'・'.join(w['name'] for w in flows)}とは別のものです。" if flows else "")
 NO_IINKAI = "委員会の会議録はありません。"
 WAKU_NOTE = ("要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。"
              "「資料別の記載年」は資料の日付の年で、未確認の記録を含みます。"
@@ -544,7 +564,7 @@ class Rag:
         for w in self.flows:
             for y in w["nendo"]:
                 doc.h(3, f"{self.pname}：年度ごとの節目：{w['name']}（{fy_name(int(y['fiscal_year']))}）")
-                doc.p(f"{w['name']}の要素を番号の順に置き、要素に当たる資料と議案を示します。資料の記載は項目ごとの段落です。年度は資料の年度です。")
+                doc.p(f"{flow_lead(w)}資料の記載は項目ごとの段落です。年度は資料の年度です。")
                 gpos = [z["n"] for z in y["elements"] if "gian" in z]
                 for ye in y["elements"]:
                     e = next((z for z in w["elements"] if z["n"] == ye["n"]), {})
@@ -569,7 +589,7 @@ class Rag:
                                 doc.li(self.item_text(self.suji[k]))
                         doc.end_list()
                         if x.get("nosuji"):
-                            doc.p(f"項目の番号の無い行が{x['nosuji']}件あります（事項の所に出ます）。")
+                            doc.p(f"この資料には、ここに出していない記載が{x['nosuji']}件あります（事項の所に出ます）。")
 
     @staticmethod
     def bill_lines(pos, b):
@@ -599,7 +619,7 @@ class Rag:
         for sh, items in self.sections.items():
             doc.h(2, f"{self.pname}：{sh}")
             doc.p("資料ごとに、記録した項目を段落で示します。"
-                  + (f"{'・'.join(w['name'] for w in self.flows)}とは別の手続きの資料です。" if self.flows else ""))
+                  + section_lead(next((x for x in self.d.get("shiryo") or [] if x.get("shurui") == sh), None), sh, self.flows))
             by = {}
             for x in items:
                 by.setdefault(x["doc"], []).append(x)

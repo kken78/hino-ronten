@@ -213,9 +213,20 @@ class FrameTest(unittest.TestCase):
         self.assertNotIn("同じ項目の記載", kiroku)
         self.assertIn("## 認定こども園整備事業：定期監査の報告", honpen)
         self.assertIn("### 認定こども園整備事業：定期監査の報告：再編整備計画（2025年3月）", honpen)
+        self.assertIn("資料ごとに、記録した項目を段落で示します。地方自治法199条による定期監査の報告です。\n", honpen)
         self.assertIn("- ［2025年3月］再編整備計画の項目1（suji:a/1）：【未確認】［事実］「計画は３年毎に見直す。」"
                       "［事実］「令和10年度の開設を目指します。」（事項：開園時期）【未確認】［要望］「留意されたい。」（事項：開園時期）（出典：", honpen)
         self.assertNotIn("：定期監査の報告：", built()[0])
+
+    def test_law_article(self):
+        # 法令の条（LINK_SCHEMA §16.4）：最初の条項から法令の名前と条
+        self.assertEqual([br.law_article(t) for t in ("地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索）", "地方自治法199条1項・2項・9項",
+                                                      "地方公共団体の財政の健全化に関する法律3条1項", "設置要綱", "", "pt:x/honpen/49")],
+                         ["地方自治法233条", "地方自治法199条", "地方公共団体の財政の健全化に関する法律3条", "", "", ""])
+        self.assertEqual(br.flow_lead({"name": "流れ", "source": "pt:x/honpen/49"}), "流れの要素の順に、資料と議案を示します。")
+        self.assertEqual(br.section_lead({"konkyo": "地方自治法199条1項"}, "定期監査の報告", [{"name": "決算の認定までの流れ"}]),
+                         "地方自治法199条による定期監査の報告です。決算の認定までの流れとは別のものです。")
+        self.assertEqual(br.section_lead({"konkyo": "設置要綱"}, "提言", []), "")
 
     def test_bill_lines(self):
         # 議案を置く枠組みの要素（LINK_SCHEMA §16.1・§17.2）：提出・審議・議決。無いものは決まった文
@@ -249,7 +260,8 @@ class FrameTest(unittest.TestCase):
         self.assertIn("### 認定こども園整備事業：年度ごとの節目：決算の流れ（令和6年度）", honpen)
         self.assertIn("要素1：調製（地方自治法233条1項）。" + br.NO_SHURUI, honpen)
         self.assertIn("要素2：審査（地方自治法233条2項）。資料：再編整備計画（2025年3月）", honpen)
-        self.assertIn("項目の番号の無い行が2件あります", honpen)
+        self.assertIn("この資料には、ここに出していない記載が2件あります（事項の所に出ます）。", honpen)
+        self.assertIn("地方自治法233条の手続きの順に、資料と議案を示します。資料の記載は項目ごとの段落です。", honpen)
         self.assertIn("枠組み：決算の流れ。出典：地方自治法（昭和二十二年法律第六十七号）第233条\n", honpen)
         self.assertIn("- 要素1：調製（地方自治法233条1項）。該当する事項：該当する事項なし。", honpen)
         # 流れに置いた項目は、資料の種類の節に重ねない

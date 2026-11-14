@@ -207,7 +207,7 @@ class Server:
                         out.append(f"{head}。{br.NOREC if e.get('shiryo') else br.NO_SHURUI}")
                     for x in ye["docs"]:
                         out.append(f"{head}。{r.doc_title(x['doc'], r.suji.get((x['suji'] or [''])[0]))}（{br.jd(x['date'])}）：" + "、".join(f"[{k}]" for k in x["suji"])
-                                   + (f"。項目の番号の無い行が{x['nosuji']}件" if x.get("nosuji") else ""))
+                                   + (f"。この資料には、ここに出していない記載が{x['nosuji']}件" if x.get("nosuji") else ""))
         for sh, items in r.sections.items():     # 枠組みの要素に当たらない資料の種類（資料ごと）
             out += ["", f"## {sh}（資料ごと。項目は fetch で suji: を取る）"]
             by = {}
