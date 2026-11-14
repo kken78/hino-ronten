@@ -155,6 +155,119 @@ def built(**kw):
     return br.build(data(**kw), P)
 
 
+def frame_data():
+    """枠・資料の種類・筋のある見本（LINK_SCHEMA §17.1〜§17.3。DESIGN.md ADR-37）。開園時期の事柄の行と、about 開園時期と
+    about 空の記載の行を、資料 doc:a の筋1 にする。"""
+    d = json.loads(data())
+    k = d["records"]["kotogara"][0]
+    k.update(suji="1", suji_key="suji:a/1", shurui="定期監査の報告")
+    d["records"]["kisai"] += [
+        {"title": "要望の文", "about": "開園時期", "source": "doc:a/1", "source_date": "2025-03", "quote": "留意されたい。",
+         "kind": "要望", "target": "", "suji": "1", "suji_key": "suji:a/1", "shurui": "定期監査の報告", "url": U + "a.pdf#page=1",
+         "layer": "論点の候補"},
+        {"title": "計画の期", "about": "", "source": "doc:a/1", "source_date": "2025-03", "quote": "計画は３年毎に見直す。",
+         "kind": "事実", "target": "", "suji": "1", "suji_key": "suji:a/1", "shurui": "定期監査の報告", "url": U + "a.pdf#page=1",
+         "layer": "論点の候補"}]
+    rows = [("kisai", "records/kisai/計画の期/doc:a/1", "", "事実", "計画は３年毎に見直す。"),
+            ("kotogara", "records/kotogara/開園時期/doc:a/1/令和10年度の開設を目指します。", "開園時期", "事実", "令和10年度の開設を目指します。"),
+            ("kisai", "records/kisai/要望の文/doc:a/1", "開園時期", "要望", "留意されたい。")]
+    d["suji"] = [{"key": "suji:a/1", "doc": "doc:a", "n": 1, "shurui": "定期監査の報告", "url": U + "a.pdf", "layer": "記録（未確認）",
+                  "rows": [{"ledger": l, "ref": r, "point": p, "kind": k2, "target": "", "quote": q, "source": "doc:a/1",
+                            "source_date": "2025-03", "page": 1, "pos": i, "layer": "記録（未確認）"} for i, (l, r, p, k2, q) in enumerate(rows)]}]
+    d["suji"][0]["bun"] = [{"quote": q, "kind": k2, "refs": [r], "points": [{"point": p, "kind": k2}], "layer": "記録（未確認）" if l == "kisai" else "確定"}
+                           for l, r, p, k2, q in rows]
+    d["waku"] = [{"key": "waku:w", "name": "流れ", "source": "pt:x/honpen/49", "url": U + "x.pdf#page=49", "note": "", "layer": "確定", "nendo": [],
+                  "elements": [{"view": "waku:w/1", "n": 1, "name": "開園の推計", "note": "", "points": ["開園時期"],
+                                "rec": {"定期監査の報告": ["2025"]}, "gikai": 2},
+                               {"view": "waku:w/2", "n": 2, "name": "単価の設定", "note": "図の注「※改定反映」", "points": [], "rec": {},
+                                "gikai": 0}]}]
+    d["shiryo"] = [{"shurui": "定期監査の報告", "match": "a", "tsukuru": "監査委員（合議）", "konkyo": "地方自治法199条",
+                    "atesaki": "議会・町長", "outou": "措置の通知と公表", "source": "見本", "note": ""}]
+    d["names"]["sources"]["pt:x/honpen/49"] = "第9期計画"
+    return json.dumps(d, ensure_ascii=False).encode("utf-8")
+
+
+class FrameTest(unittest.TestCase):
+    def test_honpen(self):
+        honpen, kiroku = br.build(frame_data(), P)
+        # 主な事項の記載の推移に、about がその事柄の記載の行も入り、項目の欄を書く
+        self.assertIn("- 【未確認】［2025年3月］再編整備計画：資料の種類：定期監査の報告。見出し：要望の文。記載の種類：要望。"
+                      "項目：再編整備計画の項目1（3件のうち3件目。suji:a/1）。「留意されたい。」", honpen)
+        self.assertIn("資料の種類：定期監査の報告。対象の時期：令和10年度。書き方：予定。項目：再編整備計画の項目1（3件のうち2件目。suji:a/1）。", honpen)
+        # 枠組みの表と資料の種類（表を使わない）。要素の note は出さない
+        self.assertIn("## 認定こども園整備事業：流れと、資料の記載状況", honpen)
+        self.assertIn("- 要素1：開園の推計。該当する事項：開園時期。資料別の記載年：定期監査の報告：2025。議会での質問・答弁の記録数：2", honpen)
+        self.assertIn("- 要素2：単価の設定。該当する事項：該当する事項なし。資料別の記載年：未記録\n", honpen)
+        self.assertNotIn("※改定反映", honpen)
+        self.assertIn(br.WAKU_NOTE, honpen)
+        self.assertIn("## 認定こども園整備事業：資料の種類と根拠法令", honpen)
+        self.assertIn("- 資料の種類：定期監査の報告。作成者：監査委員（合議）。根拠法令：地方自治法199条。", honpen)
+        # 事項ごとの質問・答弁にも記載の行
+        part = honpen[honpen.index("事項ごとの質問・答弁：開園時期"):]
+        self.assertIn("見出し：要望の文。", part[:part.index("照合結果")])
+
+    def test_items(self):
+        # 枠組みの要素に当たらない資料の種類の項目は、本編の節「<資料の種類>」に項目の段落で（LINK_SCHEMA §16.1・§17.1・§17.2）。
+        # 記録編には章「同じ項目の記載」を置かない（DESIGN.md ADR-37 の経過、2026-11-14）
+        honpen, kiroku = br.build(frame_data(), P)
+        self.assertNotIn("同じ項目の記載", kiroku)
+        self.assertIn("## 認定こども園整備事業：定期監査の報告", honpen)
+        self.assertIn("### 認定こども園整備事業：定期監査の報告：再編整備計画（2025年3月）", honpen)
+        self.assertIn("資料ごとに、記録した項目を段落で示します。地方自治法199条による定期監査の報告です。\n", honpen)
+        self.assertIn("- ［2025年3月］再編整備計画の項目1（suji:a/1）：【未確認】［事実］「計画は３年毎に見直す。」"
+                      "［事実］「令和10年度の開設を目指します。」（事項：開園時期）【未確認】［要望］「留意されたい。」（事項：開園時期）（出典：", honpen)
+        self.assertNotIn("：定期監査の報告：", built()[0])
+
+    def test_law_article(self):
+        # 法令の条（LINK_SCHEMA §16.4）：最初の条項から法令の名前と条
+        self.assertEqual([br.law_article(t) for t in ("地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索）", "地方自治法199条1項・2項・9項",
+                                                      "地方公共団体の財政の健全化に関する法律3条1項", "設置要綱", "", "pt:x/honpen/49")],
+                         ["地方自治法233条", "地方自治法199条", "地方公共団体の財政の健全化に関する法律3条", "", "", ""])
+        self.assertEqual(br.flow_lead({"name": "流れ", "source": "pt:x/honpen/49"}), "流れの要素の順に、資料と議案を示します。")
+        self.assertEqual(br.section_lead({"konkyo": "地方自治法199条1項"}, "定期監査の報告", [{"name": "決算の認定までの流れ"}]),
+                         "地方自治法199条による定期監査の報告です。決算の認定までの流れとは別のものです。")
+        self.assertEqual(br.section_lead({"konkyo": "設置要綱"}, "提言", []), "")
+
+    def test_bill_lines(self):
+        # 議案を置く枠組みの要素（LINK_SCHEMA §16.1・§17.2）：提出・審議・議決。無いものは決まった文
+        b = {"meeting": "令和7年9月定例会議", "no": "議第70号", "title": "決算について", "url": U + "m.html", "result": "認定",
+             "method": "起立多数", "kessan": {"decided_meeting": "令和7年12月定例会議", "vote_date": "2025-12-01", "proposals": [],
+             "steps": [{"kind": "質疑", "date": "2025-09-11", "member": {"name": "松田洋子", "seat": "4番"}, "nbills": 2, "stance": "", "url": "u1"},
+                       {"kind": "委員長の報告", "date": "2025-12-01", "member": {"name": "x", "seat": ""}, "committee": "予算決算特別委員会",
+                        "nbills": 7, "stance": "", "url": "u2"},
+                       {"kind": "討論", "date": "2025-12-01", "member": {"name": "加藤和幸", "seat": "10番"}, "nbills": 3, "stance": "反対", "url": "u3"}]}}
+        self.assertEqual(br.Rag.bill_lines(0, b), ["議案：令和7年9月定例会議の議第70号「決算について」（出典：" + U + "m.html）", br.NO_PROPOSAL])
+        self.assertEqual(br.Rag.bill_lines(1, b), ["［2025年9月11日］質疑：4番 松田洋子 議員（2議案について）（出典：u1）",
+                                                   "［2025年12月1日］委員長の報告：予算決算特別委員会（7議案について）（出典：u2）",
+                                                   "［2025年12月1日］討論：10番 加藤和幸 議員。賛否：反対（出典：u3）", br.NO_IINKAI])
+        self.assertEqual(br.Rag.bill_lines(2, b), ["議決：認定。採決の方法：起立多数。採決の日付：2025年12月1日。議決の会議：令和7年12月定例会議（出典：" + U + "m.html）"])
+        b["kessan"]["steps"] = []
+        self.assertEqual(br.Rag.bill_lines(1, b), [br.NO_STEPS, br.NO_IINKAI])
+
+    def test_flow(self):
+        # 要素に資料の種類が当たる枠組みは、年度ごとの節目の<枠組みの名前>（年度）に要素を番号の順に全部
+        d = json.loads(frame_data())
+        d["waku"].append({"key": "waku:k", "name": "決算の流れ", "source": "地方自治法（昭和二十二年法律第六十七号）第233条", "url": "",
+                          "note": "", "layer": "確定",
+                          "elements": [{"view": "waku:k/1", "n": 1, "name": "調製", "note": "", "source": "地方自治法233条1項",
+                                        "shiryo": [], "points": [], "rec": {}, "gikai": 0},
+                                       {"view": "waku:k/2", "n": 2, "name": "審査", "note": "", "source": "地方自治法233条2項",
+                                        "shiryo": ["定期監査の報告"], "points": [], "rec": {"定期監査の報告": ["2025"]}, "gikai": 0}],
+                          "nendo": [{"fiscal_year": "2024", "elements": [
+                              {"n": 1, "docs": []},
+                              {"n": 2, "docs": [{"doc": "doc:a", "date": "2025-03", "suji": ["suji:a/1"], "nosuji": 2}]}]}]})
+        honpen, _ = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        self.assertIn("### 認定こども園整備事業：年度ごとの節目：決算の流れ（令和6年度）", honpen)
+        self.assertIn("要素1：調製（地方自治法233条1項）。" + br.NO_SHURUI, honpen)
+        self.assertIn("要素2：審査（地方自治法233条2項）。資料：再編整備計画（2025年3月）", honpen)
+        self.assertIn("この資料には、ここに出していない記載が2件あります（事項の所に出ます）。", honpen)
+        self.assertIn("地方自治法233条の手続きの順に、資料と議案を示します。資料の記載は項目ごとの段落です。", honpen)
+        self.assertIn("枠組み：決算の流れ。出典：地方自治法（昭和二十二年法律第六十七号）第233条\n", honpen)
+        self.assertIn("- 要素1：調製（地方自治法233条1項）。該当する事項：該当する事項なし。", honpen)
+        # 流れに置いた項目は、資料の種類の節に重ねない
+        self.assertNotIn("：定期監査の報告：再編整備計画", honpen)
+
+
 class BuildTest(unittest.TestCase):
     def test_same_input_same_output(self):
         self.assertEqual(built(), built())
@@ -183,9 +296,22 @@ class BuildTest(unittest.TestCase):
         for md in built():
             for line in md.split("\n"):
                 self.assertFalse(line.startswith("|"), line)
-                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」",
+                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」", "- 欄「記載の種類」", "- 欄「項目」",
                                                                  "【未確認】", "比べた記載：記録編の")):
                     self.assertIn("出典：", line, line)
+
+    def test_kisai_kind_and_target(self):
+        # 構造にしていない記載の行は、見出しのあとに記載の種類と対象の時期を書く。空なら書かない（§17.1。ADR-36）
+        honpen, kiroku = built()
+        self.assertIn("見出し：懇話会の設置目的。「在り方を検討する。」", kiroku)
+        self.assertNotIn("記載の種類：", kiroku)
+        d = json.loads(data())
+        d["records"]["kisai"][0].update(kind="要望", target="令和６年度")
+        honpen, kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        self.assertIn("見出し：懇話会の設置目的。記載の種類：要望。対象の時期：令和６年度。「在り方を検討する。」", kiroku)
+        # 読み方に、記載の種類の意味を書く（ADR-36 の7）
+        self.assertIn("欄「記載の種類」の事実・見通し・評価・要望は、資料の作成者（監査委員など）が記した内容の種類です。"
+                      "評価・要望・見通しの区分は論点ノートによる評価ではありません", honpen)
 
     def test_entry_form(self):
         honpen, kiroku = built()

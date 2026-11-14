@@ -160,6 +160,23 @@ class TestStruct(unittest.TestCase):
         with self.assertRaises(gm.GenError):
             hosei.build_struct(tables, []).kaikei_names()
 
+    def test_kaikei_names_title_forms(self):
+        # §2（2026-11-13）：「補正予算」の字の無い題と、号の前に「（専決処分）」の付く題も会計の名前が取れる
+        extra = [dict(kai_rows()[0], id="r7-ippan-06", fiscal_year="2025", gou="6",
+                      title="令和７年度日野町一般会計補正予算（専決処分）（第６号）"),
+                 dict(kai_rows()[1], id="r7-koki-01", fiscal_year="2025", kaikei="koki",
+                      title="後期高齢者医療特別会計（第１号）"),
+                 dict(kai_rows()[1], id="r7-koki-02", fiscal_year="2025", kaikei="koki", gou="2",
+                      title="後期高齢者医療特別会計補正予算（第２号）")]
+        tables = {hosei.KAI: kai_rows() + extra, hosei.SHIRYO: [], hosei.KAN: [], hosei.MARU: [], hosei.JIKO: []}
+        self.assertEqual(hosei.build_struct(tables, []).kaikei_names(),
+                         {"一般会計": "ippan", "国民健康保険特別会計": "kokuho", "後期高齢者医療特別会計": "koki"})
+        # 号の無い題は、これまでどおり止める
+        bad = [dict(kai_rows()[1], id="r7-koki-03", kaikei="koki", title="後期高齢者医療特別会計補正予算")]
+        tables = {hosei.KAI: kai_rows() + bad, hosei.SHIRYO: [], hosei.KAN: [], hosei.MARU: [], hosei.JIKO: []}
+        with self.assertRaises(gm.GenError):
+            hosei.build_struct(tables, []).kaikei_names()
+
     def test_changes(self):
         prev = struct()
         keys = [f"hj:{K1}/m001", f"hj:{K1}/m002", f"hk:{K1}/out-03", f"hs:{K2}", f"hj:{K1}/m009"]
@@ -262,9 +279,29 @@ class TestHoseiFuhyo(unittest.TestCase):
         self.assertIsNone(gh.fh_kind(dict(r, amount="0", desc="補正します。")))
         self.assertIsNone(gh.fh_kind(dict(r, amount="")))
         maru = maru_rows()
-        maru[0]["amount"] = "0"
-        with self.assertRaises(gm.GenError):   # 名前は一致したが kind が決まらない
+        maru[0]["amount"] = ""
+        with self.assertRaises(gm.GenError):   # 金額が数でない：止める
             hosei_built(st=struct(maru=maru))
+
+    def test_kind_undecided(self):
+        # 名前は一致したが、金額0で説明に「財源」の字が無い：台帳の候補にせず、一覧（kind_undecided.tsv）に出す（2026-11-13）
+        maru = maru_rows()
+        maru[0].update(amount="0", desc="工事請負費を減額し、補償金を新規計上します。")
+        b = hosei_built(st=struct(maru=maru))
+        self.assertEqual(b.rows, [])
+        self.assertEqual(b.undecided, [{"from": f"hj:{K1}/m001", "to": "fh:fuhyo-r6/b001", "name": "児童手当支給事業",
+                                        "amount": "0", "desc_head": "工事請負費を減額し、補償金を新規計上します。"}])
+        self.assertEqual([u["from"] for u in b.unmatched], [f"hj:{K1}/m002"])   # name_unmatched には入れない
+        self.assertIn("- 名前は一致したが kind の決まらない○の行：1（金額0で説明に「財源」の字が無い。kind_undecided.tsv。"
+                      "台帳には書かない）", gh.count_lines(b.rows, b))
+        # 「財源」の字があれば、これまでどおり財源更正の候補
+        maru[0]["desc"] = "財源を更正します。"
+        b2 = hosei_built(st=struct(maru=maru))
+        self.assertEqual([r["kind"] for r in b2.rows], ["財源更正"])
+        self.assertEqual(b2.undecided, [])
+        self.assertTrue(gh.is_zero("0"))
+        self.assertFalse(gh.is_zero("-0x"))
+        self.assertFalse(gh.is_zero(""))
 
     def test_hosei_errors(self):
         b = hosei_built()
@@ -362,6 +399,8 @@ class TestTools(unittest.TestCase):
             with open(os.path.join(tmp, "h", "name_unmatched.tsv"), encoding="utf-8") as f:
                 self.assertEqual(f.read(), "from\tname\tamount\tkind\tdesc_head\n"
                                            f"hj:{K1}/m002\t衆議院議員選挙費\t15898\t新規\t経費を新たに計上します。\n")
+            with open(os.path.join(tmp, "h", "kind_undecided.tsv"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), "from\tto\tname\tamount\tdesc_head\n")
             # 人の判定を保つ：confirmed にした行は、更新しても変わらない
             rows = ledger.read_ledger(hpath, "hosei-fuhyo")
             rows[0].update(status="confirmed", reviewer="kken78", date="2026-11-09", note="判定：見本")
@@ -374,6 +413,27 @@ class TestTools(unittest.TestCase):
             hb2 = hosei_built(st=struct(maru=maru))
             self.assertEqual(update_links.run_hosei(hb2, hpath, os.path.join(tmp, "h"))[0], 1)
             self.assertEqual(check_links.run_hosei(hb2, hpath, os.path.join(tmp, "h"))[0], 1)
+
+    def test_kind_undecided_ledger(self):
+        # kind の決まらない○の行は台帳に書かず一覧に出す。confirmed の行がその○の行になれば、根拠の消失で止まる
+        maru = maru_rows()
+        maru[0].update(amount="0", desc="補償金を新規計上します。")
+        hb = hosei_built(st=struct(maru=maru))
+        with tempfile.TemporaryDirectory() as tmp:
+            hpath, out = os.path.join(tmp, "hosei-fuhyo.tsv"), os.path.join(tmp, "h")
+            self.assertEqual(update_links.run_hosei(hb, hpath, out)[0], 0)
+            self.assertEqual(ledger.read_ledger(hpath, "hosei-fuhyo"), [])
+            self.assertEqual(check_links.run_hosei(hb, hpath, out)[0], 0)
+            with open(os.path.join(out, "kind_undecided.tsv"), encoding="utf-8") as f:
+                self.assertEqual(f.read(), "from\tto\tname\tamount\tdesc_head\n"
+                                           f"hj:{K1}/m001\tfh:fuhyo-r6/b001\t児童手当支給事業\t0\t補償金を新規計上します。\n")
+            hb0 = hosei_built()
+            self.assertEqual(update_links.run_hosei(hb0, hpath, out)[0], 0)
+            rows = ledger.read_ledger(hpath, "hosei-fuhyo")
+            rows[0].update(status="confirmed", reviewer="kken78", date="2026-11-09", note="判定：見本")
+            ledger.write_ledger(hpath, rows, "hosei-fuhyo")
+            self.assertEqual(update_links.run_hosei(hb, hpath, out)[0], 1)
+            self.assertEqual(check_links.run_hosei(hb, hpath, out)[0], 1)
 
     def test_check_missing_ledger_stops(self):
         with tempfile.TemporaryDirectory() as tmp, self.assertRaises(ledger.LedgerError):

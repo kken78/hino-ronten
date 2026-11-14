@@ -82,8 +82,7 @@ def make_data():
     d.doc_files = {"data/text/teigen.txt", "data/ocr/teigen.txt"}
     d.doc_text = dict(DOC_TEXT)
     d.scenes = gm.scene_of([d.index[s] for s in d.inp.order], d.proceedings)
-    d.votes = {(M, "議第1号"): [vote]}
-    d.debates = {(M, "議第1号"): [debate]}
+    d.segs = {(M, "議第1号"): [vote, debate]}
     return d
 
 
@@ -501,7 +500,7 @@ class SheetsTest(unittest.TestCase):
         for views in ({"事柄/新こども園の定員": "node:jisshi/e009"}, {"記載/提言": "plan:kodomo"},
                       {"記載/提言": "fa:b"}):
             with self.subTest(views=views):
-                with self.assertRaisesRegex(bt.BuildError, "の views の .* が、テーマの事業／系列の計画／施設／地区／組織に無い"):
+                with self.assertRaisesRegex(bt.BuildError, "の views の .* が、テーマの事業／系列の計画／施設／地区／組織／枠の要素に無い"):
                     build(themes=with_views(theme_rows(), **views))
         # dist・org のキーは、テーマの kind 地区・組織にあり、参照表にあること
         with self.assertRaisesRegex(bt.BuildError, "の views の dist:hisa が"):
@@ -742,6 +741,146 @@ class RecordsFixTest(unittest.TestCase):
         lines = check_records.report_lines(tr.run())
         self.assertIn("- 発言の取りこぼし：5（yaritori 5。torikoboshi.tsv）", lines)
         self.assertIn("- 引用の前後：0（quote_context.tsv）", lines)
+
+
+
+class FrameBuildTest(unittest.TestCase):
+    """枠（waku）・資料の種類（shiryo）・筋（suji）と、枠の要素の見方（LINK_SCHEMA §13.1・§13.3・§13.4。DESIGN.md ADR-37）。"""
+
+    def setUp(self):
+        led = tr.ledgers()
+        cand = {"status": "candidate", "reviewer": "", "date": ""}
+        led["kotogara"].append(tr.row("kotogara", point="新こども園の定員", source="doc:teigen/2", source_date="2024-02",
+                                      quote="再編の方針がある", kind="いまのこと", suji="1", **cand))
+        led["kisai"].insert(0, tr.row("kisai", title="こども園の話", source="doc:teigen/2", source_date="2024-02",
+                                      quote="こども園の話。", kind="要望", suji="1", **cand))
+        led["kisai"].append(tr.row("kisai", title="計画期間の評価", about="新こども園の定員", source="pt:youho/honpen/1",
+                                   source_date="2025-03", quote="令和6年からです。", kind="評価"))
+        inp = tr.inputs()
+        self.waku = rc.check_waku_ref(tr.waku_ref(), inp, rc.Report())
+        self.shiryo = rc.check_shiryo_ref(tr.shiryo_ref(), inp, rc.Report())
+        d = make_data()
+        d.inp.nodes |= {"node:sogo6/e011", "node:sogo6/e047"}
+        d.inp.series |= {"kodomo"}
+        self.data = bt.build("hoiku", tr.with_waku(theme_rows()), led, d, {"hino-council-search": {"sha": "a" * 40}},
+                             refs(), {"ref/themes.tsv": "x"}, tr.shisetsu_ref(), tr.chiku_ref() + tr.soshiki_ref(),
+                             self.waku, self.shiryo)
+
+    def test_waku(self):
+        w = self.data["waku"]
+        self.assertEqual([(x["key"], x["name"], x["source"], x["url"]) for x in w],
+                         [("waku:keikaku", "計画期間", "pt:youho/honpen/1", "https://example.jp/youho.pdf#page=1")])
+        e1, e2 = w[0]["elements"]
+        self.assertEqual((e1["view"], e1["n"], e1["name"], e1["points"], e1["rec"], e1["gikai"]),
+                         ("waku:keikaku/1", 1, "計画期間", ["新こども園の定員"], {"提言": ["2024"]}, 4))
+        self.assertEqual((e2["name"], e2["note"], e2["points"], e2["rec"], e2["gikai"]), ("令和6年 → 計画期間", "まとめた", [], {}, 0))
+        self.assertIn("pt:youho/honpen/1", self.data["names"]["sources"])
+
+    def test_shiryo_and_rows(self):
+        self.assertEqual([x["shurui"] for x in self.data["shiryo"]], ["提言"])
+        k = [r for r in self.data["records"]["kotogara"] if r["source"] == "doc:teigen/2"][0]
+        self.assertEqual((k["shurui"], k["suji"], k["suji_key"]), ("提言", "1", "suji:teigen/1"))
+        p = [r for r in self.data["records"]["kisai"] if r["source"].startswith("pt:")][0]
+        self.assertEqual((p["shurui"], p["suji_key"]), ("", ""))
+        self.assertTrue(all("shurui" in r for r in self.data["records"]["katei"]))
+        self.assertTrue(all("shurui" not in r for q in self.data["records"]["yaritori"] for r in q["rows"]))
+
+    def test_suji(self):
+        (x,) = self.data["suji"]
+        self.assertEqual((x["key"], x["doc"], x["n"], x["shurui"], x["url"], x["layer"]),
+                         ("suji:teigen/1", "doc:teigen", 1, "提言", "https://example.jp/teigen.pdf", bt.UNCONFIRMED))
+        # 資料の文の順（ページの中の位置の順）。事柄の記録の行は「事実」
+        self.assertEqual([(y["ledger"], y["kind"], y["point"], y["page"], y["pos"]) for y in x["rows"]],
+                         [("kotogara", "事実", "新こども園の定員", 2, 4), ("kisai", "要望", "", 2, 13)])
+
+    def test_waku_view(self):
+        sh = [x for x in self.data["sheets"] if x["view"] == "waku:keikaku/1"]
+        self.assertEqual([(x["view_kind"], x["name"]) for x in sh], [("枠の要素", "計画期間")])
+        self.assertEqual({x["ref"].split("/")[2] for x in sh[0]["kotogara"]}, {"新こども園の定員"})
+        self.assertEqual(self.data["names"]["views"]["waku:keikaku/1"], {"name": "計画期間", "waku": "計画期間"})
+        self.assertEqual(bt.check_no_empty_url(self.data), [])
+
+    def test_bun(self):
+        # 同じ文と、ほかの行の引用に含まれる行は1つの文にまとめる（§13.4 の suji の bun）
+        rows = [dict(ref="r1", point="A", kind="事実", quote="甲。乙。", layer=bt.CONFIRMED),
+                dict(ref="r2", point="B", kind="事実", quote="乙。", layer=bt.CONFIRMED),
+                dict(ref="r3", point="C", kind="要望", quote="丙。", layer=bt.UNCONFIRMED),
+                dict(ref="r4", point="", kind="要望", quote="丙。", layer=bt.CONFIRMED)]
+        b = bt.build_bun(rows)
+        self.assertEqual([(x["quote"], x["refs"], [p["point"] for p in x["points"]], x["layer"]) for x in b],
+                         [("甲。乙。", ["r1", "r2"], ["A", "B"], bt.CONFIRMED), ("丙。", ["r3", "r4"], ["C", ""], bt.UNCONFIRMED)])
+        (x,) = self.data["suji"]
+        self.assertEqual(len(x["bun"]), 2)
+
+    def test_flow(self):
+        # 要素に資料の種類が当たる枠組み（ref/shiryo.tsv の waku）は、資料の年度ごとの nendo を持つ。法令の出典は url を持たない
+        law = "地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索）"
+        wrows = tr.waku_ref() + [dict(tr.waku_ref()[0], waku="nagare", n=n, name=nm, source=src, note="")
+                                 for n, nm, src in (("0", "流れ", law), ("1", "審査", "地方自治法233条2項"), ("2", "審議", ""))]
+        sh = tr.shiryo_ref()
+        sh[0].update(source=law, waku="waku:nagare/1")
+        inp = tr.inputs()
+        rep = rc.Report()
+        waku = rc.check_waku_ref(wrows, inp, rep, sh)
+        shiryo = rc.check_shiryo_ref(sh, inp, rep, waku)
+        self.assertEqual(rep.errors, [])
+        themes = tr.with_waku(theme_rows())
+        themes.append(dict(next(r for r in themes if r["kind"] == "枠"), value="waku:nagare", source=law))
+        themes.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
+        led = tr.ledgers()
+        led["kotogara"].append(tr.row("kotogara", point="新こども園の定員", source="doc:teigen/2", source_date="2024-02",
+                                      quote="再編の方針がある", kind="いまのこと", suji="1", status="candidate", reviewer="", date=""))
+        d = make_data()
+        d.inp.nodes |= {"node:sogo6/e011", "node:sogo6/e047"}
+        d.inp.series |= {"kodomo"}
+        data = bt.build("hoiku", themes, led, d, {"hino-council-search": {"sha": "a" * 40}}, refs(), {"ref/themes.tsv": "x"},
+                        tr.shisetsu_ref(), tr.chiku_ref() + tr.soshiki_ref(), waku, shiryo)
+        w = next(x for x in data["waku"] if x["key"] == "waku:nagare")
+        self.assertEqual((w["url"], w["source"]), ("", law))
+        self.assertEqual([(e["n"], e["source"], e["shiryo"], e["points"], e["rec"]) for e in w["elements"]],
+                         [(1, "地方自治法233条2項", ["提言"], [], {"提言": ["2024"]}), (2, "", [], [], {})])
+        self.assertEqual(w["nendo"], [{"fiscal_year": "2023", "elements": [
+            {"n": 1, "docs": [{"doc": "doc:teigen", "date": "2024-02", "suji": ["suji:teigen/1"], "nosuji": 0}]},
+            {"n": 2, "docs": []}]}])
+        self.assertEqual(next(x for x in data["waku"] if x["key"] == "waku:keikaku")["nendo"], [])
+        # 議案を置く枠組みの要素は kessan-nintei の3・4・5 だけ（LINK_SCHEMA §13.4）
+        self.assertEqual(bt.GIAN_ELEMENTS, {"kessan-nintei": (3, 4, 5)})
+        self.assertNotIn(law, data["names"]["sources"])
+        self.assertEqual(bt.check_no_empty_url(data), [])
+        self.assertEqual(data["shiryo"][0]["waku"], "waku:nagare/1")
+
+    def test_kessan_bill(self):
+        # 決算の議案（LINK_SCHEMA §13.4 の bills の kessan）：年度は題の字から。議決の会議（decidedIn）の区切りも見る
+        self.assertEqual([bt.kessan_year(t) for t in ("令和６年度日野町介護保険特別会計歳入歳出決算について", "令和元年度決算", "平成３０年度決算", "決算")],
+                         ["2024", "2019", "2018", ""])
+        d = make_data()
+        M2 = "0000009999"
+        d.gian[M] = {"agenda": [{"no": "議第1号", "kind": "決算", "title": "令和６年度日野町介護保険特別会計歳入歳出決算について",
+                                 "result": "認定", "method": "起立多数", "decidedIn": M2}]}
+        d.meetings[M2] = {"id": M2, "name": "令和7年12月定例会議", "date": "2025-12-01", "url": ""}
+        prop = {"kind": "proposal", "date": "2025-03-03", "role": "町長", "member": "堀江和博", "from": f"{M}_20250303_0001", "bills": ["議第1号"]}
+        rpt = {"kind": "report", "date": "2025-12-01", "member": "髙橋源三郎", "seat": "9番", "committee": "予算決算特別委員会",
+               "from": f"{M2}_20251201_0008", "bills": ["議第1号", "議第2号"]}
+        deb = {"kind": "debate", "date": "2025-12-01", "member": "加藤和幸", "seat": "10番", "stance": "反対", "from": f"{M2}_20251201_0011", "bills": ["議第1号"]}
+        vote2 = {"kind": "vote", "date": "2025-12-01", "sid": f"{M2}_20251201_0020", "bills": ["議第1号"]}
+        d.segs = {(M, "議第1号"): [prop], (M2, "議第1号"): [rpt, deb, vote2]}
+        (b,) = bt.build_bills(d, {f"gi:{M}/議第1号"})
+        k = b["kessan"]
+        self.assertEqual((b["date"], k["fiscal_year"], k["decided_meeting_id"], k["decided_meeting"], k["vote_date"]),
+                         ("2025-12-01", "2024", M2, "令和7年12月定例会議", "2025-12-01"))
+        self.assertEqual([(x["date"], x["role"]) for x in k["proposals"]], [("2025-03-03", "町長")])
+        self.assertNotIn("member", k["proposals"][0])
+        self.assertEqual([(x["kind"], x["member"]["seat"], x["committee"], x["nbills"], x["stance"]) for x in k["steps"]],
+                         [("委員長の報告", "9番", "予算決算特別委員会", 2, ""), ("討論", "10番", "", 1, "反対")])
+        self.assertEqual([x["stance"] for x in b["debates"]], ["反対"])
+        # 決算でない議案は kessan が空
+        self.assertEqual(build()["bills"][0]["kessan"], {})
+
+    def test_without_frame(self):
+        # 参照表が無ければ、waku・shiryo・suji は空で、行の shurui も空（ほかの題材の画面は変わらない）
+        data = build()
+        self.assertEqual((data["waku"], data["shiryo"], data["suji"]), ([], [], []))
+        self.assertTrue(all(r["shurui"] == "" for r in data["records"]["kotogara"]))
 
 
 if __name__ == "__main__":

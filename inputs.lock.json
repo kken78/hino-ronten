@@ -12,7 +12,7 @@
     "files": ["data/manifest.json", "data/plans/*.json", "data/sources_index.tsv", "data/fuhyo/fuhyo-r3.json", "data/fuhyo/fuhyo-r4.json", "data/fuhyo/fuhyo-r5.json", "data/fuhyo/fuhyo-r6.json", "data/fuhyo/fuhyo-r7.json", "data/fuhyo/fuhyo-r8.json", "data/text/*/*.txt", "data/text_raw/*/*.txt"]
   },
   "hino-town-docs": {
-    "sha": "f73959d0aeafd7df926ecc838d445c0dc93e5a73",
+    "sha": "60cd50b3c6b013c73fda7a9a9af7298fa7040078",
     "files": ["data/sources.tsv", "data/text/*.txt", "data/text_raw/*.txt", "data/ocr/*.txt", "data/struct/hosei-kai.tsv", "data/struct/hosei-shiryo.tsv", "data/struct/hosei-kan.tsv", "data/struct/hosei-maru.tsv", "data/struct/hosei-jiko.tsv", "data/struct/audit/hosei-*.tsv"]
   }
 }

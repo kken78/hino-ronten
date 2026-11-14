@@ -357,7 +357,7 @@ class ThemeTest(RecordsTestCase):
         self.assertErr(run(themes=rows), "名前 の行が1行でない")
         rows = theme_rows() + [dict(theme_rows()[0], kind="会計", value="一般会計")]
         rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
-        self.assertErr(run(themes=rows), "kind が §12 の15")
+        self.assertErr(run(themes=rows), "kind が §12 の16")
 
     def test_shisetsu_ref(self):
         self.assertErr(run(ref=[dict(shisetsu_ref()[0], key="fa:A")]), "fa の形でない")
@@ -374,10 +374,10 @@ class ThemeTest(RecordsTestCase):
     def test_area_ref_ok(self):
         rep = run()
         self.assertFalse(rep.errors)
-        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 2, "soshiki": 1})
+        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 2, "soshiki": 1, "waku": 0, "shiryo": 0})
         rep = run(chiku=[], soshiki=[])     # ファイルが無い（0行）ときも止めない
         self.assertFalse(rep.errors)
-        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 0, "soshiki": 0})
+        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 0, "soshiki": 0, "waku": 0, "shiryo": 0})
 
     def test_area_ref_errors(self):
         c, o = chiku_ref(), soshiki_ref()
@@ -447,8 +447,8 @@ class ThemeTest(RecordsTestCase):
                  ("事柄", "fa:b", "views のキーが入力に無い"),
                  ("事柄", "dist:nai", "views のキーが入力に無い"),
                  ("事柄", "org:nai", "views のキーが入力に無い"),
-                 ("事柄", "lin:youho/1", "見方のキー（node・plan・fa・dist・org）の形でない"),
-                 ("事柄", "kaigo", "見方のキー（node・plan・fa・dist・org）の形でない")]
+                 ("事柄", "lin:youho/1", "見方のキー（node・plan・fa・dist・org・waku の要素）の形でない"),
+                 ("事柄", "kaigo", "見方のキー（node・plan・fa・dist・org・waku の要素）の形でない")]
         for kind, views, msg in cases:
             with self.subTest(kind=kind, views=views):
                 self.assertErr(run(themes=self.views(kind, views)), msg)
@@ -572,6 +572,15 @@ class OtherLedgersTest(RecordsTestCase):
         self.assertEqual(run(led).errors, [])
         led["kisai"][0]["about"] = "知らない"
         self.assertErr(run(led), "about がどのテーマの")
+
+    def test_kisai_kind(self):
+        # kind は空か、事実・見通し・評価・要望（§15.6。DESIGN.md ADR-36・ADR-37 の3）。target は表記のまま（値は見ない）
+        led = ledgers()
+        for k in ("", "事実", "見通し", "評価", "要望"):
+            led["kisai"][0].update(kind=k, target="令和６年度")
+            self.assertEqual(run(led).errors, [], k)
+        led["kisai"][0]["kind"] = "意見"
+        self.assertErr(run(led), "kind が ('事実', '見通し', '評価', '要望') のどれでも空でもない（意見）")
 
     def test_kisai_same_title(self):
         led = ledgers()
@@ -712,6 +721,176 @@ class SignalTest(RecordsTestCase):
         self.assertEqual(run(themes=rows).signal_chushin[0]["chushin"], "fa:a")
 
 
+# 見本の枠の参照表と資料の種類の参照表（§12.3・§12.4。DESIGN.md ADR-37）
+WAKU_ID = "keikaku"
+
+
+def waku_ref(**over):
+    rows = [{"waku": WAKU_ID, "n": "0", "name": "計画期間", "source": "pt:youho/honpen/1"},
+            {"waku": WAKU_ID, "n": "1", "name": "計画期間", "source": "pt:youho/honpen/1"},
+            {"waku": WAKU_ID, "n": "2", "name": "令和6年 → 計画期間", "source": "pt:youho/honpen/1", "note": "まとめた"}]
+    out = []
+    for r in rows:
+        x = {c: "" for c in rc.WAKU_COLUMNS}
+        x.update(reviewer="kken78", date="2026-11-14")
+        x.update(r)
+        x.update(over.get(r["n"], {}))
+        out.append(x)
+    return out
+
+
+def shiryo_ref(match="teigen"):
+    x = {c: "" for c in rc.SHIRYO_COLUMNS}
+    x.update(shurui="提言", match=match, tsukuru="懇話会", konkyo="設置要綱", atesaki="町長あて", outou="計画",
+             source="見本", reviewer="kken78", date="2026-11-14")
+    return [x]
+
+
+def run_frame(led=None, themes=None, waku=None, shiryo=None):
+    return rc.check_all(led if led is not None else ledgers(), themes if themes is not None else theme_rows(),
+                        shisetsu_ref(), inputs(), chiku_ref(), soshiki_ref(),
+                        waku if waku is not None else waku_ref(), shiryo if shiryo is not None else shiryo_ref())
+
+
+def with_waku(rows, views="waku:keikaku/1"):
+    """テーマの定義に kind 枠の行を足し、事柄「新こども園の定員」の views に枠の要素を書く。"""
+    base = rows[0]
+    out = [dict(r, views=",".join(x for x in (r["views"], views) if x)) if (r["kind"], r["value"]) == ("事柄", "新こども園の定員")
+           else r for r in rows]
+    out.append(dict(base, kind="枠", value=f"waku:{WAKU_ID}", source="pt:youho/honpen/1", views="", note=""))
+    return sorted(out, key=lambda r: (r["theme"], r["kind"], r["value"]))
+
+
+class FrameTest(RecordsTestCase):
+    """枠の参照表・資料の種類の参照表・列 suji・形の点検（§11。DESIGN.md ADR-37）。"""
+
+    def test_baseline(self):
+        rep = run_frame(themes=with_waku(theme_rows()))
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(sorted(rep.waku[WAKU_ID]), ["0", "1", "2"])
+        self.assertEqual(rep.shiryo.of_key("doc:teigen/2"), "提言")
+        self.assertEqual(rep.shiryo.of_key("doc:kaiken-20250630-shidai/1"), "")
+        self.assertEqual(rep.shiryo.of_key("pt:youho/honpen/1"), "")
+        self.assertEqual(rep.ref_counts["waku"], 3)
+
+    def test_waku_errors(self):
+        cases = [({"2": {"name": "令和7年"}}, "name の「令和7年」が source のページの原典の文字に無い"),
+                 ({"2": {"n": "3"}}, "要素の番号が1からの続いた番号でない"),
+                 ({"0": {"n": "4"}}, "n が0の行（枠そのもの）が無い"),
+                 ({"1": {"source": "pt:youho/honpen"}}, "source が §2 の doc か pt のページのキーでも法令の条項でもない"),
+                 ({"1": {"source": ""}}, "source が空（空にできるのは、n が0の行の出典が法令の条項の枠組みの要素だけ"),
+                 ({"1": {"source": "地方自治法233条1項"}}, "source が法令の条項なのに、n が0の行の source が法令の条項でない"),
+                 ({"1": {"source": "doc:nai/1"}}, "source が lock の版の入力に無い"),
+                 ({"1": {"reviewer": ""}}, "reviewer か date"),
+                 ({"1": {"n": "x"}}, "n が0からの整数でない")]
+        for over, msg in cases:
+            with self.subTest(msg=msg):
+                rows = waku_ref(**over)
+                rows.sort(key=lambda r: rc.sort_key(r, ("waku", "n"), ("n",)))
+                self.assertErr(run_frame(waku=rows), msg)
+        # n は数の順で並べる
+        rows = waku_ref()
+        rows = rows[:1] + rows[2:] + rows[1:2]
+        self.assertErr(run_frame(waku=rows), "行がキーの順でない")
+
+    def test_law_frame(self):
+        # 法令を出典とする枠組み（§12.3。DESIGN.md ADR-37 の経過、2026-11-14）：要素の名前は条文と照らさない。空の出典は要素だけ
+        law = "地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索）"
+        rows = waku_ref(**{"0": {"source": law}, "1": {"source": "地方自治法233条1項", "name": "決算の調製と提出"},
+                            "2": {"source": "", "name": "議会の審議"}})
+        sh = shiryo_ref()
+        sh[0]["source"] = law
+        rep = run_frame(waku=rows, shiryo=sh)
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(rc.law_of("地方自治法233条2項・4項"), "地方自治法")
+        self.assertEqual(rc.law_of("地方公共団体の財政の健全化に関する法律3条1項"), "地方公共団体の財政の健全化に関する法律")
+        self.assertEqual(rc.law_of("pt:youho/honpen/1"), "")
+        # 法令の名前は資料の種類の参照表の source にあるものだけ
+        self.assertErr(run_frame(waku=rows), "法令「地方自治法」が資料の種類の参照表の source に無い")
+        rows0 = waku_ref(**{"0": {"source": ""}})
+        self.assertErr(run_frame(waku=rows0, shiryo=sh), "source が空（空にできるのは")
+
+    def test_shiryo_waku(self):
+        # 列 waku は空か、枠組みの参照表にある要素の見方のキー（§12.4）
+        sh = shiryo_ref()
+        sh[0]["waku"] = f"waku:{WAKU_ID}/2"
+        rep = run_frame(shiryo=sh)
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(rep.shiryo.waku_of("提言"), f"waku:{WAKU_ID}/2")
+        for v in (f"waku:{WAKU_ID}/3", f"waku:{WAKU_ID}", f"waku:{WAKU_ID}/0", "x"):
+            with self.subTest(v=v):
+                sh[0]["waku"] = v
+                self.assertErr(run_frame(shiryo=sh), "waku が枠組みの参照表の要素の見方のキーでない")
+
+    def test_shiryo_errors(self):
+        self.assertErr(run_frame(shiryo=shiryo_ref("nai-*")), "match の nai-* に当たる資料が lock の版の hino-town-docs に無い")
+        self.assertErr(run_frame(shiryo=shiryo_ref("Te/gen")), "match の要素が §12.4 の形でない")
+        rows = shiryo_ref("kaiken-*") + [dict(shiryo_ref("kaiken-2025*")[0], shurui="記者会見")]
+        rows.sort(key=lambda r: r["shurui"])
+        self.assertErr(run_frame(shiryo=rows), "資料 kaiken-20250630-page が2つ以上の行に当たる")
+        rows = shiryo_ref()
+        rows[0]["konkyo"] = ""
+        self.assertErr(run_frame(shiryo=rows), "konkyo が空")
+        # `*` は英小文字・数字・ハイフンの0字以上の並び
+        self.assertEqual(run_frame(shiryo=shiryo_ref("tei*,kaiken-*-shidai")).errors, [])
+
+    def test_theme_waku(self):
+        rows = with_waku(theme_rows(), "waku:keikaku/3")
+        self.assertErr(run_frame(themes=rows), "views のキーが入力に無い（waku:keikaku/3")
+        rows = with_waku(theme_rows(), "waku:keikaku/0")
+        self.assertErr(run_frame(themes=rows), "見方のキー（node・plan・fa・dist・org・waku の要素）の形でない")
+        rows = [r for r in with_waku(theme_rows()) if r["kind"] != "枠"]
+        self.assertErr(run_frame(themes=rows), "views の waku:keikaku/1 の枠が、同じテーマの kind 枠の行に無い")
+        rows = with_waku(theme_rows())
+        next(r for r in rows if r["kind"] == "枠")["value"] = "waku:nai"
+        self.assertErr(run_frame(themes=rows), "value が kind の形に合わないか")
+        rows = with_waku(theme_rows())
+        next(r for r in rows if r["kind"] == "枠")["views"] = "waku:keikaku/1"
+        self.assertErr(run_frame(themes=rows), "views を持てるのは kind")
+
+    def test_suji(self):
+        led = ledgers()
+        led["kisai"].insert(0, row("kisai", title="方針", source="doc:teigen/2", source_date="2024-02", quote="再編の方針がある",
+                                   kind="事実", suji="1", status="candidate", reviewer="", date=""))
+        self.assertEqual(run_frame(led).errors, [])
+        led["kisai"][0]["suji"] = ""
+        self.assertErr(run_frame(led), "資料の種類の参照表に当たる資料（提言）の candidate の行の suji が空")
+        led["kisai"][0].update(status="confirmed", reviewer="kken78", date="2026-10-27")
+        rep = run_frame(led)
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(rep.suji_missing, [{"ledger": "kisai", "key": "方針/doc:teigen/2", "source": "doc:teigen/2",
+                                             "shurui": "提言"}])
+        led["kisai"][0]["suji"] = "0"
+        self.assertErr(run_frame(led), "suji が1からの整数でも空でもない（0）")
+        led["kisai"][1]["suji"] = "1"
+        self.assertErr(run_frame(led), "suji のある行の資料が doc のページのキーでない")
+        # 資料の種類の参照表が無ければ、suji の空は止めない
+        led = ledgers()
+        led["kotogara"].append(row("kotogara", point="新こども園の用地", source="doc:teigen/2", source_date="2024-02",
+                                   quote="再編の方針がある", kind="いまのこと", status="candidate", reviewer="", date=""))
+        self.assertEqual(run_frame(led, shiryo=[]).errors, [])
+        self.assertErr(run_frame(led), "candidate の行の suji が空")
+
+    def test_katachi(self):
+        led = ledgers()
+        led["kotogara"].append(dict(led["kotogara"][0], point="新こども園の用地", target="令和7年度"))
+        rep = run_frame(led)
+        self.assertEqual(rep.errors, [])
+        k = rep.katachi
+        self.assertEqual(len(k["pairs"]), 1)
+        self.assertEqual(k["target"], {"kotogara": {"confirmed": 1}})
+        self.assertIn(("kisai", "kind", "事実"), k["zero"])
+        self.assertIn(("shisetsu", "aspect", "規模"), k["zero"])
+        self.assertIn(("kisai", [("about", 1, 1), ("kind", 1, 1), ("target", 1, 1), ("suji", 1, 1)]),
+                      list(k["empty"].items()))
+        kinds = [x["kind"] for x in rep.katachi_rows]
+        self.assertEqual(kinds, ["同じ引用で点が違う", "同じ引用で点が違う", "target が引用に無い"])
+        lines = check_records.report_lines(rep)
+        self.assertIn("## 形の点検", lines)
+        self.assertIn("- kotogara：1組", lines)
+        self.assertIn("- kotogara：confirmed 1", lines)
+
+
 class CheckRecordsTest(unittest.TestCase):
     def test_bulletin_texts(self):
         q = {"issue": "30", "member": "松田 洋子", "q_num": "1", "title": "題", "question_text": "問い",
@@ -728,7 +907,7 @@ class CheckRecordsTest(unittest.TestCase):
         self.assertEqual(lines[8:12], ["- 届き先の信号：views の無い点の確定行 2（signal_todoku.tsv）",
                                        "- 届き先の信号：問いごとの点が空の割合（signal_point.tsv。問い 2）",
                                        "- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ 1）",
-                                       "- 参照表の行の数：shisetsu 1・chiku 2・soshiki 1"])
+                                       "- 参照表の行の数：shisetsu 1・chiku 2・soshiki 1・waku 0・shiryo 0"])
 
     def test_read_area_refs(self):
         # ファイルが無ければ0行。あれば §1 の形と §12.1 の列で読む（列名と列の順が違えば止める）

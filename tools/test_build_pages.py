@@ -96,12 +96,35 @@ class RenderTest(unittest.TestCase):
         with self.assertRaises(bp.PageError):
             bp.render(template().replace("<main>", '<script src="https://example.jp/x.js"></script><main>'), data(), P)
 
+    def test_template_frame(self):
+        # 枠組みの表・事項の所の記載の行・同じ項目の記載・資料の種類と根拠法令の表（LINK_SCHEMA §16.1・§16.4。DESIGN.md ADR-37）
+        t = template()
+        for w in ("と、資料の記載状況", "該当する事項", "資料別の記載年", "議会での質問・答弁の記録数", "該当する事項なし", "未記録",
+                  "項目の全文（", "文）", "の所へ", "資料は、まだ記録していません。", "この年度の決算の議案は、まだ記録していません。",
+                  "提案の説明は、まだ記録していません。", "質疑・委員長の報告・討論は、まだ記録していません。",
+                  "委員会の会議録はありません。", "この資料には、ここに出していない記載が", "件あります（事項の欄に出ます）。",
+                  "文の頭の印は記載の種類、文の後ろの札は対応づけた事項（論点）です。",
+                  "の手続きの順に、資料と議案を示します。", "の要素の順に、資料と議案を示します。", "による", "とは別のものです。",
+                  "資料ごとに、記録した項目を段落で示します", "資料の種類と根拠法令", "作成者", "根拠法令", "提出先・公表",
+                  "対応状況を確認できる資料",
+                  "評価・要望・見通しの区分は、資料の作成者（監査委員など）が記した内容の種類です。論点ノートによる評価ではありません。",
+                  "要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。", "'枠の要素':'本要素'"):
+            with self.subTest(w=w):
+                self.assertIn(w, t)
+        # 利用者に見える文言に、作った言い方を出さない。要素の note（作業の注）を出さない
+        for w in ("区切りのデータ", "項目の番号の無い行", "要素を番号の順", "段階を順に", "この段階", "テーマの議案", "同じ項目の記載", "筋", "述べ方", "書き手", "当たる点", "点が無い", "記録なし", "点なし", "作る者", "あて先", "現れる所", "確かめた所",
+                  "e.note", "何にもとづく"):
+            with self.subTest(w=w):
+                self.assertNotIn(w, re.sub(r"/\*.*?\*/", "", t, flags=re.S))
+
     def test_out_path(self):
         for view, name in ((P, "hoiku-e008.html"), ("plan:kaigo9", "hoiku-kaigo9.html"), ("fa:nishioji-yo", "hoiku-nishioji-yo.html"),
-                           ("dist:hino", "hoiku-hino.html"), ("org:kucho-kai", "hoiku-kucho-kai.html"), ("hoiku", "hoiku-theme.html")):
+                           ("dist:hino", "hoiku-hino.html"), ("org:kucho-kai", "hoiku-kucho-kai.html"), ("hoiku", "hoiku-theme.html"),
+                           ("waku:kaigo-hokenryo/6", "hoiku-kaigo-hokenryo-6.html")):
             with self.subTest(view=view):
                 self.assertTrue(bp.out_path("hoiku", view).endswith(os.path.join("build", "pages", name)))
-        for bad in ("e008", "kaigo", "plan:", "fa:A", "dist:", "org:Kucho", "chiku:hino"):
+        for bad in ("e008", "kaigo", "plan:", "fa:A", "dist:", "org:Kucho", "chiku:hino", "waku:kaigo-hokenryo",
+                    "waku:kaigo-hokenryo/0"):
             with self.subTest(bad=bad):
                 with self.assertRaises(bp.PageError):
                     bp.out_path("hoiku", bad)

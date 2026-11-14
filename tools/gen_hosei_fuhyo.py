@@ -17,7 +17,9 @@ tools/apply_decisions.py --ledger hosei-fuhyo から使う）もここに置く�
   附表の事業（fh）。特別会計・企業会計の主な内容の行（key の頭が t の行）は対象にしない（PR #19 の問い2）
 - 名前の一致：○の行の名前と、同じ年度の附表の事業名が §4 の正規化のあとで完全に一致する事業を候補にする。
   同じ年度の附表に同じ名前の事業が2つ以上あるときは name ではつながず、一覧（name_ambiguous.tsv）に出す
-- kind（§3）：金額が正なら増額、負なら減額、0 で説明に「財源」の字があれば財源更正。どれにも当たらなければ止める
+- kind（§3）：金額が正なら増額、負なら減額、0 で説明に「財源」の字があれば財源更正。金額が0で説明に「財源」の字が無い
+  ○の行は、kind が決まらないので台帳の候補にせず、一覧（kind_undecided.tsv）に出す（2026-11-13、依頼者の決定）。
+  金額が数でない○の行は止める
 - 名前が一致しない○の行：台帳に行を作らず、一覧（name_unmatched.tsv）に出す。kind は説明に「新規計上」か「新たに」の字が
   あれば新規、無ければ附表に無い（候補。PR #19 の問い1）。人が確かめた組だけを manual の confirmed の行として足す（§6）
 """
@@ -25,7 +27,7 @@ import os
 import re
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -50,6 +52,7 @@ ZAIGEN_WORD = "財源"
 RE_AMOUNT = re.compile(r"-?[0-9]+")
 AMBIGUOUS_COLUMNS = ["from", "to", "name", "kan", "dept"]
 UNMATCHED_COLUMNS = ["from", "name", "amount", "kind", "desc_head"]   # §11 name_unmatched.tsv
+UNDECIDED_COLUMNS = ["from", "to", "name", "amount", "desc_head"]     # §11 kind_undecided.tsv
 DESC_HEAD = 40   # desc_head の字数（§11）
 MARU_HEAD = "m"  # ○の行の key の頭（§2）。t（特別会計・企業会計の主な内容の行）は対象にしない
 JUDGED = "判定："
@@ -58,7 +61,7 @@ COUNT_RE = re.compile(r"名前の一致の規則と一覧（([0-9]+)行）")
 
 
 def fh_kind(row):
-    """名前の一致の行の kind（§7 hosei-fuhyo）。決まらなければ None。"""
+    """名前の一致の行の kind（§7 hosei-fuhyo）。決まらなければ None（金額が数でないときと、0 で「財源」の字が無いとき）。"""
     a = row["amount"]
     if not RE_AMOUNT.fullmatch(a or ""):
         return None
@@ -68,6 +71,11 @@ def fh_kind(row):
     if v < 0:
         return GENGAKU
     return ZAIGEN if ZAIGEN_WORD in (row["desc"] or "") else None
+
+
+def is_zero(amount):
+    """金額の字が数の0か（§7 hosei-fuhyo の kind の決まらない名前の一致）。"""
+    return bool(RE_AMOUNT.fullmatch(amount or "")) and int(amount) == 0
 
 
 def none_kind(row):
@@ -100,13 +108,14 @@ class HoseiBuilt:
     no_fuhyo: list    # 同じ年度の附表が無い○の行（hj キー）
     bad_kind: list    # 名前は一致したが kind が決まらない行（文）
     toku: int = 0     # 対象にしない特別会計・企業会計の主な内容の行（t の行）の数
+    undecided: list = field(default_factory=list)   # 名前は一致したが kind の決まらない○の行（kind_undecided.tsv の行）
 
 
 def build(inp):
     order = gy.years_order(inp.fuhyo)
     items = {y.fid: gy.year_items(y.fid, inp.fuhyo[y.fid]) for y in order}
     year_fid = {y.year: y.fid for y in order}
-    rows, ambiguous, unmatched, no_fuhyo, bad = [], [], [], [], []
+    rows, ambiguous, unmatched, no_fuhyo, bad, undecided = [], [], [], [], [], []
     maru = sorted(k for k in inp.struct.rows if k[0] == hosei.MARU)
     for t in (k for k in maru if is_maru_key(k)):
         r = inp.struct.rows[t]
@@ -127,6 +136,10 @@ def build(inp):
             continue
         x = same[0]
         kind = fh_kind(r)
+        if kind is None and is_zero(r["amount"]):   # 金額0で「財源」の字が無い：一覧に出す（§7 hosei-fuhyo）
+            undecided.append({"from": key, "to": gy.fh(fid, x["key"]), "name": r["name"], "amount": r["amount"],
+                              "desc_head": (r["desc"] or "")[:DESC_HEAD]})
+            continue
         if kind is None:
             bad.append(f"{key}：名前は {gy.fh(fid, x['key'])} と一致したが、kind が決まらない（金額 {r['amount']!r}）")
             continue
@@ -137,7 +150,7 @@ def build(inp):
         raise gm.GenError("候補で (from, to, method) が重なっている")
     return HoseiBuilt(inp, order, items, year_fid, sorted(rows, key=lambda r: (r["from"], r["to"], r["method"])),
                       ambiguous, sorted(unmatched, key=lambda u: u["from"]), no_fuhyo, bad,
-                      sum(1 for k in maru if not is_maru_key(k)))
+                      sum(1 for k in maru if not is_maru_key(k)), sorted(undecided, key=lambda u: u["from"]))
 
 
 def _why(kind):
@@ -270,13 +283,16 @@ def count_lines(rows, built):
             + ("・".join(f"{k} {un[k]}" for k in NONE_KINDS if un[k]) or "0") + "。name_unmatched.tsv。台帳には書かない）",
             f"- 同じ年度の附表に同じ名前の事業が2つ以上ある○の行：{len({a['from'] for a in built.ambiguous})}"
             "（name_ambiguous.tsv）",
+            f"- 名前は一致したが kind の決まらない○の行：{len(built.undecided)}（金額0で説明に「財源」の字が無い。"
+            "kind_undecided.tsv。台帳には書かない）",
             f"- 同じ年度の附表が無い○の行：{len(built.no_fuhyo)}"]
 
 
 def write_lists(outdir, built):
     os.makedirs(outdir, exist_ok=True)
     return ledger._write_files(outdir, [("name_ambiguous.tsv", AMBIGUOUS_COLUMNS, built.ambiguous),
-                                        ("name_unmatched.tsv", UNMATCHED_COLUMNS, built.unmatched)])
+                                        ("name_unmatched.tsv", UNMATCHED_COLUMNS, built.unmatched),
+                                        ("kind_undecided.tsv", UNDECIDED_COLUMNS, built.undecided)])
 
 
 def report_lines(built):

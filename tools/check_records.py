@@ -19,6 +19,9 @@ inputs.lock.json の版の入力（会議録の索引と審議の記録・議案
   target_changed.tsv lock の hino-town-docs を上げるときの比べ方（--prev を渡したときだけ。§10）
   teian_segment.tsv  提案理由の記録で、sid が bill の提案の区切りに入っていない行（§11。終了コードは変えない。
                      ○の行の概要の説明（desc）を並べる。LINK_SCHEMA §15.11）
+  suji_missing.tsv   confirmed の事柄・記載の行で、資料が資料の種類の参照表に当たり、suji が空のもの（§11。止めない。ADR-37）
+  katachi.tsv        形の点検の (3) 同じ引用で点が違う行と (4) target が引用に無い行（§11。終了コードは変えない）
+枠の参照表（ref/waku.tsv。§12.3）と資料の種類の参照表（ref/shiryo.tsv。§12.4）は、ファイルが無ければ0行として扱う（ADR-37）。
 
 target のキーは、lock の版の附表（fh）と hino-town-docs の構造化の層（hs・hj・hk・hz。tools/hosei.py）で照らし、
 links/gian-yosan.tsv・links/hosei-fuhyo.tsv の confirmed の行（無ければ0行）で議案の回と○の行の附表を引く。
@@ -47,6 +50,8 @@ THEMES = os.path.join(gm.ROOT, "ref", "themes.tsv")
 SHISETSU = os.path.join(gm.ROOT, "ref", "shisetsu.tsv")
 CHIKU = os.path.join(gm.ROOT, "ref", "chiku.tsv")       # 地区の参照表（§12.1）。無ければ0行
 SOSHIKI = os.path.join(gm.ROOT, "ref", "soshiki.tsv")   # 組織の参照表（§12.1）。無ければ0行
+WAKU = os.path.join(gm.ROOT, "ref", "waku.tsv")         # 枠の参照表（§12.3。ADR-37）。無ければ0行
+SHIRYO = os.path.join(gm.ROOT, "ref", "shiryo.tsv")     # 資料の種類の参照表（§12.4。ADR-37）。無ければ0行
 LINKS_DIR = os.path.join(gm.ROOT, "links")
 EXAMPLES = 20
 USAGE = "使い方：python3 -B tools/check_records.py [--prev <前の版の hino-town-docs の SHA>]"
@@ -63,6 +68,12 @@ def read_area_refs():
     """地区と組織の参照表の行（§12.1）。ファイルが無ければ0行。(chiku, soshiki)。"""
     return (read_file(CHIKU, records.AREA_COLUMNS, optional=True),
             read_file(SOSHIKI, records.AREA_COLUMNS, optional=True))
+
+
+def read_frame_refs():
+    """枠と資料の種類の参照表の行（§12.3・§12.4）。ファイルが無ければ0行。(waku, shiryo)。"""
+    return (read_file(WAKU, records.WAKU_COLUMNS, optional=True),
+            read_file(SHIRYO, records.SHIRYO_COLUMNS, optional=True))
 
 
 def bulletin_texts(questions):
@@ -182,6 +193,7 @@ def report_lines(rep):
     L.append(f"- 対象と議案・名前：(a) {len(rep.target_bill)}（target_bill.tsv）・(b) {len(rep.target_name)}（target_name.tsv）")
     if rep.counts.get("teian"):
         L.append(f"- 提案理由の記録：sid が提案の区切りに入っていない行 {len(rep.teian_segment)}（teian_segment.tsv）")
+    L.append(f"- confirmed で suji が空の監査委員の資料の行：{len(rep.suji_missing)}（suji_missing.tsv）")
     L += struct_lines(rep.struct)
     changed = rep.target_changed
     if changed is not None:
@@ -191,8 +203,30 @@ def report_lines(rep):
         L.append(f"- lock を上げるときの比べ方（前の版 {rep.prev_sha[:7]}）：" + "・".join(
             f"{c} {by.get(c, 0)}" for c in ("key が変わった", "行が無くなった", "検収が済まなくなった"))
             + "（target_changed.tsv）")
+    L += katachi_lines(rep.katachi)
     if rep.errors:
         L += ["", "## 誤り", ""] + [f"- {e}" for e in rep.errors]
+    return L
+
+
+def katachi_lines(k):
+    """check.md の節「形の点検」（LINK_SCHEMA §11。点検の報告の E.2）。"""
+    if not k:
+        return []
+    L = ["", "## 形の点検", "", "### 列ごとの空の行（共通の列を除く。空の行が1以上の列だけ）", ""]
+    for n, cols in k["empty"].items():
+        if cols:
+            L.append(f"- {n}：" + "・".join(f"{c} {e}/{t}（{e / t:.1%}）" for c, e, t in cols))
+    L += ["", f"### 定数にあって0行の値：{len(k['zero'])}", ""]
+    L += [f"- {n} の {c}：{v}" for n, c, v in k["zero"]]
+    L += ["", f"### 同じ資料・同じ引用で点が違う行の組：{len(k['pairs'])}（katachi.tsv）", ""]
+    by = {}
+    for n, _ in k["pairs"]:
+        by[n] = by.get(n, 0) + 1
+    L += [f"- {n}：{c}組" for n, c in sorted(by.items())]
+    t = k["target"]
+    L += ["", f"### target が引用に無い行：{sum(sum(v.values()) for v in t.values())}（katachi.tsv）", ""]
+    L += [f"- {n}：" + "・".join(f"{s} {c}" for s, c in sorted(v.items())) for n, v in sorted(t.items())]
     return L
 
 
@@ -218,6 +252,8 @@ def write_outputs(outdir, rep):
         "target_bill.tsv": (records.TARGET_BILL_COLUMNS, rep.target_bill),
         "target_name.tsv": (records.TARGET_NAME_COLUMNS, rep.target_name),
         "teian_segment.tsv": (records.TEIAN_SEGMENT_COLUMNS, rep.teian_segment),
+        "suji_missing.tsv": (records.SUJI_MISSING_COLUMNS, rep.suji_missing),
+        "katachi.tsv": (records.KATACHI_COLUMNS, rep.katachi_rows),
     }
     if rep.target_changed is not None:
         files["target_changed.tsv"] = (records.TARGET_CHANGED_COLUMNS, rep.target_changed)
@@ -248,17 +284,19 @@ def main(argv=None):
         themes = read_file(THEMES, records.THEME_COLUMNS)
         shisetsu = read_file(SHISETSU, records.SHISETSU_COLUMNS)
         chiku, soshiki = read_area_refs()
+        waku, shiryo = read_frame_refs()
     except (gm.GenError, records.RecordsError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
-    rep = records.check_all(ledgers, themes, shisetsu, inp, chiku, soshiki)
+    rep = records.check_all(ledgers, themes, shisetsu, inp, chiku, soshiki, waku, shiryo)
     rep.struct = inp.struct
     if prev is not None:
         rep.prev_sha = args[1]
         rep.target_changed = records.target_changed(ledgers, prev, inp.struct)
     write_outputs(OUT_DIR, rep)
     lines = report_lines(rep)
-    print("\n".join(lines[2:lines.index("## 誤り") - 1] if "## 誤り" in lines else lines[2:]))
+    end = min([lines.index(h) - 1 for h in ("## 形の点検", "## 誤り") if h in lines] or [len(lines)])
+    print("\n".join(lines[2:end]))
     if rep.errors:
         for e in rep.errors[:EXAMPLES]:
             print(f"  {e}", file=sys.stderr)

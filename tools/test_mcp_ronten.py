@@ -118,8 +118,32 @@ class ToolTest(unittest.TestCase):
         text, _ = call(server(), "topic", {"name": "懇話会の設置目的"})
         self.assertIn("## 記載の見出し：懇話会の設置目的", text)
         self.assertIn("- [kisai:1] ［2022年7月］懇話会の資料：資料の種類：町の資料。見出し：懇話会の設置目的。「在り方を検討する。」", text)
+        d = json.loads(data())
+        d["records"]["kisai"][0].update(kind="評価", target="令和３年度")
+        s2 = mr.Server(json.dumps(d, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None)
+        text, _ = call(s2, "topic", {"name": "懇話会の設置目的"})
+        self.assertIn("見出し：懇話会の設置目的。記載の種類：評価。対象の時期：令和３年度。「在り方を検討する。」", text)
+        text, _ = call(s2, "overview")
+        self.assertIn("欄「記載の種類」の事実・見通し・評価・要望は、資料の作成者（監査委員など）が記した内容の種類で", text)
         text, _ = call(server(), "topic", {"name": "開園時期"})
         self.assertIn("令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", text)
+
+    def test_frame(self):
+        # 同じ項目の記載は fetch の suji: の id、枠組みと資料の種類は overview の節（LINK_SCHEMA §14。DESIGN.md ADR-37）
+        s = mr.Server(tb.frame_data(), P, WORDS, SPEECHES, None)
+        text, _ = call(s, "fetch", {"ids": ["suji:a/1"]})
+        self.assertIn("[suji:a/1] 項目：資料の種類：定期監査の報告。置き場所：定期監査の報告\n［2025年3月］再編整備計画の項目1（suji:a/1）：", text)
+        self.assertLess(text.index("「計画は３年毎に見直す。」"), text.index("「留意されたい。」（事項：開園時期）"))
+        text, _ = call(s, "overview")
+        self.assertIn("## 分野の枠組みと資料の種類", text)
+        self.assertIn("- 要素1：開園の推計。該当する事項：開園時期。", text)
+        self.assertIn("## 定期監査の報告（資料ごと。項目は fetch で suji: を取る）\n- 再編整備計画（2025年3月）：[suji:a/1]", text)
+        self.assertNotIn("同じ項目の記載", text)
+        # 事柄の topic の記載の推移に、about がその事柄の記載の行も入る
+        text, _ = call(s, "topic", {"name": "開園時期"})
+        part = text[text.index("記載の推移"):]
+        self.assertIn("見出し：要望の文。記載の種類：要望。", part)
+        self.assertNotIn("## 記載の見出し：開園時期", text)
 
     def test_topic_latest_all_and_stage_order(self):
         d = json.loads(data())

@@ -5,7 +5,9 @@ build/theme/<theme>.json（tools/build_theme.py が作る。§13）だけを読�
 標準ライブラリだけで作る（DOCX は zipfile と XML で書く。圧縮しない）。同じデータからは、どの環境でも同じファイルができる。
 
 実行: python3 -B tools/build_rag.py <theme> <見方のキー>（例 hoiku node:jisshi/e008）
-見方のキーは node・plan・fa・dist・org のキーか、テーマの id（テーマ全体）。見方の名前は tools/build_pages.py と同じ（§16）。
+見方のキーは node・plan・fa・dist・org・waku（枠の要素）のキーか、テーマの id（テーマ全体）。見方の名前は tools/build_pages.py と同じ（§16）。
+枠組みの表・資料の種類と根拠法令・記載の行の事項の所への出し方・項目（列 suji）の段落は LINK_SCHEMA §17.1〜§17.3（DESIGN.md ADR-37）。
+項目の段落は、本編の年度ごとの節目の枠組みの流れか、資料の種類の節に置く（記録編の章「同じ項目の記載」は置かない。ADR-37 の経過、2026-11-14）。
 終了コード：0 は作った。1 は止めた（理由を表示する）。
 """
 import hashlib
@@ -123,6 +125,42 @@ def kot_ref(r):
     return "records/kotogara/" + "/".join(str(r[c]) for c in records.KEYS["kotogara"])
 
 
+def kis_ref(r):
+    """構造にしていない記載の行の参照（行のキーは (title, source)）。"""
+    return "records/kisai/" + "/".join(str(r[c]) for c in records.KEYS["kisai"])
+
+
+# LINK_SCHEMA §16.4 の決まった文（DESIGN.md ADR-37 の経過、2026-11-14 の2つめ）
+NO_SHURUI = "資料は、まだ記録していません。"
+NO_BILL = "この年度の決算の議案は、まだ記録していません。"
+NO_PROPOSAL = "提案の説明は、まだ記録していません。"
+NO_STEPS = "質疑・委員長の報告・討論は、まだ記録していません。"
+RE_LAW_ARTICLE = re.compile(r"([^\s（）、・0-9]+?(?:法律|法))(?:（[^）]*）)?第?([0-9]+)条")
+
+
+def law_article(text):
+    """法令の条項の字（ref/waku.tsv の source、ref/shiryo.tsv の konkyo）の最初の条項 →「地方自治法233条」。取れなければ空
+    （LINK_SCHEMA §16.4。2026-11-14 の3つめ）。"""
+    m = RE_LAW_ARTICLE.match(text or "")
+    return f"{m.group(1)}{m.group(2)}条" if m else ""
+
+
+def flow_lead(w):
+    """年度ごとの節目の<枠組みの名前>の頭の最初の文（LINK_SCHEMA §16.4）。"""
+    la = law_article(w.get("source"))
+    return f"{la}の手続きの順に、資料と議案を示します。" if la else f"{w.get('name')}の要素の順に、資料と議案を示します。"
+
+
+def section_lead(sh_row, shurui, flows):
+    """<資料の種類>の節の頭の文（LINK_SCHEMA §16.4）。konkyo から法令の条が取れなければ最初の文を書かない。"""
+    la = law_article((sh_row or {}).get("konkyo"))
+    return (f"{la}による{shurui}です。" if la else "") + (f"{'・'.join(w['name'] for w in flows)}とは別のものです。" if flows else "")
+NO_IINKAI = "委員会の会議録はありません。"
+WAKU_NOTE = ("要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。"
+             "「資料別の記載年」は資料の日付の年で、未確認の記録を含みます。"
+             "「議会での質問・答弁の記録数」は、その事項について記録した一般質問・議案質疑の、確定した行の数です。")
+
+
 class Rag:
     def __init__(self, data, data_bytes, view):
         self.d = data
@@ -171,6 +209,30 @@ class Rag:
                     if row["round"] not in rs:
                         rs.append(row["round"])
         self.doc_dates = {x.get("id"): x.get("date") or "" for x in data.get("docs") or [] if x.get("id")}
+        # 筋（§13 の suji）と、about ごとの記載の行（点の所に出す。LINK_SCHEMA §17.2。DESIGN.md ADR-37）
+        self.suji = {x["key"]: x for x in data.get("suji") or []}
+        self.kis = {}
+        for r in self.R.get("kisai") or []:
+            if r.get("about"):
+                self.kis.setdefault(r["about"], []).append(r)
+        for rows in self.kis.values():
+            rows.sort(key=lambda r: (r["source_date"], r["source"], r["title"]))
+        # 項目の置き場所（LINK_SCHEMA §16.1・§17.2）：要素に資料の種類が当たる枠組みの年度ごとの要素か、<資料の種類>の節
+        self.flows = [w for w in data.get("waku") or [] if w.get("nendo")]
+        self.place = {}
+        for w in self.flows:
+            for y in w["nendo"]:
+                for ye in y["elements"]:
+                    e = next((z for z in w["elements"] if z["n"] == ye["n"]), {})
+                    for x in ye["docs"]:
+                        for k in x["suji"]:
+                            self.place[k] = f"{w['name']}：{fy_name(int(y['fiscal_year']))}：要素{ye['n']} {e.get('name', '')}"
+        self.sections = {}
+        for x in data.get("suji") or []:
+            if x["key"] not in self.place:
+                sh = x.get("shurui") or self.kind_of(x["doc"])
+                self.sections.setdefault(sh, []).append(x)
+                self.place[x["key"]] = sh
 
     # ---- 共通 ----
     def in_scope(self, r):
@@ -195,6 +257,51 @@ class Rag:
         if (source or "").startswith(KOHO):
             return "広報ひの"
         return "町の資料"
+
+    def shurui_of(self, r, source):
+        """記録の行の資料の種類：資料の種類の参照表に当たれば shurui、当たらなければ kind_of（LINK_SCHEMA §17.1。ADR-37 の5）。"""
+        return r.get("shurui") or self.kind_of(source)
+
+    def suji_text(self, r, ref):
+        """欄「項目」：<資料の名前>の項目<n>（N件のうちK件目。suji:<資料の id>/<n>）。suji が無ければ空（LINK_SCHEMA §17.1）。"""
+        x = self.suji.get(r.get("suji_key") or "")
+        if not x:
+            return ""
+        k = next((i for i, y in enumerate(x["rows"], 1) if y["ref"] == ref), 0)
+        return f"{self.suji_doc(x)}の項目{x['n']}（{len(x['rows'])}件のうち{k}件目。{x['key']}）"
+
+    def suji_doc(self, x):
+        """項目の資料の名前（項目の1つめの行の資料のキーから。§13 の names）。"""
+        return self.name(x["rows"][0]["source"]) if x.get("rows") else x["doc"]
+
+    def point_rows(self, p, docs_only=False):
+        """事項の所の行：事柄の記録（この見方の範囲）と、about がその点の記載の行を資料の日付の順に（§17.2）。(日付, 段落)。"""
+        out = [(r["source_date"], r["source"], self.kot_entry(r)) for r in self.kot.get(p, [])
+               if not (docs_only and r["source"].startswith("sp:"))]
+        out += [(r["source_date"], r["source"], self.kisai_entry(r)) for r in self.kis.get(p, [])]
+        return [(d, t) for d, _, t in sorted(out, key=lambda e: (e[0], e[1]))]
+
+    def waku_lines(self, doc):
+        """枠組みの表と、資料の種類と根拠法令（LINK_SCHEMA §17.1・§17.2。表は使わない。要素の note は出さない）。"""
+        for w in self.d.get("waku") or []:
+            doc.h(2, f"{self.pname}：{w.get('name')}と、資料の記載状況")
+            doc.p(f"枠組み：{w.get('name')}。出典：{self.name(w.get('source'))}（{w.get('source')}）（出典：{w.get('url')}）" if w.get("url")
+                  else f"枠組み：{w.get('name')}。出典：{w.get('source')}")
+            for e in w.get("elements") or []:
+                rec = "・".join(f"{k}：{'・'.join(v)}" for k, v in (e.get("rec") or {}).items()) or NOREC
+                pts = "、".join(e.get("points") or []) or "該当する事項なし"
+                src = f"（{e['source']}）" if e.get("source") and e.get("source") != w.get("source") else ""
+                doc.li(f"要素{e.get('n')}：{e.get('name')}{src}。該当する事項：{pts}。資料別の記載年：{rec}"
+                       + (f"。議会での質問・答弁の記録数：{e.get('gikai')}" if e.get("points") else ""))
+            doc.end_list()
+            doc.p(WAKU_NOTE)
+        sh = self.d.get("shiryo") or []
+        if sh:
+            doc.h(2, f"{self.pname}：資料の種類と根拠法令")
+            for x in sh:
+                doc.li(f"資料の種類：{x.get('shurui')}。作成者：{x.get('tsukuru')}。根拠法令：{x.get('konkyo')}。提出先・公表：{x.get('atesaki')}。"
+                       f"対応状況を確認できる資料：{x.get('outou')}。出典：{x.get('source')}")
+            doc.end_list()
 
     def round_of(self, source):
         """会議録の発言（sp）の回。やりとりの記録に無ければ「未記録」。sp でなければ空（LINK_SCHEMA §17.1）。"""
@@ -230,7 +337,7 @@ class Rag:
         rd = self.round_of(src)
         q = f"「{k.get('quote')}」" if k.get("quote") else ""
         return (f"{head}検討の段階：{cycle_of(k)}段階：{k.get('name')}。期間：{self.katei_span(k)}。資料：{self.name(src)}"
-                f"{'（' + jd(sd) + '）' if sd else ''}。資料の種類：{self.kind_of(src)}。{'回：' + rd + '。' if rd else ''}"
+                f"{'（' + jd(sd) + '）' if sd else ''}。資料の種類：{self.shurui_of(k, src)}。{'回：' + rd + '。' if rd else ''}"
                 f"{q}（出典：{k.get('url') or '出典なし'}）")
 
     def policy_of(self, ref):
@@ -305,7 +412,13 @@ class Rag:
         doc.li("記載は1つごとに1段落で、「［資料の日付］資料の名前：欄：値。「引用」（出典：url）」の形で書いています。引用は資料の文を原文のまま写したものです")
         doc.li("検討の段階（政策の過程）の記載は、資料の日付ではなく期間を書くため、［ ］を付けていません")
         doc.li("欄「資料の種類」は、会議録（会議録の発言）、広報ひの、町の資料（広報ひののほかの町の公開資料と計画）の別です。"
+               "根拠法令を確認した資料（定期監査の報告・決算審査の意見書など）は、その種類の名前を書き、本編の節「資料の種類と根拠法令」に作成者・根拠法令などを書いています。"
                "会議録の発言の記載には、欄「回」（最初の問い・再質問1…。やりとりの記録に無いときは「未記録」）を書いています")
+        doc.li("欄「記載の種類」の事実・見通し・評価・要望は、資料の作成者（監査委員など）が記した内容の種類です。"
+               "評価・要望・見通しの区分は論点ノートによる評価ではありません")
+        doc.li("欄「項目」は、その記載が資料のどの項目（監査委員の資料では意見の項目）の何件目の文かを示します。項目の全部の文は、本編の「年度ごとの節目」の枠組みの流れ（決算の認定までの流れなど）か、資料の種類の節（定期監査の報告など）に、項目ごとの段落で書いています。"
+               "項目の段落では、文の前の［ ］が記載の種類、文の後ろの（事項：…）が対応づけた事項（論点）です。"
+               "決算の認定までの流れでは、要素ごとに、要素に当たる資料の項目か、議案（提案の説明・質疑・委員長の報告・討論・議決）を書いています")
         doc.li("「【未確認】」の段落と「照合結果（未確認）」の節は、機械による照合の結果か、人による確認が済んでいない記録です")
         doc.li(ARCHIVE_NOTE)
         doc.li("評価や判断は加えていません。議員ごとの件数や順位は示していません")
@@ -358,8 +471,8 @@ class Rag:
 
     def kot_entry(self, r):
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("資料の種類", self.kind_of(r["source"])), ("回", self.round_of(r["source"])), ("値", r.get("value")), ("対象の時期", r.get("target")),
-                           ("書き方", r.get("kind")), ("変更前", r.get("prev"))], r.get("layer"))
+                          [("資料の種類", self.shurui_of(r, r["source"])), ("回", self.round_of(r["source"])), ("値", r.get("value")), ("対象の時期", r.get("target")),
+                           ("書き方", r.get("kind")), ("変更前", r.get("prev")), ("項目", self.suji_text(r, kot_ref(r)))], r.get("layer"))
 
     def youten(self, doc):
         """本編の章1：見方の要点（LINK_SCHEMA §14 の overview・§17.2 の1）。どの段落も出典つき。"""
@@ -405,6 +518,11 @@ class Rag:
             fs = [v.get("name") or k for k, v in self.vnames.items()
                   if k.startswith("fa:") and v.get("district") and v.get("district") == self.pname]
             doc.p(f"地区：{self.pname}。施設：{'、'.join(fs) or NOREC}")   # 参照表の名前。出典の url は無い
+        elif self.view_kind == "枠の要素":
+            # 枠組みの名前・要素・該当する事項（§14・§16.1。ADR-37）。参照表の名前。出典は枠組みの図のページ
+            w = next((x for x in d.get("waku") or [] if self.view.startswith(x["key"] + "/")), {})
+            e = next((x for x in w.get("elements") or [] if x.get("view") == self.view), {})
+            doc.p(f"枠組み：{w.get('name')}。要素{e.get('n')}：{e.get('name')}。該当する事項：{'、'.join(e.get('points') or []) or NOREC}（出典：{w.get('url')}）")
         elif self.view_kind == "組織":
             # 組織の名前と、ほかの表記（参照表の aliases。§14）
             al = (self.vnames.get(self.view) or {}).get("aliases") or []
@@ -416,6 +534,101 @@ class Rag:
             doc.p(f"テーマ：{d.get('name')}")   # 参照表の名前。出典の url は無い
             doc.p(f"系列の計画：{plans}")
             doc.p(f"中心の見方：{(sh['name'] + '（' + ch + '）') if sh else (ch or NOREC)}")
+
+    def doc_title(self, key, x=None):
+        """資料の名前（docs の title。無ければ項目の最初の行の資料の名前）。"""
+        did = key.split(":", 1)[1].split("/")[0] if key.startswith("doc:") else ""
+        t = next((y.get("title") for y in self.d.get("docs") or [] if y.get("id") == did), "")
+        return t or (self.name(x["rows"][0]["source"]) if x and x.get("rows") else key)
+
+    def doc_url(self, key, x=None):
+        did = key.split(":", 1)[1].split("/")[0] if key.startswith("doc:") else ""
+        return next((y.get("url") for y in self.d.get("docs") or [] if y.get("id") == did), "") or (x or {}).get("url", "")
+
+    def item_text(self, x):
+        """項目の段落（LINK_SCHEMA §17.1）：［<資料の日付>］<資料の名前>の項目<n>（suji:…）：［<記載の種類>］「<文>」（事項：…）…（出典：url）。"""
+        parts = []
+        for b in x.get("bun") or []:
+            pts = [(y["point"] + (f"（{y['kind']}）" if y["kind"] != b["kind"] else "")) for y in b["points"] if y.get("point")]
+            parts.append(f"{'【未確認】' if b.get('layer') != CONFIRMED else ''}［{b['kind']}］「{b['quote']}」" + (f"（事項：{'、'.join(pts)}）" if pts else ""))
+        date = min((r["source_date"] for r in x.get("rows") or []), default="")
+        return f"［{jd(date)}］{self.doc_title(x['doc'], x)}の項目{x['n']}（{x['key']}）：{''.join(parts)}（出典：{self.doc_url(x['doc'], x)}）"
+
+    @staticmethod
+    def item_order(x):
+        r = (x.get("rows") or [{}])[0]
+        return (r.get("page", 0), r.get("pos", -1) < 0, r.get("pos", -1), x["n"])
+
+    def flow_lines(self, doc):
+        """年度ごとの節目の<枠組みの名前>（LINK_SCHEMA §16.1・§17.2）。資料の年度ごとに要素を番号の順に全部。"""
+        for w in self.flows:
+            for y in w["nendo"]:
+                doc.h(3, f"{self.pname}：年度ごとの節目：{w['name']}（{fy_name(int(y['fiscal_year']))}）")
+                doc.p(f"{flow_lead(w)}資料の記載は項目ごとの段落です。年度は資料の年度です。")
+                gpos = [z["n"] for z in y["elements"] if "gian" in z]
+                for ye in y["elements"]:
+                    e = next((z for z in w["elements"] if z["n"] == ye["n"]), {})
+                    head = f"要素{ye['n']}：{e.get('name', '')}" + (f"（{e['source']}）" if e.get("source") else "")
+                    if "gian" in ye:
+                        bills = [b for b in self.d.get("bills") or [] if b["key"] in ye["gian"]]
+                        if not bills:
+                            doc.p(f"{head}。{NO_BILL}")
+                        for b in bills:
+                            doc.p(f"{head}。")
+                            for t in self.bill_lines(gpos.index(ye["n"]), b):
+                                doc.li(t)
+                            doc.end_list()
+                        continue
+                    if not ye["docs"]:
+                        doc.p(f"{head}。{NOREC if e.get('shiryo') else NO_SHURUI}")
+                        continue
+                    for x in ye["docs"]:
+                        doc.p(f"{head}。資料：{self.doc_title(x['doc'], self.suji.get((x['suji'] or [''])[0]))}（{jd(x['date'])}）")
+                        for k in x["suji"]:
+                            if k in self.suji:
+                                doc.li(self.item_text(self.suji[k]))
+                        doc.end_list()
+                        if x.get("nosuji"):
+                            doc.p(f"この資料には、ここに出していない記載が{x['nosuji']}件あります（事項の所に出ます）。")
+
+    @staticmethod
+    def bill_lines(pos, b):
+        """議案を置く枠組みの要素の箇条（LINK_SCHEMA §16.1・§17.2）。pos は議案を置く要素の中の順（0 提出・1 審議・2 議決）。"""
+        k = b.get("kessan") or {}
+        giin = lambda m: f"{(m.get('seat') + ' ') if m.get('seat') else ''}{m.get('name')} 議員"
+        if pos == 0:
+            out = [f"議案：{b.get('meeting')}の{b.get('no')}「{b.get('title')}」（出典：{b.get('url')}）"]
+            out += [f"［{jd(x['date'])}］提案の説明：{x.get('role')}（出典：{x.get('url')}）" for x in k.get("proposals") or []] or [NO_PROPOSAL]
+            return out
+        if pos == 1:
+            out = []
+            for x in k.get("steps") or []:
+                if x["kind"] == "質疑":
+                    out.append(f"［{jd(x['date'])}］質疑：{giin(x['member'])}（{x['nbills']}議案について）（出典：{x.get('url')}）")
+                elif x["kind"] == "委員長の報告":
+                    out.append(f"［{jd(x['date'])}］委員長の報告：{x.get('committee')}（{x['nbills']}議案について）（出典：{x.get('url')}）")
+                else:
+                    out.append(f"［{jd(x['date'])}］討論：{giin(x['member'])}" + (f"。賛否：{x['stance']}" if x.get("stance") else "")
+                               + f"（出典：{x.get('url')}）")
+            return (out or [NO_STEPS]) + [NO_IINKAI]
+        return [f"議決：{b.get('result')}。採決の方法：{b.get('method')}。" + (f"採決の日付：{jd(k['vote_date'])}。" if k.get("vote_date") else "")
+                + f"議決の会議：{k.get('decided_meeting') or b.get('meeting')}（出典：{b.get('url')}）"]
+
+    def section_lines(self, doc):
+        """<資料の種類>の節（LINK_SCHEMA §16.1・§17.2）：資料ごとに項目の段落。資料の並びは資料の日付の順。"""
+        for sh, items in self.sections.items():
+            doc.h(2, f"{self.pname}：{sh}")
+            doc.p("資料ごとに、記録した項目を段落で示します。"
+                  + section_lead(next((x for x in self.d.get("shiryo") or [] if x.get("shurui") == sh), None), sh, self.flows))
+            by = {}
+            for x in items:
+                by.setdefault(x["doc"], []).append(x)
+            dates = {k: min(r["source_date"] for x in v for r in x["rows"]) for k, v in by.items()}
+            for k in sorted(by, key=lambda k: (dates[k], k)):
+                doc.h(3, f"{self.pname}：{sh}：{self.doc_title(k, by[k][0])}（{jd(dates[k])}）")
+                for x in sorted(by[k], key=self.item_order):
+                    doc.li(self.item_text(x))
+                doc.end_list()
 
     def honpen(self):
         doc, d = Doc(), self.d
@@ -437,9 +650,11 @@ class Rag:
             else:
                 doc.p(f"{self.none_text(p)}。会議録の発言を日付順に示します。")
             doc.p("記載の推移（日付順）：")
-            for r in self.kot[p]:
-                doc.li(self.kot_entry(r))
+            for _, t in self.point_rows(p):
+                doc.li(t)
             doc.end_list()
+
+        self.waku_lines(doc)
 
         doc.h(2, f"{self.pname}：経過")
         doc.p("検討の段階、議決、一般質問、予定の変更を日付順に示します。")
@@ -492,7 +707,7 @@ class Rag:
         for p in sorted(qa, key=lambda p: (-len(qa[p]), p)):
             doc.h(3, f"{self.pname}：事項ごとの質問・答弁：{p}")
             rows = [(q["date"], self.qa_entry(n, q, r)) for n, q, r in qa[p]]
-            rows += [(r["source_date"], self.kot_entry(r)) for r in self.kot.get(p, []) if not r["source"].startswith("sp:")]
+            rows += self.point_rows(p, docs_only=True)
             for _, t in sorted(rows, key=lambda e: (e[0], e[1])):
                 doc.li(t)
             doc.end_list()
@@ -571,6 +786,8 @@ class Rag:
         if self.bud:
             fy = (re.match(r"fh:fuhyo-r(\d+)/", self.bud["key"]) or [None, ""])[1]
             doc.p(f"令和{fy}年度の当初予算額は {self.bud.get('amount'):,}{self.bud.get('unit')}（出典：{self.bud.get('url')}）。それより前の年度の予算額は、まだ取り込んでいません。")
+        self.flow_lines(doc)
+        self.section_lines(doc)
         return doc
 
     def ref_index(self):
@@ -648,17 +865,24 @@ class Rag:
 
     def shisetsu_entry(self, r):
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("資料の種類", self.kind_of(r["source"])), ("回", self.round_of(r["source"])), ("面", ASPECT.get(r.get("aspect"), r.get("aspect"))), ("値", r.get("value")), ("対象の時期", r.get("target")),
+                          [("資料の種類", self.shurui_of(r, r["source"])), ("回", self.round_of(r["source"])), ("面", ASPECT.get(r.get("aspect"), r.get("aspect"))), ("値", r.get("value")), ("対象の時期", r.get("target")),
                            ("書き方", r.get("kind")), ("変更前", r.get("prev"))], r.get("layer"))
 
     def tsunagari_entry(self, r):
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("資料の種類", self.kind_of(r["source"])), ("回", self.round_of(r["source"])), ("関係", r.get("link")), ("上位の記載", r.get("upper")),
+                          [("資料の種類", self.shurui_of(r, r["source"])), ("回", self.round_of(r["source"])), ("関係", r.get("link")), ("上位の記載", r.get("upper")),
                            ("下位の記載", r.get("lower"))], r.get("layer"))
 
     def kisai_entry(self, r):
+        """構造にしていない記載の行。記載の種類（kind）と対象の時期（target）と項目は空なら書かない（LINK_SCHEMA §17.1。ADR-36・ADR-37）。"""
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("資料の種類", self.kind_of(r["source"])), ("回", self.round_of(r["source"])), ("見出し", r.get("title"))], r.get("layer"))
+                          [("資料の種類", self.shurui_of(r, r["source"])), ("回", self.round_of(r["source"])), ("見出し", r.get("title")),
+                           ("記載の種類", r.get("kind")), ("対象の時期", r.get("target")), ("項目", self.suji_text(r, kis_ref(r)))],
+                          r.get("layer"))
+
+    def suji_text_full(self, x):
+        """MCP の fetch の suji:（LINK_SCHEMA §14）：項目の置き場所と、項目の段落。"""
+        return f"置き場所：{self.place.get(x['key'], '')}\n{self.item_text(x)}"
 
     # ---- 記録編 ----
     def kiroku(self):
@@ -688,7 +912,7 @@ class Rag:
                     kind = "一般質問" if name == "yaritori" else "議案質疑"
                     doc.h(2, f"{self.pname}：記録：{kind}：{jd(q['date'])} {q.get('meeting')}　質問者：{q['member'].get('name')} 議員")
                     for r in sorted(q["rows"], key=lambda r: int(r["row"])):
-                        doc.li(self.qa_entry(name, q, r) + (f"　点：{r['point']}" if r.get("point") else ""))
+                        doc.li(self.qa_entry(name, q, r) + (f"　事項：{r['point']}" if r.get("point") else ""))
                     doc.end_list()
             elif name == "tsunagari":
                 for r in sorted(R.get("tsunagari") or [], key=lambda r: (r["link"], r["upper"], r["lower"], r["source_date"])):
@@ -792,7 +1016,7 @@ def build(data_bytes, view):
 
 def main(argv):
     if len(argv) != 3:
-        print("使い方: python3 -B tools/build_rag.py <theme> <見方のキー>（node・plan・fa・dist・org のキーか、テーマの id）",
+        print("使い方: python3 -B tools/build_rag.py <theme> <見方のキー>（node・plan・fa・dist・org・waku のキーか、テーマの id）",
               file=sys.stderr)
         return 1
     theme, view = argv[1], argv[2]
