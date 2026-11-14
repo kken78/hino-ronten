@@ -309,6 +309,7 @@ kaigo	施策	node:sogo6/e088	shiga-hino-plans data/plans/sogo6.json 分野⑱の
 kaigo	施策	node:sogo6/e089	shiga-hino-plans data/plans/sogo6.json 分野⑱の基本施策(2) 介護予防の推進	node:jisshi/e108,node:jisshi/e109	kken78	2026-11-04	
 kaigo	施策	node:sogo6/e090	shiga-hino-plans data/plans/sogo6.json 分野⑱の基本施策(3) 認知症の人と家族への支援体制の推進		kken78	2026-11-04	
 kaigo	枠	waku:kaigo-hokenryo	pt:kaigo9/honpen/49		kken78	2026-11-14	見本（2026-11-14）で依頼者が確認（DESIGN.md ADR-37 の4）
+kaigo	枠	waku:kessan-nintei	地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索。令和8年11月2日施行の版）		kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）。要素に置くのは資料の種類（ref/shiryo.tsv の列 waku）で、事項（論点）の views には書かない
 kaigo	系列	chiiki-fukushi	ref/lineage.tsv chiiki-fukushi（日野町地域福祉計画 第4期）		kken78	2026-11-04	重層的支援体制（e086・e093・e109・e110）の側の計画として入れる（DESIGN.md ADR-30）
 kaigo	系列	kaigo	ref/lineage.tsv kaigo（第6期〜第9期 高齢者福祉計画・介護保険事業計画）		kken78	2026-11-04	
 kaigo	記載	地域共生社会	pt:kaigo9/honpen/3「これまで進めてきた「地域包括ケアシステム」のさらなる深化と「地域共生社会」の実現に向け」	plan:kaigo9	kken78	2026-11-04	判定シート K2b

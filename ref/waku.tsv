@@ -10,3 +10,10 @@ kaigo-hokenryo	7	地域支援事業費の推計	pt:kaigo9/honpen/49	kken78	2026-
 kaigo-hokenryo	8	保険料収納率	pt:kaigo9/honpen/49	kken78	2026-11-14	見本（2026-11-14）で依頼者が確認
 kaigo-hokenryo	9	準備基金取り崩し	pt:kaigo9/honpen/49	kken78	2026-11-14	見本（2026-11-14）で依頼者が確認
 kaigo-hokenryo	10	第９期の介護保険料	pt:kaigo9/honpen/49	kken78	2026-11-14	見本（2026-11-14）で依頼者が確認
+kessan-nintei	0	決算の認定までの流れ	地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索。令和8年11月2日施行の版）	kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）。出典の表記は ref/shiryo.tsv の決算審査の意見書の行の source の地方自治法の部分に合わせた（条文は e-Gov 法令検索で確認。同じ行の note）。要素の名前は依頼者が決めた字で、条文の字ではない（LINK_SCHEMA §12.3）
+kessan-nintei	1	決算の調製と提出	地方自治法233条1項	kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）
+kessan-nintei	2	監査委員の審査と意見	地方自治法233条2項・4項	kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）。4項は、意見の決定は監査委員の合議によること
+kessan-nintei	3	意見を付けて、議会の認定に付す	地方自治法233条3項	kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）
+kessan-nintei	4	議会の審議		kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）。条文に段階としては書かれていない（会議録の提案の説明・質疑・委員長の報告・討論）。そのため source は空
+kessan-nintei	5	認定の議決	地方自治法233条3項	kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）
+kessan-nintei	6	議決と意見の公表	地方自治法233条6項	kken78	2026-11-14	依頼者が会話で決めた（2026-11-14。DESIGN.md ADR-37 の経過）
