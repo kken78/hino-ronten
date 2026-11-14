@@ -33,7 +33,7 @@ COLUMNS = {
                  "yaritori"] + COMMON,
     "tsunagari": ["link", "upper", "upper_ref", "lower", "lower_ref", "source", "source_date", "quote"] + COMMON,
     "katei": ["theme", "step", "cycle", "name", "from", "to", "sources", "quote"] + COMMON,
-    "kisai": ["title", "about", "source", "source_date", "quote"] + COMMON,
+    "kisai": ["title", "about", "source", "source_date", "quote", "kind", "target"] + COMMON,   # kind・target は ADR-36
     "shisetsu": ["facility", "aspect", "value", "source", "source_date", "quote", "target", "kind", "prev"] + COMMON,
     "nozoki": ["question", "n", "sid", "quote", "reason"] + COMMON,
     "teian": ["maru", "bill", "sid", "quote"] + COMMON,
@@ -69,6 +69,7 @@ Q_KINDS = ("事実の確認", "数字・見込み", "方針・考え", "提案�
 A_KINDS = ("事実・数字", "方針・考え", "留保", "考えていない", "時期・手順", "その他")
 BULLETIN = ("載っている", "載っていない", "言い回しが違う")
 TIME_KINDS = ("済んだこと", "いまのこと", "予定", "変更")
+KISAI_KINDS = ("評価", "要望")   # 構造にしていない記載の種類（§15.6。空でもよい。DESIGN.md ADR-36）
 LINKS = ("目的と手段", "もとにした")
 ASPECTS = ("種類", "運営", "役割", "状態", "規模")   # §15.8（規模は ADR-32）
 RE_GIIN = re.compile(r"[0-9０-９]+番")   # 議員の役職（tools/build_theme.py の speaker_class と同じ形）
@@ -751,7 +752,7 @@ def check_katei(rows, inp, theme, rep):
 
 def check_kisai(rows, inp, theme, rep):
     """構造にしていない記載（§15.6）。about は空か、どれかのテーマの kind 事柄か記載の値。
-    同じ title は1つの about を指す（台帳全体で。rejected の行は除く）。"""
+    kind は空か、評価・要望（ADR-36）。同じ title は1つの about を指す（台帳全体で。rejected の行は除く）。"""
     name = "kisai"
     about_of = {}
     for r in rows:
@@ -761,6 +762,8 @@ def check_kisai(rows, inp, theme, rep):
             rep.err(w, "title が空")
         if r["about"] and not (theme.themes_of("事柄", r["about"]) or theme.themes_of("記載", r["about"])):
             rep.err(w, f"about がどのテーマの kind 事柄か記載の値でもない（{r['about']}）")
+        if r["kind"] and r["kind"] not in KISAI_KINDS:
+            rep.err(w, f"kind が {KISAI_KINDS} のどれでも空でもない（{r['kind']}）")
         if r["status"] != "rejected":
             prev = about_of.setdefault(r["title"], r["about"])
             if prev != r["about"]:

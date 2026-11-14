@@ -185,12 +185,12 @@ class OutputTest(unittest.TestCase):
         self.assertEqual(dr.destinations("tsunagari", dict(t, upper="提言", lower="再編の方針"), theme), "テーマ全体")
 
     def test_kisai_sheet(self):
-        rows = [["計画の目的", "", "pt:youho/honpen/1", "2025-03", "計画期間は令和6年からです。", ""]]
+        rows = [["計画の目的", "", "pt:youho/honpen/1", "2025-03", "計画期間は令和6年からです。", "要望", "令和6年", ""]]
         ds, my = drafts(mayoi=("",), rows=rows, ledger="kisai")
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(run_to(tmp, ds, my, ledger="kisai"), 0)
             sheet = read(tmp, "hantei-K9.md")
-            self.assertIn("| 1 | 計画の目的/pt:youho/honpen/1 | 計画の目的 |  | pt:youho/honpen/1 | 計画期間は令和6年からです。 | テーマ全体 |  |  |",
+            self.assertIn("| 1 | 計画の目的/pt:youho/honpen/1 | 計画の目的 |  | pt:youho/honpen/1 | 要望 | 令和6年 | 計画期間は令和6年からです。 | テーマ全体 |  |  |",
                           sheet)
 
 

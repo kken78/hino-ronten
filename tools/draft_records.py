@@ -48,7 +48,7 @@ WHOLE = "テーマ全体"
 # 判定シートで、行のキーと quote のほかに見せる列
 SHEET_FIELDS = {
     "kotogara": ("point", "source", "source_date", "kind", "value", "target"),
-    "kisai": ("title", "about", "source"),
+    "kisai": ("title", "about", "source", "kind", "target"),
     "tsunagari": ("link", "upper", "lower", "source"),
     "katei": ("step", "name", "from", "to"),
     "shisetsu": ("facility", "aspect", "value", "source"),

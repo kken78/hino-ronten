@@ -325,7 +325,11 @@ function ronten(){
   o.push(sec('事項ごとの質問・答弁','事項を選ぶと、質問・答弁と町の資料の記載を日付順に表示します',picker('pk-qa',items)+`<div class="note">質問・答弁を項目ごとに記録したのは、関連する一般質問${D.theme_questions}問のうち${R.yaritori.length}問と、議案質疑${R.shitsugi.length}件です。</div>`));
   const iss=t=>D.issues.filter(x=>x.type===t);
   /* 照合結果の文と、比べた記載（出典つき。閉じた欄） */
-  const refsOf=x=>x.refs&&x.refs.length?`<details><summary>比べた記載（${x.refs.length}件）</summary><ul class="plain">${x.refs.map(r=>`<li>${A(r.url,short(r.text||r.ref,70))}${r.layer!=='確定'?' <span class="mk">未確認</span>':''}</li>`).join('')}</ul></details>`:'';
+  /* 構造にしていない記載の行は、種類（kind）を印で、対象の時期（target）をかっこで添える（LINK_SCHEMA §16.1。ADR-36） */
+  const KIS=new Map((R.kisai||[]).map(k=>[`records/kisai/${k.title}/${k.source}`,k]));
+  const kisTag=r=>{const k=KIS.get(r.ref);return k&&k.kind?`<span class="tag">${esc(k.kind)}</span> `:''};
+  const kisTarget=r=>{const k=KIS.get(r.ref);return k&&k.target?`（${esc(k.target)}）`:''};
+  const refsOf=x=>x.refs&&x.refs.length?`<details><summary>比べた記載（${x.refs.length}件）</summary><ul class="plain">${x.refs.map(r=>`<li>${kisTag(r)}${A(r.url,short(r.text||r.ref,70))}${kisTarget(r)}${r.layer!=='確定'?' <span class="mk">未確認</span>':''}</li>`).join('')}</ul></details>`:'';
   const li=(xs,cut)=>`<ul class="plain">${xs.map(x=>`<li>${esc(cut?x.statement.split('。')[0]:x.statement)}${refsOf(x)}</li>`).join('')}</ul>`;
   const rep=iss('繰り返し問われている点'), hold=iss('留保のその後'), chg=iss('予定の変更'), not=iss('問われていない点'), kb=iss('問われていない区分')[0];
   o.push(sec('照合結果（未確認）','資料を機械的に照合した結果で、人による確認は済んでいません',

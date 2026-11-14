@@ -183,9 +183,21 @@ class BuildTest(unittest.TestCase):
         for md in built():
             for line in md.split("\n"):
                 self.assertFalse(line.startswith("|"), line)
-                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」",
+                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」", "- 欄「記載の種類」",
                                                                  "【未確認】", "比べた記載：記録編の")):
                     self.assertIn("出典：", line, line)
+
+    def test_kisai_kind_and_target(self):
+        # 構造にしていない記載の行は、見出しのあとに記載の種類と対象の時期を書く。空なら書かない（§17.1。ADR-36）
+        honpen, kiroku = built()
+        self.assertIn("見出し：懇話会の設置目的。「在り方を検討する。」", kiroku)
+        self.assertNotIn("記載の種類：", kiroku)
+        d = json.loads(data())
+        d["records"]["kisai"][0].update(kind="要望", target="令和６年度")
+        honpen, kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        self.assertIn("見出し：懇話会の設置目的。記載の種類：要望。対象の時期：令和６年度。「在り方を検討する。」", kiroku)
+        # 読み方に、記載の種類の意味を書く（ADR-36 の7）
+        self.assertIn("欄「記載の種類」の評価・要望は、資料の書き手（監査委員など）の判断を書いた文と、相手に求めることを書いた文の別です。", honpen)
 
     def test_entry_form(self):
         honpen, kiroku = built()

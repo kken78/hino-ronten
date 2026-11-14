@@ -573,6 +573,15 @@ class OtherLedgersTest(RecordsTestCase):
         led["kisai"][0]["about"] = "知らない"
         self.assertErr(run(led), "about がどのテーマの")
 
+    def test_kisai_kind(self):
+        # kind は空か、評価・要望（§15.6。DESIGN.md ADR-36）。target は表記のまま（値は見ない）
+        led = ledgers()
+        for k in ("", "評価", "要望"):
+            led["kisai"][0].update(kind=k, target="令和６年度")
+            self.assertEqual(run(led).errors, [], k)
+        led["kisai"][0]["kind"] = "事実"
+        self.assertErr(run(led), "kind が ('評価', '要望') のどれでも空でもない（事実）")
+
     def test_kisai_same_title(self):
         led = ledgers()
         led["kisai"][0]["about"] = "提言"

@@ -118,6 +118,13 @@ class ToolTest(unittest.TestCase):
         text, _ = call(server(), "topic", {"name": "懇話会の設置目的"})
         self.assertIn("## 記載の見出し：懇話会の設置目的", text)
         self.assertIn("- [kisai:1] ［2022年7月］懇話会の資料：資料の種類：町の資料。見出し：懇話会の設置目的。「在り方を検討する。」", text)
+        d = json.loads(data())
+        d["records"]["kisai"][0].update(kind="評価", target="令和３年度")
+        s2 = mr.Server(json.dumps(d, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None)
+        text, _ = call(s2, "topic", {"name": "懇話会の設置目的"})
+        self.assertIn("見出し：懇話会の設置目的。記載の種類：評価。対象の時期：令和３年度。「在り方を検討する。」", text)
+        text, _ = call(s2, "overview")
+        self.assertIn("欄「記載の種類」の評価・要望は、資料の書き手（監査委員など）の判断を書いた文と", text)
         text, _ = call(server(), "topic", {"name": "開園時期"})
         self.assertIn("令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", text)
 

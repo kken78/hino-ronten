@@ -306,6 +306,8 @@ class Rag:
         doc.li("検討の段階（政策の過程）の記載は、資料の日付ではなく期間を書くため、［ ］を付けていません")
         doc.li("欄「資料の種類」は、会議録（会議録の発言）、広報ひの、町の資料（広報ひののほかの町の公開資料と計画）の別です。"
                "会議録の発言の記載には、欄「回」（最初の問い・再質問1…。やりとりの記録に無いときは「未記録」）を書いています")
+        doc.li("欄「記載の種類」の評価・要望は、資料の書き手（監査委員など）の判断を書いた文と、相手に求めることを書いた文の別です。"
+               "この資料が加えた評価ではありません")
         doc.li("「【未確認】」の段落と「照合結果（未確認）」の節は、機械による照合の結果か、人による確認が済んでいない記録です")
         doc.li(ARCHIVE_NOTE)
         doc.li("評価や判断は加えていません。議員ごとの件数や順位は示していません")
@@ -657,8 +659,10 @@ class Rag:
                            ("下位の記載", r.get("lower"))], r.get("layer"))
 
     def kisai_entry(self, r):
+        """構造にしていない記載の行。記載の種類（kind）と対象の時期（target）は空なら書かない（LINK_SCHEMA §17.1。ADR-36）。"""
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),
-                          [("資料の種類", self.kind_of(r["source"])), ("回", self.round_of(r["source"])), ("見出し", r.get("title"))], r.get("layer"))
+                          [("資料の種類", self.kind_of(r["source"])), ("回", self.round_of(r["source"])), ("見出し", r.get("title")),
+                           ("記載の種類", r.get("kind")), ("対象の時期", r.get("target"))], r.get("layer"))
 
     # ---- 記録編 ----
     def kiroku(self):
