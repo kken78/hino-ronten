@@ -155,6 +155,64 @@ def built(**kw):
     return br.build(data(**kw), P)
 
 
+def frame_data():
+    """枠・資料の種類・筋のある見本（LINK_SCHEMA §17.1〜§17.3。DESIGN.md ADR-37）。開園時期の事柄の行と、about 開園時期と
+    about 空の記載の行を、資料 doc:a の筋1 にする。"""
+    d = json.loads(data())
+    k = d["records"]["kotogara"][0]
+    k.update(suji="1", suji_key="suji:a/1", shurui="定期監査の報告")
+    d["records"]["kisai"] += [
+        {"title": "要望の文", "about": "開園時期", "source": "doc:a/1", "source_date": "2025-03", "quote": "留意されたい。",
+         "kind": "要望", "target": "", "suji": "1", "suji_key": "suji:a/1", "shurui": "定期監査の報告", "url": U + "a.pdf#page=1",
+         "layer": "論点の候補"},
+        {"title": "計画の期", "about": "", "source": "doc:a/1", "source_date": "2025-03", "quote": "計画は３年毎に見直す。",
+         "kind": "事実", "target": "", "suji": "1", "suji_key": "suji:a/1", "shurui": "定期監査の報告", "url": U + "a.pdf#page=1",
+         "layer": "論点の候補"}]
+    rows = [("kisai", "records/kisai/計画の期/doc:a/1", "", "事実", "計画は３年毎に見直す。"),
+            ("kotogara", "records/kotogara/開園時期/doc:a/1/令和10年度の開設を目指します。", "開園時期", "事実", "令和10年度の開設を目指します。"),
+            ("kisai", "records/kisai/要望の文/doc:a/1", "開園時期", "要望", "留意されたい。")]
+    d["suji"] = [{"key": "suji:a/1", "doc": "doc:a", "n": 1, "shurui": "定期監査の報告", "url": U + "a.pdf", "layer": "記録（未確認）",
+                  "rows": [{"ledger": l, "ref": r, "point": p, "kind": k2, "target": "", "quote": q, "source": "doc:a/1",
+                            "source_date": "2025-03", "page": 1, "pos": i, "layer": "記録（未確認）"} for i, (l, r, p, k2, q) in enumerate(rows)]}]
+    d["waku"] = [{"key": "waku:w", "name": "流れ", "source": "pt:x/honpen/49", "url": U + "x.pdf#page=49", "note": "", "layer": "確定",
+                  "elements": [{"view": "waku:w/1", "n": 1, "name": "開園の推計", "note": "", "points": ["開園時期"],
+                                "rec": {"定期監査の報告": ["2025"]}, "gikai": 2},
+                               {"view": "waku:w/2", "n": 2, "name": "単価の設定", "note": "図の注「※改定反映」", "points": [], "rec": {},
+                                "gikai": 0}]}]
+    d["shiryo"] = [{"shurui": "定期監査の報告", "match": "a", "tsukuru": "監査委員（合議）", "konkyo": "地方自治法199条",
+                    "atesaki": "議会・町長", "outou": "措置の通知と公表", "source": "見本", "note": ""}]
+    d["names"]["sources"]["pt:x/honpen/49"] = "第9期計画"
+    return json.dumps(d, ensure_ascii=False).encode("utf-8")
+
+
+class FrameTest(unittest.TestCase):
+    def test_honpen(self):
+        honpen, kiroku = br.build(frame_data(), P)
+        # 主な事項の記載の推移に、about がその事柄の記載の行も入り、筋の欄を書く
+        self.assertIn("- 【未確認】［2025年3月］再編整備計画：資料の種類：定期監査の報告。見出し：要望の文。記載の種類：要望。"
+                      "筋：再編整備計画の筋1（3件のうち3件目。suji:a/1）。「留意されたい。」", honpen)
+        self.assertIn("資料の種類：定期監査の報告。対象の時期：令和10年度。書き方：予定。筋：再編整備計画の筋1（3件のうち2件目。suji:a/1）。", honpen)
+        # 枠の表と資料の種類（表を使わない）
+        self.assertIn("## 認定こども園整備事業：枠の表：流れ", honpen)
+        self.assertIn("- 要素1：開園の推計。当たる点：開園時期。資料の種類ごとの記録：定期監査の報告：2025。議会の記録の行：2", honpen)
+        self.assertIn("- 要素2：単価の設定。当たる点：点が無い。資料の種類ごとの記録：記録なし。注：図の注「※改定反映」", honpen)
+        self.assertIn(br.WAKU_NOTE, honpen)
+        self.assertIn("- 資料の種類：定期監査の報告。作る者：監査委員（合議）。根拠：地方自治法199条。", honpen)
+        # 事項ごとの質問・答弁にも記載の行
+        part = honpen[honpen.index("事項ごとの質問・答弁：開園時期"):]
+        self.assertIn("見出し：要望の文。", part[:part.index("照合結果")])
+
+    def test_kiroku_suji(self):
+        _, kiroku = br.build(frame_data(), P)
+        self.assertIn("# 認定こども園整備事業（記録編）：筋（資料の述べ方）", kiroku)
+        self.assertIn("## 認定こども園整備事業：記録：筋：再編整備計画の筋1（suji:a/1）", kiroku)
+        i = kiroku.index("- 1. 点：点なし。【未確認】［2025年3月］再編整備計画：資料の種類：定期監査の報告。見出し：計画の期。記載の種類：事実。")
+        self.assertLess(i, kiroku.index("- 2. 点：開園時期。［2025年3月］再編整備計画："))
+        self.assertLess(kiroku.index("- 2. 点：開園時期。"), kiroku.index("- 3. 点：開園時期。【未確認】"))
+        # 筋の無いデータでは章を置かない
+        self.assertNotIn("（記録編）：筋（資料の述べ方）", built()[1])
+
+
 class BuildTest(unittest.TestCase):
     def test_same_input_same_output(self):
         self.assertEqual(built(), built())
@@ -183,7 +241,7 @@ class BuildTest(unittest.TestCase):
         for md in built():
             for line in md.split("\n"):
                 self.assertFalse(line.startswith("|"), line)
-                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」", "- 欄「記載の種類」",
+                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」", "- 欄「記載の種類」", "- 欄「筋」",
                                                                  "【未確認】", "比べた記載：記録編の")):
                     self.assertIn("出典：", line, line)
 
@@ -197,7 +255,8 @@ class BuildTest(unittest.TestCase):
         honpen, kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
         self.assertIn("見出し：懇話会の設置目的。記載の種類：要望。対象の時期：令和６年度。「在り方を検討する。」", kiroku)
         # 読み方に、記載の種類の意味を書く（ADR-36 の7）
-        self.assertIn("欄「記載の種類」の評価・要望は、資料の書き手（監査委員など）の判断を書いた文と、相手に求めることを書いた文の別です。", honpen)
+        self.assertIn("欄「記載の種類」の事実・見通し・評価・要望は、資料の書き手（監査委員など）が書いた文の別です。"
+                      "評価・要望・見通しは資料の書き手の判断・求め・見通しで、この資料が加えたものではありません", honpen)
 
     def test_entry_form(self):
         honpen, kiroku = built()

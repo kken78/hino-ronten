@@ -4,8 +4,9 @@ build/theme/<theme>.json（tools/build_theme.py が作る。§13）だけを読�
 lock の版の入力は読まない。外から何も読み込まない1つの HTML の文書になる。同じデータからは同じファイルができる。
 
 実行: python3 -B tools/build_pages.py <theme> <見方のキー>（例 hoiku node:jisshi/e008）
-見方のキーは node・plan・fa・dist・org のキーか、テーマの id（テーマ全体）。見方の名前は、事業は node キーの最後の部分（e008）、
-期の計画は計画の id（kaigo9）、施設は fa の key（nishioji-yo）、地区は dist の key（hino）、組織は org の key（kucho-kai）、
+見方のキーは node・plan・fa・dist・org・waku（枠の要素）のキーか、テーマの id（テーマ全体）。見方の名前は、事業は node キーの
+最後の部分（e008）、期の計画は計画の id（kaigo9）、施設は fa の key（nishioji-yo）、地区は dist の key（hino）、組織は org の key
+（kucho-kai）、枠の要素は枠の id と要素の番号を「-」でつないだもの（kaigo-hokenryo-6。DESIGN.md ADR-37）、
 テーマ自体は theme（hoiku-theme.html）。
 終了コード：0 は作った。1 は止めた（理由を表示する）。
 """
@@ -27,6 +28,7 @@ RE_PLAN = re.compile(r"plan:([a-z0-9][a-z0-9-]*)")
 RE_FA = re.compile(r"fa:([a-z0-9][a-z0-9-]*)")
 RE_DIST = re.compile(r"dist:([a-z0-9][a-z0-9-]*)")
 RE_ORG = re.compile(r"org:([a-z0-9][a-z0-9-]*)")
+RE_WAKU = re.compile(r"waku:([a-z0-9][a-z0-9-]*)/([1-9][0-9]*)")   # 枠の要素（LINK_SCHEMA §2・§16。ADR-37）
 RE_THEME = re.compile(r"[a-z]+")
 # 外から読み込む書き方（§16 の形：外から何も読み込まない）
 RE_EXTERNAL = re.compile(r"<(?:script|img|iframe|link|source|video|audio)\b[^>]*\b(?:src|href)\s*=\s*[\"']?(?:https?:)?//"
@@ -44,13 +46,16 @@ def script_json(obj):
 
 def view_name(theme, view):
     """見方のキー → 見方の名前（§16）。形が合わなければ止める。"""
+    m = RE_WAKU.fullmatch(view)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}"
     for rx in (RE_NODE, RE_PLAN, RE_FA, RE_DIST, RE_ORG):
         m = rx.fullmatch(view)
         if m:
             return m.group(m.lastindex)
     if view == theme and RE_THEME.fullmatch(view):
         return "theme"
-    raise PageError(f"見方のキー（node・plan・fa・dist・org のキーか、テーマの id）の形でない：{view}")
+    raise PageError(f"見方のキー（node・plan・fa・dist・org・waku のキーか、テーマの id）の形でない：{view}")
 
 
 def render(template, data_bytes, view):
@@ -87,7 +92,7 @@ def out_path(theme, view):
 
 def main(argv):
     if len(argv) != 3:
-        print("使い方: python3 -B tools/build_pages.py <theme> <見方のキー>（node・plan・fa・dist・org のキーか、テーマの id）",
+        print("使い方: python3 -B tools/build_pages.py <theme> <見方のキー>（node・plan・fa・dist・org・waku のキーか、テーマの id）",
               file=sys.stderr)
         return 1
     theme, view = argv[1], argv[2]

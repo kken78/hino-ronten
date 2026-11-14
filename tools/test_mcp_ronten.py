@@ -112,7 +112,7 @@ class ToolTest(unittest.TestCase):
         self.assertIn("上は広報ひのの記載。広報ひの以外でいちばん新しい町の資料の記載（時期や数字の書き方が違うときは、両方を資料の日付とともに示す）：［2025年3月］再編整備計画：", text)
         self.assertNotIn("出典には", text)
         self.assertIn("当局の答弁のうち新しいもの（原文。これまでの答弁と食い違わないように確かめる）：\n- [yaritori:iq:1/2]", text)
-        self.assertLess(text.index("いまの町の説明"), text.index("記載の推移（資料の日付順）："))
+        self.assertLess(text.index("いまの町の説明"), text.index("記載の推移（資料の日付順。この事項を見出しにした記載の行を含む）："))
         text, _ = call(server(), "topic", {"name": "日野幼稚園"})
         self.assertIn("## 施設：日野幼稚園\n- [shisetsu:1] ［2025年3月］再編整備計画：資料の種類：町の資料。面：状況。値：閉園。", text)
         text, _ = call(server(), "topic", {"name": "懇話会の設置目的"})
@@ -124,9 +124,25 @@ class ToolTest(unittest.TestCase):
         text, _ = call(s2, "topic", {"name": "懇話会の設置目的"})
         self.assertIn("見出し：懇話会の設置目的。記載の種類：評価。対象の時期：令和３年度。「在り方を検討する。」", text)
         text, _ = call(s2, "overview")
-        self.assertIn("欄「記載の種類」の評価・要望は、資料の書き手（監査委員など）の判断を書いた文と", text)
+        self.assertIn("欄「記載の種類」の事実・見通し・評価・要望は、資料の書き手（監査委員など）が書いた文の別で", text)
         text, _ = call(server(), "topic", {"name": "開園時期"})
         self.assertIn("令和7年6月定例会議の課長の発言：資料の種類：会議録。回：未記録。", text)
+
+    def test_frame(self):
+        # 筋は fetch の suji: の id、枠と資料の種類は overview の節（LINK_SCHEMA §14。DESIGN.md ADR-37）
+        s = mr.Server(tb.frame_data(), P, WORDS, SPEECHES, None)
+        text, _ = call(s, "fetch", {"ids": ["suji:a/1"]})
+        self.assertIn("[suji:a/1] 筋：再編整備計画の筋1（3件。資料の文の順。資料の種類：定期監査の報告）", text)
+        self.assertLess(text.index("1. 点：点なし。"), text.index("3. 点：開園時期。"))
+        text, _ = call(s, "overview")
+        self.assertIn("## 枠と資料の種類", text)
+        self.assertIn("- 要素1：開園の推計。当たる点：開園時期。", text)
+        self.assertIn("- [suji:a/1] 再編整備計画の筋1（3件）", text)
+        # 事柄の topic の記載の推移に、about がその事柄の記載の行も入る
+        text, _ = call(s, "topic", {"name": "開園時期"})
+        part = text[text.index("記載の推移"):]
+        self.assertIn("見出し：要望の文。記載の種類：要望。", part)
+        self.assertNotIn("## 記載の見出し：開園時期", text)
 
     def test_topic_latest_all_and_stage_order(self):
         d = json.loads(data())

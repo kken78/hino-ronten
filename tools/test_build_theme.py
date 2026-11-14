@@ -501,7 +501,7 @@ class SheetsTest(unittest.TestCase):
         for views in ({"事柄/新こども園の定員": "node:jisshi/e009"}, {"記載/提言": "plan:kodomo"},
                       {"記載/提言": "fa:b"}):
             with self.subTest(views=views):
-                with self.assertRaisesRegex(bt.BuildError, "の views の .* が、テーマの事業／系列の計画／施設／地区／組織に無い"):
+                with self.assertRaisesRegex(bt.BuildError, "の views の .* が、テーマの事業／系列の計画／施設／地区／組織／枠の要素に無い"):
                     build(themes=with_views(theme_rows(), **views))
         # dist・org のキーは、テーマの kind 地区・組織にあり、参照表にあること
         with self.assertRaisesRegex(bt.BuildError, "の views の dist:hisa が"):
@@ -742,6 +742,70 @@ class RecordsFixTest(unittest.TestCase):
         lines = check_records.report_lines(tr.run())
         self.assertIn("- 発言の取りこぼし：5（yaritori 5。torikoboshi.tsv）", lines)
         self.assertIn("- 引用の前後：0（quote_context.tsv）", lines)
+
+
+
+class FrameBuildTest(unittest.TestCase):
+    """枠（waku）・資料の種類（shiryo）・筋（suji）と、枠の要素の見方（LINK_SCHEMA §13.1・§13.3・§13.4。DESIGN.md ADR-37）。"""
+
+    def setUp(self):
+        led = tr.ledgers()
+        cand = {"status": "candidate", "reviewer": "", "date": ""}
+        led["kotogara"].append(tr.row("kotogara", point="新こども園の定員", source="doc:teigen/2", source_date="2024-02",
+                                      quote="再編の方針がある", kind="いまのこと", suji="1", **cand))
+        led["kisai"].insert(0, tr.row("kisai", title="こども園の話", source="doc:teigen/2", source_date="2024-02",
+                                      quote="こども園の話。", kind="要望", suji="1", **cand))
+        led["kisai"].append(tr.row("kisai", title="計画期間の評価", about="新こども園の定員", source="pt:youho/honpen/1",
+                                   source_date="2025-03", quote="令和6年からです。", kind="評価"))
+        inp = tr.inputs()
+        self.waku = rc.check_waku_ref(tr.waku_ref(), inp, rc.Report())
+        self.shiryo = rc.check_shiryo_ref(tr.shiryo_ref(), inp, rc.Report())
+        d = make_data()
+        d.inp.nodes |= {"node:sogo6/e011", "node:sogo6/e047"}
+        d.inp.series |= {"kodomo"}
+        self.data = bt.build("hoiku", tr.with_waku(theme_rows()), led, d, {"hino-council-search": {"sha": "a" * 40}},
+                             refs(), {"ref/themes.tsv": "x"}, tr.shisetsu_ref(), tr.chiku_ref() + tr.soshiki_ref(),
+                             self.waku, self.shiryo)
+
+    def test_waku(self):
+        w = self.data["waku"]
+        self.assertEqual([(x["key"], x["name"], x["source"], x["url"]) for x in w],
+                         [("waku:keikaku", "計画期間", "pt:youho/honpen/1", "https://example.jp/youho.pdf#page=1")])
+        e1, e2 = w[0]["elements"]
+        self.assertEqual((e1["view"], e1["n"], e1["name"], e1["points"], e1["rec"], e1["gikai"]),
+                         ("waku:keikaku/1", 1, "計画期間", ["新こども園の定員"], {"提言": ["2024"]}, 4))
+        self.assertEqual((e2["name"], e2["note"], e2["points"], e2["rec"], e2["gikai"]), ("令和6年 → 計画期間", "まとめた", [], {}, 0))
+        self.assertIn("pt:youho/honpen/1", self.data["names"]["sources"])
+
+    def test_shiryo_and_rows(self):
+        self.assertEqual([x["shurui"] for x in self.data["shiryo"]], ["提言"])
+        k = [r for r in self.data["records"]["kotogara"] if r["source"] == "doc:teigen/2"][0]
+        self.assertEqual((k["shurui"], k["suji"], k["suji_key"]), ("提言", "1", "suji:teigen/1"))
+        p = [r for r in self.data["records"]["kisai"] if r["source"].startswith("pt:")][0]
+        self.assertEqual((p["shurui"], p["suji_key"]), ("", ""))
+        self.assertTrue(all("shurui" in r for r in self.data["records"]["katei"]))
+        self.assertTrue(all("shurui" not in r for q in self.data["records"]["yaritori"] for r in q["rows"]))
+
+    def test_suji(self):
+        (x,) = self.data["suji"]
+        self.assertEqual((x["key"], x["doc"], x["n"], x["shurui"], x["url"], x["layer"]),
+                         ("suji:teigen/1", "doc:teigen", 1, "提言", "https://example.jp/teigen.pdf", bt.UNCONFIRMED))
+        # 資料の文の順（ページの中の位置の順）。事柄の記録の行は「事実」
+        self.assertEqual([(y["ledger"], y["kind"], y["point"], y["page"], y["pos"]) for y in x["rows"]],
+                         [("kotogara", "事実", "新こども園の定員", 2, 4), ("kisai", "要望", "", 2, 13)])
+
+    def test_waku_view(self):
+        sh = [x for x in self.data["sheets"] if x["view"] == "waku:keikaku/1"]
+        self.assertEqual([(x["view_kind"], x["name"]) for x in sh], [("枠の要素", "計画期間")])
+        self.assertEqual({x["ref"].split("/")[2] for x in sh[0]["kotogara"]}, {"新こども園の定員"})
+        self.assertEqual(self.data["names"]["views"]["waku:keikaku/1"], {"name": "計画期間", "waku": "計画期間"})
+        self.assertEqual(bt.check_no_empty_url(self.data), [])
+
+    def test_without_frame(self):
+        # 参照表が無ければ、waku・shiryo・suji は空で、行の shurui も空（ほかの題材の画面は変わらない）
+        data = build()
+        self.assertEqual((data["waku"], data["shiryo"], data["suji"]), ([], [], []))
+        self.assertTrue(all(r["shurui"] == "" for r in data["records"]["kotogara"]))
 
 
 if __name__ == "__main__":

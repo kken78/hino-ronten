@@ -96,12 +96,24 @@ class RenderTest(unittest.TestCase):
         with self.assertRaises(bp.PageError):
             bp.render(template().replace("<main>", '<script src="https://example.jp/x.js"></script><main>'), data(), P)
 
+    def test_template_frame(self):
+        # 枠の表・点の所の記載の行・この資料の述べ方・資料の種類の表（LINK_SCHEMA §16.1・§16.4。DESIGN.md ADR-37）
+        t = template()
+        for w in ("枠の表：", "当たる点", "資料の種類ごとの記録（資料の年）", "議会の記録の行", "点が無い", "記録なし",
+                  "この資料の述べ方（同じ筋の記載", "点なし", "この行", "資料の種類", "何にもとづく資料か",
+                  "評価・要望・見通しは資料の書き手の判断・求め・見通しで、論点ノートが加えたものではありません。",
+                  "要素の間の関係は出典の図で確かめてください（論点ノートでは足していません）。", "'枠の要素':'本要素'"):
+            with self.subTest(w=w):
+                self.assertIn(w, t)
+
     def test_out_path(self):
         for view, name in ((P, "hoiku-e008.html"), ("plan:kaigo9", "hoiku-kaigo9.html"), ("fa:nishioji-yo", "hoiku-nishioji-yo.html"),
-                           ("dist:hino", "hoiku-hino.html"), ("org:kucho-kai", "hoiku-kucho-kai.html"), ("hoiku", "hoiku-theme.html")):
+                           ("dist:hino", "hoiku-hino.html"), ("org:kucho-kai", "hoiku-kucho-kai.html"), ("hoiku", "hoiku-theme.html"),
+                           ("waku:kaigo-hokenryo/6", "hoiku-kaigo-hokenryo-6.html")):
             with self.subTest(view=view):
                 self.assertTrue(bp.out_path("hoiku", view).endswith(os.path.join("build", "pages", name)))
-        for bad in ("e008", "kaigo", "plan:", "fa:A", "dist:", "org:Kucho", "chiku:hino"):
+        for bad in ("e008", "kaigo", "plan:", "fa:A", "dist:", "org:Kucho", "chiku:hino", "waku:kaigo-hokenryo",
+                    "waku:kaigo-hokenryo/0"):
             with self.subTest(bad=bad):
                 with self.assertRaises(bp.PageError):
                     bp.out_path("hoiku", bad)

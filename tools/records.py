@@ -6,6 +6,8 @@
 確かめる。hs・hj・hk・hz は hino-town-docs の構造化の層（tools/hosei.py の Struct）で照らす（DESIGN.md ADR-34）。
 提案理由の記録（records/teian.tsv。§15.11、ADR-35）は、財源の面だけの記録で、§11 の「提案理由の記録」で確かめ、
 提案の区切りに入らない sid を一覧に出す。
+枠の参照表（ref/waku.tsv。§12.3）と資料の種類の参照表（ref/shiryo.tsv。§12.4）を確かめ、kotogara・kisai の列 suji（筋の番号）を
+資料の種類の参照表に当たる資料（監査委員の資料）について確かめる（DESIGN.md ADR-37）。check.md の「形の点検」の数も作る（§11）。
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
 （theme・views）で決める（§15.3・§15.4・§15.6、ADR-31 の2）。届き先の信号（§11、ADR-31 の4）は一覧に出すだけで、止めない。
 
@@ -30,10 +32,11 @@ COLUMNS = {
     "shitsugi": ["question", "n", "row", "bills", "side", "sid", "quote", "speaker", "round", "stage", "kind",
                  "answers", "target", "target_text", "point"] + COMMON,
     "kotogara": ["point", "source", "source_date", "quote", "value", "target", "kind", "prev", "reason",
-                 "yaritori"] + COMMON,
+                 "yaritori", "suji"] + COMMON,                     # suji は ADR-37
     "tsunagari": ["link", "upper", "upper_ref", "lower", "lower_ref", "source", "source_date", "quote"] + COMMON,
     "katei": ["theme", "step", "cycle", "name", "from", "to", "sources", "quote"] + COMMON,
-    "kisai": ["title", "about", "source", "source_date", "quote", "kind", "target"] + COMMON,   # kind・target は ADR-36
+    "kisai": ["title", "about", "source", "source_date", "quote", "kind", "target", "suji"] + COMMON,
+    # kind・target は ADR-36、suji は ADR-37
     "shisetsu": ["facility", "aspect", "value", "source", "source_date", "quote", "target", "kind", "prev"] + COMMON,
     "nozoki": ["question", "n", "sid", "quote", "reason"] + COMMON,
     "teian": ["maru", "bill", "sid", "quote"] + COMMON,
@@ -57,11 +60,15 @@ NOT_IN_THEME = ("teian",)         # テーマのノートのデータの ledgers
 
 THEME_COLUMNS = ["theme", "kind", "value", "source", "views", "reviewer", "date", "note"]
 THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "事柄", "記載", "施設",
-               "地区", "組織")
+               "地区", "組織", "枠")   # 枠は DESIGN.md ADR-37（報告 §15.10 はまだ置いていない）
 VIEW_KINDS = ("事柄", "記載", "施設", "施策", "地区", "組織")   # views を持てる kind（§12）
 POINT_KINDS = ("事柄", "記載")                  # 届き先の信号で見る点の kind（§11 届き先）
 SHISETSU_COLUMNS = ["key", "name", "aliases", "district", "source", "reviewer", "date", "note"]
 AREA_COLUMNS = ["key", "name", "aliases", "source", "reviewer", "date", "note"]   # ref/chiku.tsv・ref/soshiki.tsv（§12.1）
+WAKU_COLUMNS = ["waku", "n", "name", "source", "reviewer", "date", "note"]          # ref/waku.tsv（§12.3。ADR-37）
+SHIRYO_COLUMNS = ["shurui", "match", "tsukuru", "konkyo", "atesaki", "outou", "source", "reviewer", "date",
+                  "note"]                                                            # ref/shiryo.tsv（§12.4。ADR-37）
+WAKU_JOIN = " → "   # 図の箱を2つ以上まとめた要素の名前のつなぎ（§12.3）
 
 SIDES = ("問い", "答え")
 STAGES = ("課題", "投入", "活動", "手続き", "結果", "成果", "めざす姿")
@@ -69,7 +76,7 @@ Q_KINDS = ("事実の確認", "数字・見込み", "方針・考え", "提案�
 A_KINDS = ("事実・数字", "方針・考え", "留保", "考えていない", "時期・手順", "その他")
 BULLETIN = ("載っている", "載っていない", "言い回しが違う")
 TIME_KINDS = ("済んだこと", "いまのこと", "予定", "変更")
-KISAI_KINDS = ("評価", "要望")   # 構造にしていない記載の種類（§15.6。空でもよい。DESIGN.md ADR-36）
+KISAI_KINDS = ("事実", "見通し", "評価", "要望")   # 構造にしていない記載の種類（§15.6。空でもよい。ADR-36・ADR-37 の3）
 LINKS = ("目的と手段", "もとにした")
 ASPECTS = ("種類", "運営", "役割", "状態", "規模")   # §15.8（規模は ADR-32）
 RE_GIIN = re.compile(r"[0-9０-９]+番")   # 議員の役職（tools/build_theme.py の speaker_class と同じ形）
@@ -96,6 +103,11 @@ RE_PLAN_ITEM = re.compile(r"plan:([a-z0-9][a-z0-9-]*)/[A-Za-z0-9_-]+/[a-z_]+/[1-
 RE_FA = re.compile(r"fa:[a-z0-9][a-z0-9-]*")
 RE_DIST = re.compile(r"dist:[a-z0-9][a-z0-9-]*")   # 地区（§2。ref/chiku.tsv）
 RE_ORG = re.compile(r"org:[a-z0-9][a-z0-9-]*")     # 組織（§2。ref/soshiki.tsv）
+RE_WAKU_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
+RE_WAKU = re.compile(r"waku:([a-z0-9][a-z0-9-]*)")                    # 枠（§2。ref/waku.tsv の n が0の行）
+RE_WAKU_ELEM = re.compile(r"waku:([a-z0-9][a-z0-9-]*)/([1-9][0-9]*)")  # 枠の要素（見方。§2。ADR-37 の4）
+RE_N0 = re.compile(r"0|[1-9][0-9]*")
+RE_MATCH = re.compile(r"[a-z0-9*][a-z0-9*-]*")   # ref/shiryo.tsv の match の要素（§12.4）
 RE_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 RE_MONTH = re.compile(r"[0-9]{4}-[0-9]{2}(-[0-9]{2})?")
 RE_INT = re.compile(r"[1-9][0-9]*")
@@ -123,6 +135,9 @@ TARGET_BILL_COLUMNS = ["ledger", "question", "row", "key", "bills", "kai"]
 TARGET_NAME_COLUMNS = ["ledger", "question", "row", "key", "name", "target_text"]
 TARGET_CHANGED_COLUMNS = ["ledger", "question", "row", "key", "change"]
 TEIAN_SEGMENT_COLUMNS = ["maru", "sid", "bill", "quote", "desc"]
+SUJI_MISSING_COLUMNS = ["ledger", "key", "source", "shurui"]   # §11 記録の台帳（ADR-37 の2）
+KATACHI_COLUMNS = ["kind", "ledger", "key", "detail"]          # §11 形の点検の (3)・(4)
+SUJI_LEDGERS = ("kotogara", "kisai")                            # 列 suji を持つ台帳（§15.3・§15.6）
 
 # 対象の形（§11・§15.2）：target のキーの種類と、target_text の種類
 TARGET_LEDGERS = ("yaritori", "shitsugi")   # target を持つ台帳（審査報告の記録 §15.10 はまだ置いていない）
@@ -200,6 +215,11 @@ class Report:
     prev_sha: str = ""                                     # 前の版の hino-town-docs の SHA（--prev）
     target_changed: list = None                            # §10 の比べ方の一覧（--prev のときだけ）
     teian_segment: list = field(default_factory=list)      # 提案理由の記録の一覧（§11。終了コードは変えない）
+    suji_missing: list = field(default_factory=list)       # confirmed で suji の空の監査委員の資料の行（§11。止めない）
+    katachi: dict = field(default_factory=dict)            # 形の点検の数（§11。終了コードは変えない）
+    katachi_rows: list = field(default_factory=list)       # 形の点検の (3)・(4) の行（katachi.tsv）
+    waku: dict = field(default_factory=dict)               # 枠の参照表：枠の id → {n: 行}（§12.3）
+    shiryo: object = None                                  # 資料の種類の参照表（Shiryo。§12.4）
 
     def err(self, where, msg):
         self.errors.append(f"{where}：{msg}")
@@ -234,12 +254,13 @@ def parse_tsv(data, columns, name):
     return rows
 
 
-def sort_key(row, key_cols):
-    return tuple((0, int(row[c])) if c in NUMERIC and RE_INT.fullmatch(row[c]) else (1, row[c]) for c in key_cols)
+def sort_key(row, key_cols, numeric=NUMERIC):
+    return tuple((0, int(row[c])) if c in numeric and RE_N0.fullmatch(row[c]) else (1, row[c]) for c in key_cols)
 
 
-def check_order(rows, key_cols, name, rep):
-    """行の同一性（キーの重複0件）と、§1 の並び（row と step は数の順、ほかは文字コード順）。"""
+def check_order(rows, key_cols, name, rep, numeric=NUMERIC):
+    """行の同一性（キーの重複0件）と、§1 の並び（row と step は数の順、ほかは文字コード順）。
+    numeric で数の順にする列を変えられる（ref/waku.tsv の n。§12.3）。"""
     keys = [tuple(r[c] for c in key_cols) for r in rows]
     seen = set()
     for k in keys:
@@ -247,7 +268,7 @@ def check_order(rows, key_cols, name, rep):
             rep.err(name, f"行のキーが重なっている（{k}）")
         seen.add(k)
     for i in range(1, len(rows)):
-        if sort_key(rows[i - 1], key_cols) > sort_key(rows[i], key_cols):
+        if sort_key(rows[i - 1], key_cols, numeric) > sort_key(rows[i], key_cols, numeric):
             rep.err(name, f"{i + 2}行目：行がキーの順でない（{keys[i - 1]} の後に {keys[i]}）")
             break
 
@@ -393,8 +414,10 @@ def split_views(views):
     return views.split(",") if views else []
 
 
-def check_views(r, inp, shisetsu_keys, w, rep, chiku_keys=frozenset(), soshiki_keys=frozenset()):
-    """views の形（§12）：持てる kind、空の要素・重複、テーマの id、見方のキーの形と入力・参照表にあること（§2）。"""
+def check_views(r, inp, shisetsu_keys, w, rep, chiku_keys=frozenset(), soshiki_keys=frozenset(), waku=None):
+    """views の形（§12）：持てる kind、空の要素・重複、テーマの id、見方のキーの形と入力・参照表にあること（§2）。
+    waku は枠の参照表（枠の id → {n: 行}。無ければ空）。waku キーは n が1以上の要素だけが見方になる（ADR-37 の4）。"""
+    waku = waku or {}
     vs = split_views(r["views"])
     if not vs:
         return
@@ -423,16 +446,21 @@ def check_views(r, inp, shisetsu_keys, w, rep, chiku_keys=frozenset(), soshiki_k
             ok = v in chiku_keys
         elif RE_ORG.fullmatch(v):
             ok = v in soshiki_keys
+        elif RE_WAKU_ELEM.fullmatch(v):
+            m = RE_WAKU_ELEM.fullmatch(v)
+            ok = m.group(2) in waku.get(m.group(1), {})
         else:
-            rep.err(w, f"views のキーが §2 の見方のキー（node・plan・fa・dist・org）の形でない（{v}）")
+            rep.err(w, f"views のキーが §2 の見方のキー（node・plan・fa・dist・org・waku の要素）の形でない（{v}）")
             continue
         if not ok:
             rep.err(w, f"views のキーが入力に無い（{v}。node は計画の事業、plan は系譜表、fa は施設の参照表、"
-                       "dist は地区の参照表、org は組織の参照表）")
+                       "dist は地区の参照表、org は組織の参照表、waku は枠の参照表の要素）")
 
 
-def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_keys=frozenset()):
-    """テーマの定義（§12・§11）。chiku_keys・soshiki_keys は地区・組織の参照表の key（無ければ空）。"""
+def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_keys=frozenset(), waku=None):
+    """テーマの定義（§12・§11）。chiku_keys・soshiki_keys は地区・組織の参照表の key（無ければ空）。
+    waku は枠の参照表（check_waku_ref の返り値。無ければ空）。"""
+    waku = waku or {}
     name = "ref/themes.tsv"
     check_order(rows, ("theme", "kind", "value"), name, rep)
     by, views, notes = {}, {}, {}
@@ -474,13 +502,16 @@ def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_
             ok = bool(RE_DIST.fullmatch(v)) and v in chiku_keys
         elif k == "組織":
             ok = bool(RE_ORG.fullmatch(v)) and v in soshiki_keys
+        elif k == "枠":
+            m = RE_WAKU.fullmatch(v)
+            ok = bool(m) and m.group(1) in waku
         elif k in ("語", "除外の語"):
             ok = bool(v) and norm(v) == v
         else:
             ok = bool(v)
         if not ok:
             rep.err(w, "value が kind の形に合わないか、lock の版の入力に無い")
-        check_views(r, inp, shisetsu_keys, w, rep, chiku_keys, soshiki_keys)
+        check_views(r, inp, shisetsu_keys, w, rep, chiku_keys, soshiki_keys, waku)
         if k in VIEW_KINDS:
             views.setdefault((k, v), set()).update(x for x in split_views(r["views"]) if x)
         if k == "名前":
@@ -508,6 +539,13 @@ def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_
     for t in sorted({r["theme"] for r in rows}):
         if len(by.get((t, "名前"), ())) != 1:
             rep.err(f"{name} {t}", "名前 の行が1行でない")
+    # views の waku キーの枠は、同じテーマの kind 枠の行にある（§11。ADR-37 の4）
+    for r in rows:
+        for v in split_views(r["views"]):
+            m = RE_WAKU_ELEM.fullmatch(v or "")
+            if m and f"waku:{m.group(1)}" not in by.get((r["theme"], "枠"), set()):
+                rep.err(f"{name} {r['theme']}/{r['kind']}/{r['value']}",
+                        f"views の {v} の枠が、同じテーマの kind 枠の行に無い")
     return Theme(rows, by, views, notes)
 
 
@@ -544,6 +582,118 @@ def check_area_ref(rows, name, rx, prefix, rep):
         if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
             rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
     return {r["key"] for r in rows}
+
+
+# ---- 枠の参照表（§12.3）と資料の種類の参照表（§12.4）。DESIGN.md ADR-37 ----
+
+def check_waku_ref(rows, inp, rep):
+    """枠の参照表（§11・§12.3）。枠の id → {n の字: 行} を返す（誤りのある枠も入れる。誤りは rep に）。"""
+    name = "ref/waku.tsv"
+    check_order(rows, ("waku", "n"), name, rep, numeric=("n",))
+    out = {}
+    for r in rows:
+        w = f"{name} {r['waku']}/{r['n']}"
+        if not RE_WAKU_ID.fullmatch(r["waku"]):
+            rep.err(w, "waku が英小文字・数字・ハイフンでない")
+        if not RE_N0.fullmatch(r["n"]):
+            rep.err(w, "n が0からの整数でない")
+            continue
+        out.setdefault(r["waku"], {})[r["n"]] = r
+        if not r["name"]:
+            rep.err(w, "name が空")
+        if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
+            rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
+        if not (RE_DOC_PAGE.fullmatch(r["source"]) or RE_PT_PAGE.fullmatch(r["source"])):
+            rep.err(w, f"source が §2 の doc か pt のページのキーでない（{r['source']}）")
+            continue
+        texts = source_texts(inp, r["source"])
+        if texts is None:
+            rep.err(w, f"source が lock の版の入力に無い（{r['source']}）")
+            continue
+        body = [norm(t) for t in texts]
+        for part in r["name"].split(WAKU_JOIN):
+            if not part or not any(norm(part) in t for t in body):
+                rep.err(w, f"name の「{part}」が source のページの原典の文字に無い（要素の名前は出典の語のまま。§12.3）")
+    for wid, els in out.items():
+        if "0" not in els:
+            rep.err(f"{name} {wid}", "n が0の行（枠そのもの）が無い")
+        ns = sorted(int(n) for n in els if n != "0")
+        if ns != list(range(1, len(ns) + 1)):
+            rep.err(f"{name} {wid}", "要素の番号が1からの続いた番号でない")
+    return out
+
+
+def match_regex(pat):
+    """ref/shiryo.tsv の match の要素 → 正規表現（`*` は英小文字・数字・ハイフンの0字以上の並び。§12.4）。"""
+    return re.compile("".join("[a-z0-9-]*" if c == "*" else re.escape(c) for c in pat))
+
+
+@dataclass
+class Shiryo:
+    """資料の種類の参照表（§12.4）。資料の id か資料のキーから、資料の種類（shurui）を引く。"""
+    rows: list = field(default_factory=list)
+    pats: list = field(default_factory=list)    # (shurui, [正規表現])
+
+    def shurui_of(self, did):
+        for shurui, rxs in self.pats:
+            if any(rx.fullmatch(did or "") for rx in rxs):
+                return shurui
+        return ""
+
+    def of_key(self, key):
+        """資料のキー（doc:<id> か doc:<id>/<ページ>）→ 資料の種類。doc でなければ空。"""
+        m = RE_DOC_PAGE.fullmatch(key or "") or RE_DOC.fullmatch(key or "")
+        return self.shurui_of(m.group(1)) if m else ""
+
+    def row_of(self, shurui):
+        return next((r for r in self.rows if r["shurui"] == shurui), None)
+
+
+def check_shiryo_ref(rows, inp, rep):
+    """資料の種類の参照表（§11・§12.4）。Shiryo を返す。"""
+    name = "ref/shiryo.tsv"
+    check_order(rows, ("shurui",), name, rep)
+    pats = []
+    for r in rows:
+        w = f"{name} {r['shurui']}"
+        for c in ("shurui", "match", "tsukuru", "konkyo", "source"):
+            if not r[c]:
+                rep.err(w, f"{c} が空")
+        if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
+            rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
+        rxs = []
+        for pat in r["match"].split(",") if r["match"] else []:
+            if not RE_MATCH.fullmatch(pat):
+                rep.err(w, f"match の要素が §12.4 の形でない（{pat!r}）")
+                continue
+            rx = match_regex(pat)
+            if not any(rx.fullmatch(d) for d in inp.docs):
+                rep.err(w, f"match の {pat} に当たる資料が lock の版の hino-town-docs に無い")
+            rxs.append(rx)
+        pats.append((r["shurui"], rxs))
+    for d in sorted(inp.docs):
+        hit = [sh for sh, rxs in pats if any(rx.fullmatch(d) for rx in rxs)]
+        if len(hit) > 1:
+            rep.err(name, f"資料 {d} が2つ以上の行に当たる（{'・'.join(hit)}）")
+    return Shiryo(rows, pats)
+
+
+def check_suji(name, r, shiryo, rep):
+    """列 suji（§15.3・§15.6。ADR-37 の2）：空か1からの整数、空でなければ資料が doc のページのキー。
+    資料の種類の参照表に当たる資料の candidate の行は空でない。confirmed で空なら一覧に出す（止めない）。"""
+    w = label(name, r)
+    if r["suji"] and not RE_INT.fullmatch(r["suji"]):
+        rep.err(w, f"suji が1からの整数でも空でもない（{r['suji']}）")
+    if r["suji"] and not RE_DOC_PAGE.fullmatch(r["source"]):
+        rep.err(w, "suji のある行の資料が doc のページのキーでない（筋は同じ資料の行のまとまり。§15.3）")
+    sh = shiryo.of_key(r["source"]) if shiryo else ""
+    if not sh or r["suji"]:
+        return
+    if r["status"] == "candidate":
+        rep.err(w, f"資料の種類の参照表に当たる資料（{sh}）の candidate の行の suji が空")
+    elif r["status"] == "confirmed":
+        rep.suji_missing.append({"ledger": name, "key": "/".join(r[c] for c in KEYS[name]), "source": r["source"],
+                                 "shurui": sh})
 
 
 # ---- 審議の記録の場面と turns ----
@@ -663,12 +813,13 @@ def check_exchange(name, rows, inp, theme, rep):
     return by_q
 
 
-def check_kotogara(rows, inp, theme, yaritori_keys, rep):
+def check_kotogara(rows, inp, theme, yaritori_keys, rep, shiryo=None):
     """事柄の記録（§15.3）。point は、どれかのテーマの kind 事柄の値（テーマは問わない。ADR-31 の2）。"""
     name = "kotogara"
     for r in rows:
         w = label(name, r)
         check_common(name, r, rep)
+        check_suji(name, r, shiryo, rep)
         if not theme.themes_of("事柄", r["point"]):
             rep.err(w, f"point がどのテーマの kind 事柄の値でもない（{r['point']!r}）")
         if r["kind"] not in TIME_KINDS:
@@ -750,14 +901,15 @@ def check_katei(rows, inp, theme, rep):
             rep.err(f"{name} {t}", "step が1からの続いた番号でない")
 
 
-def check_kisai(rows, inp, theme, rep):
+def check_kisai(rows, inp, theme, rep, shiryo=None):
     """構造にしていない記載（§15.6）。about は空か、どれかのテーマの kind 事柄か記載の値。
-    kind は空か、評価・要望（ADR-36）。同じ title は1つの about を指す（台帳全体で。rejected の行は除く）。"""
+    kind は空か、事実・見通し・評価・要望（ADR-36・ADR-37 の3）。同じ title は1つの about を指す（台帳全体で。rejected の行は除く）。"""
     name = "kisai"
     about_of = {}
     for r in rows:
         w = label(name, r)
         check_common(name, r, rep)
+        check_suji(name, r, shiryo, rep)
         if not r["title"]:
             rep.err(w, "title が空")
         if r["about"] and not (theme.themes_of("事柄", r["about"]) or theme.themes_of("記載", r["about"])):
@@ -969,6 +1121,67 @@ def signals(ledgers, theme, rep):
                     hit += 1
         rep.signal_chushin.append({"theme": t, "chushin": ch, "rows": n, "hit": hit,
                                    "ratio": ratio(hit, n) if ch else ""})
+
+
+# ---- 形の点検（§11。点検の報告の E.2。終了コードは変えない） ----
+
+def zero_values(ledgers):
+    """値の決まった列で、定数にあって0行の値。[(台帳, 列, 値)]。"""
+    def vals(name, col, side=None):
+        return {r[col] for r in ledgers.get(name, []) if side is None or r.get("side") == side}
+    out = []
+    checks = []
+    for n in ("yaritori", "shitsugi"):
+        checks += [(n, "side", None, SIDES), (n, "stage", "問い", STAGES), (n, "kind", "問い", Q_KINDS),
+                   (n, "kind", "答え", A_KINDS)]
+    checks += [("yaritori", "bulletin", None, BULLETIN), ("kotogara", "kind", None, TIME_KINDS),
+               ("shisetsu", "kind", None, TIME_KINDS), ("shisetsu", "aspect", None, ASPECTS),
+               ("kisai", "kind", None, KISAI_KINDS), ("tsunagari", "link", None, LINKS)]
+    for n, col, side, consts in checks:
+        have = vals(n, col, side)
+        for c in consts:
+            if c not in have:
+                out.append((n, f"{col}（{side}）" if side else col, c))
+    return out
+
+
+def katachi(ledgers, rep):
+    """形の点検の4つの数（§11）。rep.katachi と rep.katachi_rows に入れる。"""
+    empty = {}
+    for n in LEDGERS:
+        rows = ledgers.get(n, [])
+        cols = []
+        for c in COLUMNS[n]:
+            if c in COMMON:
+                continue
+            e = sum(1 for r in rows if not r[c])
+            if e:
+                cols.append((c, e, len(rows)))
+        empty[n] = cols
+    pairs = []
+    for n, col in (("kotogara", "point"), ("kisai", "about")):
+        by = {}
+        for r in ledgers.get(n, []):
+            if r["status"] != "rejected":
+                by.setdefault((r["source"], norm(r["quote"])), []).append(r)
+        for (src, _), rs in sorted(by.items()):
+            if len({r[col] for r in rs}) > 1:
+                pairs.append((n, rs))
+                for r in rs:
+                    rep.katachi_rows.append({"kind": "同じ引用で点が違う", "ledger": n,
+                                             "key": "/".join(r[c] for c in KEYS[n]), "detail": r[col]})
+    target = []
+    for n in ("kotogara", "kisai", "shisetsu"):
+        for r in ledgers.get(n, []):
+            if r["status"] != "rejected" and r["target"] and norm(r["target"]) not in norm(r["quote"]):
+                target.append((n, r))
+                rep.katachi_rows.append({"kind": "target が引用に無い", "ledger": n,
+                                         "key": "/".join(r[c] for c in KEYS[n]), "detail": r["target"]})
+    by_led = {}
+    for n, r in target:
+        st = by_led.setdefault(n, {})
+        st[r["status"]] = st.get(r["status"], 0) + 1
+    rep.katachi = {"empty": empty, "zero": zero_values(ledgers), "pairs": pairs, "target": by_led}
 
 
 # ---- 対象の形・対象の照合・対象と議案・名前（§11。DESIGN.md ADR-34 の1・2） ----
@@ -1270,17 +1483,21 @@ def check_unused_docs(ledgers, themes_rows, rep):
                         f"{c} に書かない資料がある（{m.group(0)}。記者会見の掲載ページ。§2）")
 
 
-def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=()):
+def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=(), waku_rows=(), shiryo_rows=()):
     """ledgers：台帳の名前 → 行の並び（nozoki は無ければ []）。chiku_rows・soshiki_rows は地区・組織の参照表の行
-    （ファイルが無ければ []。§12.1）。Report を返す。"""
+    （ファイルが無ければ []。§12.1）。waku_rows・shiryo_rows は枠と資料の種類の参照表の行（無ければ []。§12.3・§12.4）。
+    Report を返す。"""
     rep = Report()
-    rep.ref_counts = {"shisetsu": len(shisetsu_rows), "chiku": len(chiku_rows), "soshiki": len(soshiki_rows)}
+    rep.ref_counts = {"shisetsu": len(shisetsu_rows), "chiku": len(chiku_rows), "soshiki": len(soshiki_rows),
+                      "waku": len(waku_rows), "shiryo": len(shiryo_rows)}
+    rep.waku = check_waku_ref(list(waku_rows), inp, rep)
+    rep.shiryo = check_shiryo_ref(list(shiryo_rows), inp, rep)
     chiku_keys = check_area_ref(chiku_rows, "ref/chiku.tsv", RE_DIST, "dist", rep)
     soshiki_keys = check_area_ref(soshiki_rows, "ref/soshiki.tsv", RE_ORG, "org", rep)
     # 地区の参照表が無いか0行なら、施設の参照表の district は照らさない（§11 施設の参照表）
     chiku_names = {r["name"] for r in chiku_rows} if chiku_rows else None
     shisetsu_keys = check_shisetsu_ref(shisetsu_rows, rep, chiku_names)
-    theme = check_themes(themes_rows, inp, shisetsu_keys, rep, chiku_keys, soshiki_keys)
+    theme = check_themes(themes_rows, inp, shisetsu_keys, rep, chiku_keys, soshiki_keys, rep.waku)
     for name in LEDGERS:
         rows = ledgers.get(name, [])
         rep.counts[name] = len(rows)
@@ -1288,10 +1505,10 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
     yar = check_exchange("yaritori", ledgers["yaritori"], inp, theme, rep)
     shi = check_exchange("shitsugi", ledgers["shitsugi"], inp, theme, rep)
     ykeys = {f"{r['question']}/{r['row']}" for r in ledgers["yaritori"]}
-    check_kotogara(ledgers["kotogara"], inp, theme, ykeys, rep)
+    check_kotogara(ledgers["kotogara"], inp, theme, ykeys, rep, rep.shiryo)
     check_tsunagari(ledgers["tsunagari"], inp, theme, rep)
     check_katei(ledgers["katei"], inp, theme, rep)
-    check_kisai(ledgers["kisai"], inp, theme, rep)
+    check_kisai(ledgers["kisai"], inp, theme, rep, rep.shiryo)
     check_shisetsu(ledgers["shisetsu"], inp, theme, shisetsu_keys, rep)
     check_nozoki(ledgers.get("nozoki", []), inp, {**yar, **shi}, rep)
     check_teian(ledgers.get("teian", []), inp, rep)
@@ -1311,6 +1528,8 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
         elif name != "nozoki":
             quote_context(inp, name, live, rep)
     signals(ledgers, theme, rep)
+    rep.suji_missing.sort(key=lambda x: (x["ledger"], x["key"]))
+    katachi(ledgers, rep)
     return rep
 
 

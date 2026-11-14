@@ -6,7 +6,8 @@ public/data/index/<年>.json（会議録の本文）だけ。ネットワーク�
 記載の書き方は持ち込み用の資料（§17.1、tools/build_rag.py）と同じ。
 
 実行: python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]（例 hoiku node:jisshi/e008）
-1つのサーバーが1つの見方を扱う。見方のキーは node・plan・fa・dist・org のキーか、テーマの id（テーマ全体）。
+1つのサーバーが1つの見方を扱う。見方のキーは node・plan・fa・dist・org・waku（枠の要素）のキーか、テーマの id（テーマ全体）。
+枠と資料の種類は overview の節、筋は fetch の id suji:<資料の id>/<n> で返す（LINK_SCHEMA §14。DESIGN.md ADR-37）。
 """
 import csv
 import json
@@ -28,8 +29,11 @@ INDEX = "public/data/index/{}.json"
 KOHO = "doc:koho-"
 NOTE = ("記載の頭に【未確認】がある行と、照合結果は、人による確認が済んでいない。"
         "記載の形は「［資料の日付］資料の名前：欄：値。「引用」（出典：url）」。検討の段階（政策の過程）の記載は、資料の日付ではなく期間を書くため［ ］が無い。"
-        "欄「資料の種類」は、会議録（会議録の発言）・広報ひの・町の資料の別。引用は資料の原文のまま。"
-        "欄「記載の種類」の評価・要望は、資料の書き手（監査委員など）の判断を書いた文と、相手に求めることを書いた文の別で、この道具が加えた評価ではない。"
+        "欄「資料の種類」は、会議録（会議録の発言）・広報ひの・町の資料の別。根拠規定などを確かめた資料は種類の名前（定期監査の報告など）で、"
+        "何にもとづく資料かは overview の節「資料の種類」にある。引用は資料の原文のまま。"
+        "欄「記載の種類」の事実・見通し・評価・要望は、資料の書き手（監査委員など）が書いた文の別で、評価・要望・見通しは資料の書き手の判断・求め・見通しであり、"
+        "この道具が加えたものではない。"
+        "欄「筋」は、その記載が資料の中のどのまとまり（筋）の何件目の文かを示す。筋の全部は fetch で suji:<資料の id>/<番号> を取る。"
         "出典の url のうち web.archive.org のものは、町のサイトに載らなくなった資料の、Webアーカイブの保存版。")
 SPEECH_NOTE = ("会議録の本文（資料そのもの。項目ごとに記録したものではない。テーマの語のある発言だけ）。"
                "引用するときは、この本文から原文のまま引く。")
@@ -105,6 +109,10 @@ class Server:
                       f"議決結果：{b.get('result')}。採決方法：{b.get('method')}。討論：{deb}（出典：{b.get('url')}）")
         for n, x in enumerate(d.get("issues") or [], 1):
             self._add(f"issue:{n}", f"照合結果（未確認）：{x['type']}", "", r.issue_statement(x))
+        for x in d.get("suji") or []:     # 筋（資料の述べ方。資料の文の順。ADR-37）
+            date = x["rows"][0]["source_date"] if x.get("rows") else ""
+            self._add(x["key"], "筋", date, f"{r.suji_doc(x)}の筋{x['n']}（{len(x['rows'])}件。資料の文の順。資料の種類：{x.get('shurui') or r.kind_of(x['doc'])}）\n"
+                      + "\n".join(r.suji_lines(x)), " ".join(y.get("point") or "" for y in x["rows"]))
 
     def facility(self, key):
         return (self.r.fac.get(key) or {}).get("name") or key
@@ -172,6 +180,14 @@ class Server:
         out += ["", f"## 議会（council で取る）：一般質問 {len(d.get('exchanges') or [])}問（うち質問・答弁を項目ごとに記録したもの "
                 f"{len(d['records'].get('yaritori') or [])}問。ほかの問いの答弁は speeches で会議録の本文を読む）、"
                 f"議案質疑 {len(d['records'].get('shitsugi') or [])}件、関係議案 {len(d.get('bills') or [])}件"]
+        if d.get("waku") or d.get("shiryo"):     # 枠の表と資料の種類（§14・§17.1。ADR-37）
+            doc = br.Doc()
+            r.waku_lines(doc)
+            out += ["", "## 枠と資料の種類（資料の外の枠：その分野で何が何を決めるか。資料の種類：何にもとづく資料か）"]
+            out += [x[3:] if x.startswith("## ") else x for x in doc.markdown().strip().split("\n")]
+        if d.get("suji"):
+            out += ["", "## 筋（fetch で取る。資料の述べ方を資料の文の順に返す）"]
+            out += [f"- [{x['key']}] {r.suji_doc(x)}の筋{x['n']}（{len(x['rows'])}件）" for x in d["suji"]]
         return "\n".join(out)
 
     def t_search(self, a):
@@ -241,8 +257,8 @@ class Server:
             if ans:
                 out.append("当局の答弁のうち新しいもの（原文。これまでの答弁と食い違わないように確かめる）：")
                 out += [self.line(i) for i in ans[-3:]]
-            out.append("記載の推移（資料の日付順）：")
-            out += [self.line(i) for i in self.by_key("kotogara:", name)]
+            out.append("記載の推移（資料の日付順。この事項を見出しにした記載の行を含む）：")
+            out += [self.line(i) for i in self.by_key(("kotogara:", "kisai:"), name)]
             qa = self.by_key(("yaritori:", "shitsugi:"), name)
             if qa:
                 out.append("この事項についての質問・答弁（記録したもの）：")
@@ -250,7 +266,7 @@ class Server:
         fs = self.by_key("shisetsu:", name)
         if fs:
             out += [f"## 施設：{name}"] + [self.line(i) for i in fs]
-        ks = self.by_key("kisai:", name)
+        ks = self.by_key("kisai:", name) if name not in r.kot_all else []     # 事柄の記載の行は記載の推移に入れた
         if ks:
             out += [f"## 記載の見出し：{name}"] + [self.line(i) for i in ks]
         if not out:
@@ -304,12 +320,12 @@ class Server:
 
     TOOLS = [
         ("overview", "最初に呼ぶ。見方の要点（事業のときは事業名・概算事業費・当初予算額・総合計画の位置）、資料の時点、正式な名前、目的の原文、"
-         "いまの段階、事項・施設・記載の見出し・照合結果の一覧を返す。", {}, "t_overview"),
+         "いまの段階、事項・施設・記載の見出し・照合結果の一覧、枠の表と資料の種類、筋の一覧を返す。", {}, "t_overview"),
         ("search", "記載を語で探す。語は空白で区切る（例「開園時期 令和11年」）。kind で種類を絞れる（事柄・施設・つながり・過程・記載・"
-         "一般質問・議案質疑・一般質問の一覧・会議録の本文・議案・照合結果）。返すのは id と抜粋。全文は fetch で取る。",
+         "一般質問・議案質疑・一般質問の一覧・会議録の本文・議案・照合結果・筋）。返すのは id と抜粋。全文は fetch で取る。",
          {"query": {"type": "string"}, "kind": {"type": "string"}, "limit": {"type": "integer"}}, "t_search"),
         ("fetch", "id を指定して記載の全文を取る（search・topic・council・speeches・issues が返す id）。"
-         "yaritori:<問いのキー> で、記録した一般質問の全行を取る。",
+         "yaritori:<問いのキー> で、記録した一般質問の全行を、suji:<資料の id>/<番号> で、資料の筋（同じ筋の記載）を資料の文の順に取る。",
          {"ids": {"type": "array", "items": {"type": "string"}}}, "t_fetch"),
         ("topic", "事項（事柄）・施設・記載の見出しの名前を指定して、その記載を資料の日付順に取る。事柄は、いまの町の説明の原文と、"
          "当局の新しい答弁の原文を先に返す。名前は overview の一覧のとおり。", {"name": {"type": "string"}}, "t_topic"),
@@ -391,7 +407,7 @@ def main(argv):
         del args[i:i + 2]
     if len(args) != 2:
         print("使い方: python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]"
-              "（見方のキーは node・plan・fa・dist・org のキーか、テーマの id）", file=sys.stderr)
+              "（見方のキーは node・plan・fa・dist・org・waku のキーか、テーマの id）", file=sys.stderr)
         return 1
     theme, view = args
     try:
