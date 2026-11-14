@@ -188,29 +188,31 @@ def frame_data():
 class FrameTest(unittest.TestCase):
     def test_honpen(self):
         honpen, kiroku = br.build(frame_data(), P)
-        # 主な事項の記載の推移に、about がその事柄の記載の行も入り、筋の欄を書く
+        # 主な事項の記載の推移に、about がその事柄の記載の行も入り、項目の欄を書く
         self.assertIn("- 【未確認】［2025年3月］再編整備計画：資料の種類：定期監査の報告。見出し：要望の文。記載の種類：要望。"
-                      "筋：再編整備計画の筋1（3件のうち3件目。suji:a/1）。「留意されたい。」", honpen)
-        self.assertIn("資料の種類：定期監査の報告。対象の時期：令和10年度。書き方：予定。筋：再編整備計画の筋1（3件のうち2件目。suji:a/1）。", honpen)
-        # 枠の表と資料の種類（表を使わない）
-        self.assertIn("## 認定こども園整備事業：枠の表：流れ", honpen)
-        self.assertIn("- 要素1：開園の推計。当たる点：開園時期。資料の種類ごとの記録：定期監査の報告：2025。議会の記録の行：2", honpen)
-        self.assertIn("- 要素2：単価の設定。当たる点：点が無い。資料の種類ごとの記録：記録なし。注：図の注「※改定反映」", honpen)
+                      "項目：再編整備計画の項目1（3件のうち3件目。suji:a/1）。「留意されたい。」", honpen)
+        self.assertIn("資料の種類：定期監査の報告。対象の時期：令和10年度。書き方：予定。項目：再編整備計画の項目1（3件のうち2件目。suji:a/1）。", honpen)
+        # 枠組みの表と資料の種類（表を使わない）。要素の note は出さない
+        self.assertIn("## 認定こども園整備事業：流れと、資料の記載状況", honpen)
+        self.assertIn("- 要素1：開園の推計。該当する事項：開園時期。資料別の記載年：定期監査の報告：2025。議会での質問・答弁の記録数：2", honpen)
+        self.assertIn("- 要素2：単価の設定。該当する事項：該当する事項なし。資料別の記載年：未記録\n", honpen)
+        self.assertNotIn("※改定反映", honpen)
         self.assertIn(br.WAKU_NOTE, honpen)
-        self.assertIn("- 資料の種類：定期監査の報告。作る者：監査委員（合議）。根拠：地方自治法199条。", honpen)
+        self.assertIn("## 認定こども園整備事業：資料の種類と根拠法令", honpen)
+        self.assertIn("- 資料の種類：定期監査の報告。作成者：監査委員（合議）。根拠法令：地方自治法199条。", honpen)
         # 事項ごとの質問・答弁にも記載の行
         part = honpen[honpen.index("事項ごとの質問・答弁：開園時期"):]
         self.assertIn("見出し：要望の文。", part[:part.index("照合結果")])
 
     def test_kiroku_suji(self):
         _, kiroku = br.build(frame_data(), P)
-        self.assertIn("# 認定こども園整備事業（記録編）：筋（資料の述べ方）", kiroku)
-        self.assertIn("## 認定こども園整備事業：記録：筋：再編整備計画の筋1（suji:a/1）", kiroku)
-        i = kiroku.index("- 1. 点：点なし。【未確認】［2025年3月］再編整備計画：資料の種類：定期監査の報告。見出し：計画の期。記載の種類：事実。")
-        self.assertLess(i, kiroku.index("- 2. 点：開園時期。［2025年3月］再編整備計画："))
-        self.assertLess(kiroku.index("- 2. 点：開園時期。"), kiroku.index("- 3. 点：開園時期。【未確認】"))
-        # 筋の無いデータでは章を置かない
-        self.assertNotIn("（記録編）：筋（資料の述べ方）", built()[1])
+        self.assertIn("# 認定こども園整備事業（記録編）：同じ項目の記載", kiroku)
+        self.assertIn("## 認定こども園整備事業：記録：同じ項目の記載：再編整備計画の項目1（suji:a/1）", kiroku)
+        i = kiroku.index("- 1. 事項：事項の指定なし。【未確認】［2025年3月］再編整備計画：資料の種類：定期監査の報告。見出し：計画の期。記載の種類：事実。")
+        self.assertLess(i, kiroku.index("- 2. 事項：開園時期。［2025年3月］再編整備計画："))
+        self.assertLess(kiroku.index("- 2. 事項：開園時期。"), kiroku.index("- 3. 事項：開園時期。【未確認】"))
+        # 項目の無いデータでは章を置かない
+        self.assertNotIn("（記録編）：同じ項目の記載", built()[1])
 
 
 class BuildTest(unittest.TestCase):
@@ -241,7 +243,7 @@ class BuildTest(unittest.TestCase):
         for md in built():
             for line in md.split("\n"):
                 self.assertFalse(line.startswith("|"), line)
-                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」", "- 欄「記載の種類」", "- 欄「筋」",
+                if "「" in line and not line.startswith(("#", "- 記載は", "- 日野町の公開資料", "- 「【未確認】」の段落", "- 欄「資料の種類」", "- 欄「記載の種類」", "- 欄「項目」",
                                                                  "【未確認】", "比べた記載：記録編の")):
                     self.assertIn("出典：", line, line)
 
@@ -255,8 +257,8 @@ class BuildTest(unittest.TestCase):
         honpen, kiroku = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
         self.assertIn("見出し：懇話会の設置目的。記載の種類：要望。対象の時期：令和６年度。「在り方を検討する。」", kiroku)
         # 読み方に、記載の種類の意味を書く（ADR-36 の7）
-        self.assertIn("欄「記載の種類」の事実・見通し・評価・要望は、資料の書き手（監査委員など）が書いた文の別です。"
-                      "評価・要望・見通しは資料の書き手の判断・求め・見通しで、この資料が加えたものではありません", honpen)
+        self.assertIn("欄「記載の種類」の事実・見通し・評価・要望は、資料の作成者（監査委員など）が記した内容の種類です。"
+                      "評価・要望・見通しの区分は論点ノートによる評価ではありません", honpen)
 
     def test_entry_form(self):
         honpen, kiroku = built()

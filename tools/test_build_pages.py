@@ -97,14 +97,20 @@ class RenderTest(unittest.TestCase):
             bp.render(template().replace("<main>", '<script src="https://example.jp/x.js"></script><main>'), data(), P)
 
     def test_template_frame(self):
-        # 枠の表・点の所の記載の行・この資料の述べ方・資料の種類の表（LINK_SCHEMA §16.1・§16.4。DESIGN.md ADR-37）
+        # 枠組みの表・事項の所の記載の行・同じ項目の記載・資料の種類と根拠法令の表（LINK_SCHEMA §16.1・§16.4。DESIGN.md ADR-37）
         t = template()
-        for w in ("枠の表：", "当たる点", "資料の種類ごとの記録（資料の年）", "議会の記録の行", "点が無い", "記録なし",
-                  "この資料の述べ方（同じ筋の記載", "点なし", "この行", "資料の種類", "何にもとづく資料か",
-                  "評価・要望・見通しは資料の書き手の判断・求め・見通しで、論点ノートが加えたものではありません。",
-                  "要素の間の関係は出典の図で確かめてください（論点ノートでは足していません）。", "'枠の要素':'本要素'"):
+        for w in ("と、資料の記載状況", "該当する事項", "資料別の記載年", "議会での質問・答弁の記録数", "該当する事項なし", "未記録",
+                  "同じ項目の記載（", "事項の指定なし", "表示中の記載", "資料の種類と根拠法令", "作成者", "根拠法令", "提出先・公表",
+                  "対応状況を確認できる資料",
+                  "評価・要望・見通しの区分は、資料の作成者（監査委員など）が記した内容の種類です。論点ノートによる評価ではありません。",
+                  "要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。", "'枠の要素':'本要素'"):
             with self.subTest(w=w):
                 self.assertIn(w, t)
+        # 利用者に見える文言に、作った言い方を出さない。要素の note（作業の注）を出さない
+        for w in ("筋", "述べ方", "書き手", "当たる点", "点が無い", "記録なし", "点なし", "作る者", "あて先", "現れる所", "確かめた所",
+                  "e.note", "何にもとづく"):
+            with self.subTest(w=w):
+                self.assertNotIn(w, re.sub(r"/\*.*?\*/", "", t, flags=re.S))
 
     def test_out_path(self):
         for view, name in ((P, "hoiku-e008.html"), ("plan:kaigo9", "hoiku-kaigo9.html"), ("fa:nishioji-yo", "hoiku-nishioji-yo.html"),
