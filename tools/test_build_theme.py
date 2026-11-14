@@ -801,6 +801,53 @@ class FrameBuildTest(unittest.TestCase):
         self.assertEqual(self.data["names"]["views"]["waku:keikaku/1"], {"name": "計画期間", "waku": "計画期間"})
         self.assertEqual(bt.check_no_empty_url(self.data), [])
 
+    def test_bun(self):
+        # 同じ文と、ほかの行の引用に含まれる行は1つの文にまとめる（§13.4 の suji の bun）
+        rows = [dict(ref="r1", point="A", kind="事実", quote="甲。乙。", layer=bt.CONFIRMED),
+                dict(ref="r2", point="B", kind="事実", quote="乙。", layer=bt.CONFIRMED),
+                dict(ref="r3", point="C", kind="要望", quote="丙。", layer=bt.UNCONFIRMED),
+                dict(ref="r4", point="", kind="要望", quote="丙。", layer=bt.CONFIRMED)]
+        b = bt.build_bun(rows)
+        self.assertEqual([(x["quote"], x["refs"], [p["point"] for p in x["points"]], x["layer"]) for x in b],
+                         [("甲。乙。", ["r1", "r2"], ["A", "B"], bt.CONFIRMED), ("丙。", ["r3", "r4"], ["C", ""], bt.UNCONFIRMED)])
+        (x,) = self.data["suji"]
+        self.assertEqual(len(x["bun"]), 2)
+
+    def test_flow(self):
+        # 要素に資料の種類が当たる枠組み（ref/shiryo.tsv の waku）は、資料の年度ごとの nendo を持つ。法令の出典は url を持たない
+        law = "地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索）"
+        wrows = tr.waku_ref() + [dict(tr.waku_ref()[0], waku="nagare", n=n, name=nm, source=src, note="")
+                                 for n, nm, src in (("0", "流れ", law), ("1", "審査", "地方自治法233条2項"), ("2", "審議", ""))]
+        sh = tr.shiryo_ref()
+        sh[0].update(source=law, waku="waku:nagare/1")
+        inp = tr.inputs()
+        rep = rc.Report()
+        waku = rc.check_waku_ref(wrows, inp, rep, sh)
+        shiryo = rc.check_shiryo_ref(sh, inp, rep, waku)
+        self.assertEqual(rep.errors, [])
+        themes = tr.with_waku(theme_rows())
+        themes.append(dict(next(r for r in themes if r["kind"] == "枠"), value="waku:nagare", source=law))
+        themes.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
+        led = tr.ledgers()
+        led["kotogara"].append(tr.row("kotogara", point="新こども園の定員", source="doc:teigen/2", source_date="2024-02",
+                                      quote="再編の方針がある", kind="いまのこと", suji="1", status="candidate", reviewer="", date=""))
+        d = make_data()
+        d.inp.nodes |= {"node:sogo6/e011", "node:sogo6/e047"}
+        d.inp.series |= {"kodomo"}
+        data = bt.build("hoiku", themes, led, d, {"hino-council-search": {"sha": "a" * 40}}, refs(), {"ref/themes.tsv": "x"},
+                        tr.shisetsu_ref(), tr.chiku_ref() + tr.soshiki_ref(), waku, shiryo)
+        w = next(x for x in data["waku"] if x["key"] == "waku:nagare")
+        self.assertEqual((w["url"], w["source"]), ("", law))
+        self.assertEqual([(e["n"], e["source"], e["shiryo"], e["points"], e["rec"]) for e in w["elements"]],
+                         [(1, "地方自治法233条2項", ["提言"], [], {"提言": ["2024"]}), (2, "", [], [], {})])
+        self.assertEqual(w["nendo"], [{"fiscal_year": "2023", "elements": [
+            {"n": 1, "docs": [{"doc": "doc:teigen", "date": "2024-02", "suji": ["suji:teigen/1"], "nosuji": 0}]},
+            {"n": 2, "docs": []}]}])
+        self.assertEqual(next(x for x in data["waku"] if x["key"] == "waku:keikaku")["nendo"], [])
+        self.assertNotIn(law, data["names"]["sources"])
+        self.assertEqual(bt.check_no_empty_url(data), [])
+        self.assertEqual(data["shiryo"][0]["waku"], "waku:nagare/1")
+
     def test_without_frame(self):
         # 参照表が無ければ、waku・shiryo・suji は空で、行の shurui も空（ほかの題材の画面は変わらない）
         data = build()

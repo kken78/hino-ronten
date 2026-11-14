@@ -777,7 +777,9 @@ class FrameTest(RecordsTestCase):
         cases = [({"2": {"name": "令和7年"}}, "name の「令和7年」が source のページの原典の文字に無い"),
                  ({"2": {"n": "3"}}, "要素の番号が1からの続いた番号でない"),
                  ({"0": {"n": "4"}}, "n が0の行（枠そのもの）が無い"),
-                 ({"1": {"source": "pt:youho/honpen"}}, "source が §2 の doc か pt のページのキーでない"),
+                 ({"1": {"source": "pt:youho/honpen"}}, "source が §2 の doc か pt のページのキーでも法令の条項でもない"),
+                 ({"1": {"source": ""}}, "source が空（空にできるのは、n が0の行の出典が法令の条項の枠組みの要素だけ"),
+                 ({"1": {"source": "地方自治法233条1項"}}, "source が法令の条項なのに、n が0の行の source が法令の条項でない"),
                  ({"1": {"source": "doc:nai/1"}}, "source が lock の版の入力に無い"),
                  ({"1": {"reviewer": ""}}, "reviewer か date"),
                  ({"1": {"n": "x"}}, "n が0からの整数でない")]
@@ -790,6 +792,35 @@ class FrameTest(RecordsTestCase):
         rows = waku_ref()
         rows = rows[:1] + rows[2:] + rows[1:2]
         self.assertErr(run_frame(waku=rows), "行がキーの順でない")
+
+    def test_law_frame(self):
+        # 法令を出典とする枠組み（§12.3。DESIGN.md ADR-37 の経過、2026-11-14）：要素の名前は条文と照らさない。空の出典は要素だけ
+        law = "地方自治法（昭和二十二年法律第六十七号）第233条（e-Gov 法令検索）"
+        rows = waku_ref(**{"0": {"source": law}, "1": {"source": "地方自治法233条1項", "name": "決算の調製と提出"},
+                            "2": {"source": "", "name": "議会の審議"}})
+        sh = shiryo_ref()
+        sh[0]["source"] = law
+        rep = run_frame(waku=rows, shiryo=sh)
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(rc.law_of("地方自治法233条2項・4項"), "地方自治法")
+        self.assertEqual(rc.law_of("地方公共団体の財政の健全化に関する法律3条1項"), "地方公共団体の財政の健全化に関する法律")
+        self.assertEqual(rc.law_of("pt:youho/honpen/1"), "")
+        # 法令の名前は資料の種類の参照表の source にあるものだけ
+        self.assertErr(run_frame(waku=rows), "法令「地方自治法」が資料の種類の参照表の source に無い")
+        rows0 = waku_ref(**{"0": {"source": ""}})
+        self.assertErr(run_frame(waku=rows0, shiryo=sh), "source が空（空にできるのは")
+
+    def test_shiryo_waku(self):
+        # 列 waku は空か、枠組みの参照表にある要素の見方のキー（§12.4）
+        sh = shiryo_ref()
+        sh[0]["waku"] = f"waku:{WAKU_ID}/2"
+        rep = run_frame(shiryo=sh)
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(rep.shiryo.waku_of("提言"), f"waku:{WAKU_ID}/2")
+        for v in (f"waku:{WAKU_ID}/3", f"waku:{WAKU_ID}", f"waku:{WAKU_ID}/0", "x"):
+            with self.subTest(v=v):
+                sh[0]["waku"] = v
+                self.assertErr(run_frame(shiryo=sh), "waku が枠組みの参照表の要素の見方のキーでない")
 
     def test_shiryo_errors(self):
         self.assertErr(run_frame(shiryo=shiryo_ref("nai-*")), "match の nai-* に当たる資料が lock の版の hino-town-docs に無い")

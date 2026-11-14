@@ -885,12 +885,19 @@ def build_shiryo(data, shiryo):
                     if doc_id_of(k):
                         ids.add(doc_id_of(k))
     hit = {shiryo.shurui_of(i) for i in ids} - {""}
-    return [{c: r[c] for c in ("shurui", "match", "tsukuru", "konkyo", "atesaki", "outou", "source", "note")}
+    return [{c: r.get(c, "") for c in ("shurui", "match", "tsukuru", "konkyo", "atesaki", "outou", "waku", "source", "note")}
             for r in shiryo.rows if r["shurui"] in hit]
 
 
+def source_url(d, source):
+    """枠組みの出典の url。法令の条項（§12.3）と空の出典は url を持たない（§13）。"""
+    return "" if not source or records.law_of(source) else d.key_url(source)
+
+
 def build_waku(d, data, themes_rows, theme, tk, waku):
-    """テーマの枠（§12 の kind 枠）ごとの要素と当たる点・資料の種類ごとの記録のある年・議会の記録の行の数（§13.4）。"""
+    """テーマの枠（§12 の kind 枠）ごとの要素と当たる点・資料の種類ごとの記録のある年・議会の記録の行の数（§13.4）。
+    要素に資料の種類が当たる枠組み（ref/shiryo.tsv の waku）は、資料の年度ごとの要素と資料と項目（nendo）も
+    （DESIGN.md ADR-37 の経過、2026-11-14）。build_suji のあとに呼ぶ。"""
     R = data["records"]
     point_rows = [r for r in themes_rows if r["theme"] == theme and r["kind"] in records.POINT_KINDS]
     order = [x["shurui"] for x in data["shiryo"]]
@@ -902,19 +909,58 @@ def build_waku(d, data, themes_rows, theme, tk, waku):
         for n in sorted((n for n in els if n != "0"), key=int):
             view = f"{key}/{n}"
             points = [r["value"] for r in point_rows if view in records.split_views(r.get("views", ""))]
+            shiryo = [x["shurui"] for x in data["shiryo"] if x.get("waku") == view]
             years = {}
             for name, col in (("kotogara", "point"), ("kisai", "about")):
                 for r in R[name]:
-                    if r[col] and r[col] in points and r.get("shurui"):
+                    if r.get("shurui") and ((r[col] and r[col] in points) or r["shurui"] in shiryo):
                         years.setdefault(r["shurui"], set()).add(r["source_date"][:4])
             rec = {sh: sorted(years[sh]) for sh in sorted(years, key=lambda x: (order.index(x) if x in order else len(order), x))}
             gikai = sum(1 for name in ("yaritori", "shitsugi") for q in R[name] for r in q["rows"]
                         if r["layer"] == CONFIRMED and r["point"] and r["point"] in points)
-            elements.append(dict(view=view, n=int(n), name=els[n]["name"], note=els[n]["note"], points=points, rec=rec,
-                                 gikai=gikai))
+            elements.append(dict(view=view, n=int(n), name=els[n]["name"], note=els[n]["note"], source=els[n]["source"],
+                                 shiryo=shiryo, points=points, rec=rec, gikai=gikai))
         out.append(dict(key=key, name=head.get("name", ""), source=head.get("source", ""),
-                        url=d.key_url(head.get("source", "")), note=head.get("note", ""), elements=elements, layer=CONFIRMED))
+                        url=source_url(d, head.get("source", "")), note=head.get("note", ""), elements=elements,
+                        nendo=build_nendo(d, data, elements), layer=CONFIRMED))
     return out
+
+
+def build_nendo(d, data, elements):
+    """要素に資料の種類が当たる枠組みの、資料の年度ごとの要素と資料と項目（§13.3・§13.4 の waku の nendo）。
+    資料の年度は hino-town-docs の data/sources.tsv の fiscal_year。年度の無い資料は入れず、件数を表示する。"""
+    by_shurui = {sh: e["n"] for e in elements for sh in e["shiryo"]}
+    if not by_shurui:
+        return []
+    R = data["records"]
+    docs = {}     # 資料の id → {n, date, nosuji}
+    for name in ("kotogara", "kisai"):
+        for r in R[name]:
+            n = by_shurui.get(r.get("shurui") or "")
+            did = doc_id_of(r["source"])
+            if n is None or not did:
+                continue
+            x = docs.setdefault(did, dict(n=n, date=r["source_date"], nosuji=0))
+            x["date"] = min(x["date"], r["source_date"])
+            if not r.get("suji_key"):
+                x["nosuji"] += 1
+    suji = {}
+    for x in data["suji"]:
+        suji.setdefault(x["doc"], []).append(x)
+    years, skipped = {}, []
+    for did in sorted(docs):
+        fy = (d.docs.get(did) or {}).get("fiscal_year", "")
+        if not fy:
+            skipped.append(did)
+            continue
+        items = sorted(suji.get(f"doc:{did}", []), key=lambda x: ((x["rows"][0]["page"], x["rows"][0]["pos"] < 0,
+                                                                   x["rows"][0]["pos"]) if x["rows"] else (0, True, 0), x["n"]))
+        years.setdefault(fy, {}).setdefault(docs[did]["n"], []).append(dict(
+            doc=f"doc:{did}", date=docs[did]["date"], suji=[x["key"] for x in items], nosuji=docs[did]["nosuji"]))
+    if skipped:
+        print(f"  資料の年度（fiscal_year）の無い資料：{len(skipped)}件（{'・'.join(skipped)}。nendo に入れない）")
+    return [dict(fiscal_year=fy, elements=[dict(n=e["n"], docs=years[fy].get(e["n"], [])) for e in elements])
+            for fy in sorted(years)]
 
 
 def quote_pos(d, source, quote):
@@ -953,8 +999,35 @@ def build_suji(d, data):
         rows.sort(key=lambda x: (x["page"], x["pos"] < 0, x["pos"], x["ledger"], x["ref"]))
         shurui = next((r.get("shurui") for nm in ("kotogara", "kisai") for r in R[nm] if r.get("suji_key") == key), "")
         out.append(dict(key=key, doc=f"doc:{did}", n=int(n), shurui=shurui, url=d.key_url(f"doc:{did}"), rows=rows,
-                        layer=CONFIRMED if all(x["layer"] == CONFIRMED for x in rows) else UNCONFIRMED))
+                        bun=build_bun(rows), layer=CONFIRMED if all(x["layer"] == CONFIRMED for x in rows) else UNCONFIRMED))
     return sorted(out, key=lambda x: (x["doc"], x["n"]))
+
+
+def build_bun(rows):
+    """項目の文の並び（§13.3・§13.4 の suji の bun）：引用（§4 の正規化のあと）がほかの行の引用と同じか、ほかの行の引用に
+    含まれる行を、含むほう（同じなら先の行）にまとめる。並びは含むほうの行の位置の順。"""
+    qs = [records.norm(r["quote"]) for r in rows]
+    owner = []
+    for i, q in enumerate(qs):
+        cands = [j for j, o in enumerate(qs) if j != i and q in o and (len(o) > len(q) or j < i)]
+        # 含むほうのうち最も長いもの（同じ長さなら先の行）
+        owner.append(min(cands, key=lambda j: (-len(qs[j]), j)) if cands else i)
+    # 含むほうがさらにほかに含まれるときは、いちばん外まで辿る
+    def top(i):
+        seen = set()
+        while owner[i] != i and i not in seen:
+            seen.add(i)
+            i = owner[i]
+        return i
+    out = []
+    for i, r in enumerate(rows):
+        if top(i) != i:
+            continue
+        mem = [k for k in range(len(rows)) if top(k) == i]
+        out.append(dict(quote=r["quote"], kind=r["kind"], refs=[rows[k]["ref"] for k in mem],
+                        points=[dict(point=rows[k]["point"], kind=rows[k]["kind"]) for k in mem],
+                        layer=CONFIRMED if all(rows[k]["layer"] == CONFIRMED for k in mem) else UNCONFIRMED))
+    return out
 
 
 # ---- 論点の候補（§13.2） ----
@@ -1312,9 +1385,10 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=(), 
     }
     data["sheets"] = build_sheets(d, data, themes_rows, theme, tk, shisetsu_rows, area_rows, waku)
     data["issues"] = build_issues(d, data, tk, themes_rows, theme, shisetsu_rows)
+    data["waku"] = []     # 並びを waku・shiryo・suji のままにする（§13）。waku は suji のあとで作る（nendo が項目を使う）
     data["shiryo"] = build_shiryo(data, shiryo)
-    data["waku"] = build_waku(d, data, themes_rows, theme, tk, waku)
     data["suji"] = build_suji(d, data)
+    data["waku"] = build_waku(d, data, themes_rows, theme, tk, waku)
     data["names"] = build_names(d, data, shisetsu_rows)
     data["names"]["views"] = names_views(data, themes_rows, theme, shisetsu_rows, area_rows, waku)
     data["theme_questions"] = len(tk["問い"])
@@ -1340,7 +1414,7 @@ def build_names(d, data, shisetsu_rows):
     """画面に要る名前（§13・§13.4）：records と council に出る資料のキーごとの資料の名前と、records.shisetsu の施設の名前と地区。
     issues の refs は records の行を指すので、その資料は records から入る。"""
     L = Labels(d, shisetsu_rows)
-    keys = {c["from"] for c in data["council"]} | {w["source"] for w in data.get("waku") or [] if w["source"]}
+    keys = {c["from"] for c in data["council"]} | {w["source"] for w in data.get("waku") or [] if w["source"] and w["url"]}
     for rows in data["records"].values():
         for x in rows:
             for r in (x["rows"] if "rows" in x else [x]):
@@ -1413,7 +1487,7 @@ def check_no_empty_url(data):
                 bad.append(f"issues/{i['type']}：{x['ref']}")
     for name in ("waku", "suji"):
         for x in data.get(name) or []:
-            if not x["url"]:
+            if not x["url"] and not (name == "waku" and records.law_of(x["source"])):     # 法令の出典は url を持たない（§13）
                 bad.append(f"{name}：{x['key']}")
     return bad
 

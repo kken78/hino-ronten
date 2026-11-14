@@ -132,12 +132,13 @@ class ToolTest(unittest.TestCase):
         # 同じ項目の記載は fetch の suji: の id、枠組みと資料の種類は overview の節（LINK_SCHEMA §14。DESIGN.md ADR-37）
         s = mr.Server(tb.frame_data(), P, WORDS, SPEECHES, None)
         text, _ = call(s, "fetch", {"ids": ["suji:a/1"]})
-        self.assertIn("[suji:a/1] 同じ項目の記載：再編整備計画の項目1（3件。書かれた順。資料の種類：定期監査の報告）", text)
-        self.assertLess(text.index("1. 事項：事項の指定なし。"), text.index("3. 事項：開園時期。"))
+        self.assertIn("[suji:a/1] 項目：資料の種類：定期監査の報告。置き場所：定期監査の報告\n［2025年3月］再編整備計画の項目1（suji:a/1）：", text)
+        self.assertLess(text.index("「計画は３年毎に見直す。」"), text.index("「留意されたい。」（事項：開園時期）"))
         text, _ = call(s, "overview")
         self.assertIn("## 分野の枠組みと資料の種類", text)
         self.assertIn("- 要素1：開園の推計。該当する事項：開園時期。", text)
-        self.assertIn("- [suji:a/1] 再編整備計画の項目1（3件）", text)
+        self.assertIn("## 定期監査の報告（資料ごと。項目は fetch で suji: を取る）\n- 再編整備計画（2025年3月）：[suji:a/1]", text)
+        self.assertNotIn("同じ項目の記載", text)
         # 事柄の topic の記載の推移に、about がその事柄の記載の行も入る
         text, _ = call(s, "topic", {"name": "開園時期"})
         part = text[text.index("記載の推移"):]

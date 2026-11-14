@@ -174,7 +174,9 @@ def frame_data():
     d["suji"] = [{"key": "suji:a/1", "doc": "doc:a", "n": 1, "shurui": "定期監査の報告", "url": U + "a.pdf", "layer": "記録（未確認）",
                   "rows": [{"ledger": l, "ref": r, "point": p, "kind": k2, "target": "", "quote": q, "source": "doc:a/1",
                             "source_date": "2025-03", "page": 1, "pos": i, "layer": "記録（未確認）"} for i, (l, r, p, k2, q) in enumerate(rows)]}]
-    d["waku"] = [{"key": "waku:w", "name": "流れ", "source": "pt:x/honpen/49", "url": U + "x.pdf#page=49", "note": "", "layer": "確定",
+    d["suji"][0]["bun"] = [{"quote": q, "kind": k2, "refs": [r], "points": [{"point": p, "kind": k2}], "layer": "記録（未確認）" if l == "kisai" else "確定"}
+                           for l, r, p, k2, q in rows]
+    d["waku"] = [{"key": "waku:w", "name": "流れ", "source": "pt:x/honpen/49", "url": U + "x.pdf#page=49", "note": "", "layer": "確定", "nendo": [],
                   "elements": [{"view": "waku:w/1", "n": 1, "name": "開園の推計", "note": "", "points": ["開園時期"],
                                 "rec": {"定期監査の報告": ["2025"]}, "gikai": 2},
                                {"view": "waku:w/2", "n": 2, "name": "単価の設定", "note": "図の注「※改定反映」", "points": [], "rec": {},
@@ -204,15 +206,38 @@ class FrameTest(unittest.TestCase):
         part = honpen[honpen.index("事項ごとの質問・答弁：開園時期"):]
         self.assertIn("見出し：要望の文。", part[:part.index("照合結果")])
 
-    def test_kiroku_suji(self):
-        _, kiroku = br.build(frame_data(), P)
-        self.assertIn("# 認定こども園整備事業（記録編）：同じ項目の記載", kiroku)
-        self.assertIn("## 認定こども園整備事業：記録：同じ項目の記載：再編整備計画の項目1（suji:a/1）", kiroku)
-        i = kiroku.index("- 1. 事項：事項の指定なし。【未確認】［2025年3月］再編整備計画：資料の種類：定期監査の報告。見出し：計画の期。記載の種類：事実。")
-        self.assertLess(i, kiroku.index("- 2. 事項：開園時期。［2025年3月］再編整備計画："))
-        self.assertLess(kiroku.index("- 2. 事項：開園時期。"), kiroku.index("- 3. 事項：開園時期。【未確認】"))
-        # 項目の無いデータでは章を置かない
-        self.assertNotIn("（記録編）：同じ項目の記載", built()[1])
+    def test_items(self):
+        # 枠組みの要素に当たらない資料の種類の項目は、本編の節「<資料の種類>」に項目の段落で（LINK_SCHEMA §16.1・§17.1・§17.2）。
+        # 記録編には章「同じ項目の記載」を置かない（DESIGN.md ADR-37 の経過、2026-11-14）
+        honpen, kiroku = br.build(frame_data(), P)
+        self.assertNotIn("同じ項目の記載", kiroku)
+        self.assertIn("## 認定こども園整備事業：定期監査の報告", honpen)
+        self.assertIn("### 認定こども園整備事業：定期監査の報告：再編整備計画（2025年3月）", honpen)
+        self.assertIn("- ［2025年3月］再編整備計画の項目1（suji:a/1）：【未確認】［事実］「計画は３年毎に見直す。」"
+                      "［事実］「令和10年度の開設を目指します。」（事項：開園時期）【未確認】［要望］「留意されたい。」（事項：開園時期）（出典：", honpen)
+        self.assertNotIn("：定期監査の報告：", built()[0])
+
+    def test_flow(self):
+        # 要素に資料の種類が当たる枠組みは、年度ごとの節目の<枠組みの名前>（年度）に要素を番号の順に全部
+        d = json.loads(frame_data())
+        d["waku"].append({"key": "waku:k", "name": "決算の流れ", "source": "地方自治法（昭和二十二年法律第六十七号）第233条", "url": "",
+                          "note": "", "layer": "確定",
+                          "elements": [{"view": "waku:k/1", "n": 1, "name": "調製", "note": "", "source": "地方自治法233条1項",
+                                        "shiryo": [], "points": [], "rec": {}, "gikai": 0},
+                                       {"view": "waku:k/2", "n": 2, "name": "審査", "note": "", "source": "地方自治法233条2項",
+                                        "shiryo": ["定期監査の報告"], "points": [], "rec": {"定期監査の報告": ["2025"]}, "gikai": 0}],
+                          "nendo": [{"fiscal_year": "2024", "elements": [
+                              {"n": 1, "docs": []},
+                              {"n": 2, "docs": [{"doc": "doc:a", "date": "2025-03", "suji": ["suji:a/1"], "nosuji": 2}]}]}]})
+        honpen, _ = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        self.assertIn("### 認定こども園整備事業：年度ごとの節目：決算の流れ（令和6年度）", honpen)
+        self.assertIn("要素1：調製（地方自治法233条1項）。" + br.NO_SHURUI, honpen)
+        self.assertIn("要素2：審査（地方自治法233条2項）。資料：再編整備計画（2025年3月）", honpen)
+        self.assertIn("このほか、項目に分けていない記録の行が2件あります", honpen)
+        self.assertIn("枠組み：決算の流れ。出典：地方自治法（昭和二十二年法律第六十七号）第233条\n", honpen)
+        self.assertIn("- 要素1：調製（地方自治法233条1項）。該当する事項：該当する事項なし。", honpen)
+        # 流れに置いた項目は、資料の種類の節に重ねない
+        self.assertNotIn("：定期監査の報告：再編整備計画", honpen)
 
 
 class BuildTest(unittest.TestCase):

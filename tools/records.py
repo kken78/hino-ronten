@@ -66,8 +66,8 @@ POINT_KINDS = ("事柄", "記載")                  # 届き先の信号で見�
 SHISETSU_COLUMNS = ["key", "name", "aliases", "district", "source", "reviewer", "date", "note"]
 AREA_COLUMNS = ["key", "name", "aliases", "source", "reviewer", "date", "note"]   # ref/chiku.tsv・ref/soshiki.tsv（§12.1）
 WAKU_COLUMNS = ["waku", "n", "name", "source", "reviewer", "date", "note"]          # ref/waku.tsv（§12.3。ADR-37）
-SHIRYO_COLUMNS = ["shurui", "match", "tsukuru", "konkyo", "atesaki", "outou", "source", "reviewer", "date",
-                  "note"]                                                            # ref/shiryo.tsv（§12.4。ADR-37）
+SHIRYO_COLUMNS = ["shurui", "match", "tsukuru", "konkyo", "atesaki", "outou", "waku", "source", "reviewer", "date",
+                  "note"]                                                            # ref/shiryo.tsv（§12.4。ADR-37。waku は経過 2026-11-14）
 WAKU_JOIN = " → "   # 図の箱を2つ以上まとめた要素の名前のつなぎ（§12.3）
 
 SIDES = ("問い", "答え")
@@ -108,6 +108,8 @@ RE_WAKU = re.compile(r"waku:([a-z0-9][a-z0-9-]*)")                    # 枠（§
 RE_WAKU_ELEM = re.compile(r"waku:([a-z0-9][a-z0-9-]*)/([1-9][0-9]*)")  # 枠の要素（見方。§2。ADR-37 の4）
 RE_N0 = re.compile(r"0|[1-9][0-9]*")
 RE_MATCH = re.compile(r"[a-z0-9*][a-z0-9*-]*")   # ref/shiryo.tsv の match の要素（§12.4）
+# 枠組みの出典の法令の条項（§12.3）：<法令の名前>（<法令番号>）第<条>条…、か <法令の名前><条>条<項>項…。法令の名前は「法」か「法律」で終わる
+RE_LAW = re.compile(r"(?P<law>[^\s（）、・0-9]+?(?:法律|法))(?:（[^）]*）)?第?[0-9]+条.*")
 RE_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 RE_MONTH = re.compile(r"[0-9]{4}-[0-9]{2}(-[0-9]{2})?")
 RE_INT = re.compile(r"[1-9][0-9]*")
@@ -586,9 +588,17 @@ def check_area_ref(rows, name, rx, prefix, rep):
 
 # ---- 枠の参照表（§12.3）と資料の種類の参照表（§12.4）。DESIGN.md ADR-37 ----
 
-def check_waku_ref(rows, inp, rep):
-    """枠の参照表（§11・§12.3）。枠の id → {n の字: 行} を返す（誤りのある枠も入れる。誤りは rep に）。"""
+def law_of(source):
+    """枠組みの出典が法令の条項（§12.3）なら法令の名前、そうでなければ空。"""
+    m = RE_LAW.fullmatch(source or "")
+    return m.group("law") if m else ""
+
+
+def check_waku_ref(rows, inp, rep, shiryo_rows=()):
+    """枠の参照表（§11・§12.3）。枠の id → {n の字: 行} を返す（誤りのある枠も入れる。誤りは rep に）。
+    出典は doc か pt のページのキーか、法令の条項。法令の名前は資料の種類の参照表（shiryo_rows）の source にあるものだけ。"""
     name = "ref/waku.tsv"
+    laws = " ".join(r.get("source") or "" for r in shiryo_rows)
     check_order(rows, ("waku", "n"), name, rep, numeric=("n",))
     out = {}
     for r in rows:
@@ -603,8 +613,10 @@ def check_waku_ref(rows, inp, rep):
             rep.err(w, "name が空")
         if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
             rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
+        if not r["source"] or law_of(r["source"]):
+            continue     # 法令の条項と空の出典は、枠組みごとにまとめて下で確かめる（§12.3）
         if not (RE_DOC_PAGE.fullmatch(r["source"]) or RE_PT_PAGE.fullmatch(r["source"])):
-            rep.err(w, f"source が §2 の doc か pt のページのキーでない（{r['source']}）")
+            rep.err(w, f"source が §2 の doc か pt のページのキーでも法令の条項でもない（{r['source']}）")
             continue
         texts = source_texts(inp, r["source"])
         if texts is None:
@@ -615,6 +627,17 @@ def check_waku_ref(rows, inp, rep):
             if not part or not any(norm(part) in t for t in body):
                 rep.err(w, f"name の「{part}」が source のページの原典の文字に無い（要素の名前は出典の語のまま。§12.3）")
     for wid, els in out.items():
+        head_law = law_of((els.get("0") or {}).get("source"))
+        for n, r in els.items():
+            w = f"{name} {wid}/{n}"
+            if not r["source"]:
+                if n == "0" or not head_law:
+                    rep.err(w, "source が空（空にできるのは、n が0の行の出典が法令の条項の枠組みの要素だけ。§12.3）")
+            elif law_of(r["source"]):
+                if not head_law:
+                    rep.err(w, "source が法令の条項なのに、n が0の行の source が法令の条項でない（§12.3）")
+                if law_of(r["source"]) not in laws:
+                    rep.err(w, f"法令「{law_of(r['source'])}」が資料の種類の参照表の source に無い（§12.3）")
         if "0" not in els:
             rep.err(f"{name} {wid}", "n が0の行（枠そのもの）が無い")
         ns = sorted(int(n) for n in els if n != "0")
@@ -648,9 +671,15 @@ class Shiryo:
     def row_of(self, shurui):
         return next((r for r in self.rows if r["shurui"] == shurui), None)
 
+    def waku_of(self, shurui):
+        """資料の種類が当たる枠組みの要素の見方のキー（列 waku。§12.4）。無ければ空。"""
+        return ((self.row_of(shurui) or {}).get("waku") or "")
 
-def check_shiryo_ref(rows, inp, rep):
-    """資料の種類の参照表（§11・§12.4）。Shiryo を返す。"""
+
+def check_shiryo_ref(rows, inp, rep, waku=None):
+    """資料の種類の参照表（§11・§12.4）。Shiryo を返す。waku は枠の参照表（check_waku_ref の返り値）。
+    列 waku は空か、枠の参照表にある要素の見方のキー（DESIGN.md ADR-37 の経過、2026-11-14）。"""
+    waku = waku or {}
     name = "ref/shiryo.tsv"
     check_order(rows, ("shurui",), name, rep)
     pats = []
@@ -661,6 +690,10 @@ def check_shiryo_ref(rows, inp, rep):
                 rep.err(w, f"{c} が空")
         if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
             rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
+        if r.get("waku"):
+            m = RE_WAKU_ELEM.fullmatch(r["waku"])
+            if not m or m.group(2) not in waku.get(m.group(1), {}):
+                rep.err(w, f"waku が枠組みの参照表の要素の見方のキーでない（{r['waku']}）")
         rxs = []
         for pat in r["match"].split(",") if r["match"] else []:
             if not RE_MATCH.fullmatch(pat):
@@ -1490,8 +1523,8 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
     rep = Report()
     rep.ref_counts = {"shisetsu": len(shisetsu_rows), "chiku": len(chiku_rows), "soshiki": len(soshiki_rows),
                       "waku": len(waku_rows), "shiryo": len(shiryo_rows)}
-    rep.waku = check_waku_ref(list(waku_rows), inp, rep)
-    rep.shiryo = check_shiryo_ref(list(shiryo_rows), inp, rep)
+    rep.waku = check_waku_ref(list(waku_rows), inp, rep, list(shiryo_rows))
+    rep.shiryo = check_shiryo_ref(list(shiryo_rows), inp, rep, rep.waku)
     chiku_keys = check_area_ref(chiku_rows, "ref/chiku.tsv", RE_DIST, "dist", rep)
     soshiki_keys = check_area_ref(soshiki_rows, "ref/soshiki.tsv", RE_ORG, "org", rep)
     # 地区の参照表が無いか0行なら、施設の参照表の district は照らさない（§11 施設の参照表）
