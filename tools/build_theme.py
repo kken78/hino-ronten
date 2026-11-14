@@ -462,6 +462,71 @@ def bill_kessan(d, mid, no, a, votes):
                 steps=sorted(steps, key=lambda x: (x["date"], x["sid"])))
 
 
+def speech_paras(text):
+    """発言の本文の段落（§13.4 の bills の kessan の paras）：入力の本文を改行で分け、空の段落を除いて1から数える。
+    → [(段落の番号, 本文の §4 の正規化のあとの、その段落の始まりの位置)]（位置の順）。"""
+    out, start, p = [], 0, 0
+    for line in (text or "").split("\n"):
+        if line.strip():
+            p += 1
+            out.append((p, len(records.norm((text or "")[:start]))))
+        start += len(line) + 1
+    return out
+
+
+def para_of(text, quote):
+    """引用が発言の本文のどこにあるか（§13.4）：(段落の番号, 本文の §4 の正規化のあとの位置)。引用が段落の境をまたぐときは
+    始まりの段落。見つからなければ None。"""
+    i = records.norm(text).find(records.norm(quote))
+    if i < 0 or not records.norm(quote):
+        return None
+    paras = speech_paras(text)
+    return next((p for p, s in reversed(paras) if s <= i), paras[0][0] if paras else 1), i
+
+
+def add_kessan_records(d, data, ledgers=None):
+    """bills の kessan の proposals の paras と、steps の kind が質疑の行の rows（§13.4。DESIGN.md ADR-37 の経過、2026-11-15）。
+    records を作ったあとに呼ぶ。引用が発言の本文に無い行は止める。about が空で source が発言の kisai の行（ledgers から。
+    rejected を除く）は、同じ段落にテーマの records の行があるときだけ、その段落に入れる。"""
+    R = data["records"]
+    by_sp = {}
+    for name, col in (("kotogara", "point"), ("kisai", "about")):
+        for r in R[name]:
+            if r["source"].startswith("sp:"):
+                by_sp.setdefault(r["source"], []).append((name, col, r, True))
+    for r in (ledgers or {}).get("kisai", []):
+        if r["status"] != "rejected" and not r["about"] and r["source"].startswith("sp:"):
+            by_sp.setdefault(r["source"], []).append(
+                ("kisai", "about", dict(r, layer=CONFIRMED if r["status"] == "confirmed" else UNCONFIRMED), False))
+    shitsugi = {q["question"]: q["rows"] for q in R["shitsugi"]}
+    for b in data["bills"]:
+        k = b.get("kessan")
+        if not k:
+            continue
+        for x in k["proposals"]:
+            text = (d.index.get(x["sid"][3:]) or {}).get("text") or ""
+            rows = []
+            for name, col, r, own in by_sp.get(x["sid"], []):
+                at = para_of(text, r["quote"])
+                if at is None:
+                    raise BuildError(f"records/{name}/{record_key(name, r)} の引用が、発言 {x['sid']} の本文に無い")
+                rows.append((at, dict(ledger=name, ref=f"records/{name}/{record_key(name, r)}", point=r[col],
+                                      kind=r["kind"] if name == "kisai" else "事実", quote=r["quote"], layer=r["layer"]), own))
+            has = {at[0] for at, _, own in rows if own}
+            rows = [(at, row) for at, row, own in rows if at[0] in has]
+            rows.sort(key=lambda t: (t[0][1], t[1]["ledger"], t[1]["ref"]))
+            paras = {}
+            for (p, _), row in rows:
+                paras.setdefault(p, []).append(row)
+            x["paras"] = [dict(p=p, rows=paras[p]) for p in sorted(paras)]
+        for x in k["steps"]:
+            if x["kind"] != STEP_KIND["shitsugi"]:
+                continue
+            rs = sorted(shitsugi.get("sq:" + x["sid"][3:], []), key=lambda r: int(r["row"]))
+            x["rows"] = [dict(row=r["row"], side=r["side"], sid=r["sid"], speaker=r["speaker"], round=r["round"],
+                              quote=r["quote"], point=r["point"], layer=r["layer"]) for r in rs]
+
+
 def build_docs(d, keys):
     out = []
     for key in sorted(keys):
@@ -1434,6 +1499,7 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=(), 
         "records": build_records(d, ledgers, theme, tk, shiryo),
         "hits": {"council": build_hits_council(d, words, council, exchanges, tk), "docs": build_hits_docs(d, words)},
     }
+    add_kessan_records(d, data, ledgers)
     data["sheets"] = build_sheets(d, data, themes_rows, theme, tk, shisetsu_rows, area_rows, waku)
     data["issues"] = build_issues(d, data, tk, themes_rows, theme, shisetsu_rows)
     data["waku"] = []     # 並びを waku・shiryo・suji のままにする（§13）。waku は suji のあとで作る（nendo が項目を使う）

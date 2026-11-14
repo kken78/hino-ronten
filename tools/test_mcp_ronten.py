@@ -145,6 +145,24 @@ class ToolTest(unittest.TestCase):
         self.assertIn("見出し：要望の文。記載の種類：要望。", part)
         self.assertNotIn("## 記載の見出し：開園時期", text)
 
+    def test_frame_bill_records(self):
+        # 議案を置く枠組みの要素の、提案の説明と質疑の記録の行（LINK_SCHEMA §14・§17。2026-11-15）：bill_lines と同じ文
+        d = json.loads(tb.frame_data())
+        b = tb.kessan_bill()
+        d["bills"].append(b)
+        d["waku"].append({"key": "waku:kessan-nintei", "name": "決算の認定までの流れ", "source": "地方自治法233条", "url": "", "note": "",
+                          "layer": "確定",
+                          "elements": [{"view": f"waku:kessan-nintei/{n}", "n": n, "name": nm, "note": "", "source": "", "shiryo": [],
+                                        "points": [], "rec": {}, "gikai": 0} for n, nm in ((3, "提出"), (4, "審議"))],
+                          "nendo": [{"fiscal_year": "2023", "elements": [{"n": 3, "docs": [], "gian": [b["key"]]},
+                                                                          {"n": 4, "docs": [], "gian": [b["key"]]}]}]})
+        s = mr.Server(json.dumps(d, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None)
+        text, _ = call(s, "overview")
+        self.assertIn("提案の説明の記載（代表監査委員。段落18）：【未確認】［要望］「連携をお願いします。」（事項：介護予防の取り組み）", text)
+        self.assertIn("答え　厚生主監：「答1。」（事項：給付費の計画と実績）「答2。」（事項：第8期の計画の指標）「答3。」", text)
+        self.assertLess(text.index("提案の説明：代表監査委員"), text.index("提案の説明の記載（代表監査委員。段落16）"))
+        self.assertLess(text.index("質疑：4番 松田洋子 議員"), text.index("問い　4番 松田洋子 議員："))
+
     def test_topic_latest_all_and_stage_order(self):
         d = json.loads(data())
         d["records"]["kotogara"].append(dict(d["records"]["kotogara"][1], quote="もう1つの文。", target="令和12年4月"))

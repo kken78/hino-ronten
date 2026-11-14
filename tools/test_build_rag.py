@@ -187,6 +187,39 @@ def frame_data():
     return json.dumps(d, ensure_ascii=False).encode("utf-8")
 
 
+def kessan_bill():
+    """提案の説明の記録の行（paras）と質疑の記録の行（rows）のある決算の議案（LINK_SCHEMA §13.4・§16.1・§17。2026-11-15）。
+    paras の段落16 は同じ文を2行に記録（記載の種類が違う）、段落18 は記録（未確認）。rows は、問いの2行が同じ事項、
+    答えの3行は事項が変わり最後の行は事項なし、再質問は記録（未確認）。tools/test_build_pages.py・test_mcp_ronten.py も使う。"""
+    C, N = "確定", "記録（未確認）"
+    pr = lambda ledger, point, kind, quote, layer=C: {"ledger": ledger, "ref": f"records/{ledger}/{quote}", "point": point,
+                                                     "kind": kind, "quote": quote, "layer": layer}
+    sr = lambda row, side, sid, speaker, rnd, quote, point, layer=C: {"row": row, "side": side, "sid": sid, "speaker": speaker,
+                                                                      "round": rnd, "quote": quote, "point": point, "layer": layer}
+    member = {"key": "mb:松田洋子", "name": "松田洋子", "seat": "4番"}
+    return {"key": "gi:0000008116/議第64号", "meeting_id": "0000008116", "meeting": "令和6年9月定例会議", "date": "2024-12-02",
+            "no": "議第64号", "kind": "決算", "title": "決算について", "committee": "", "result": "認定", "method": "起立多数",
+            "debates": [], "url": U + "m.html", "layer": C,
+            "kessan": {"fiscal_year": "2023", "decided_meeting_id": "0000008211", "decided_meeting": "令和6年12月定例会",
+                       "vote_date": "2024-12-02",
+                       "proposals": [{"date": "2024-09-02", "role": "町長", "sid": "sp:p0", "url": "p0", "paras": []},
+                                     {"date": "2024-09-02", "role": "代表監査委員", "sid": "sp:p1", "url": "p1", "paras": [
+                                         {"p": 16, "rows": [pr("kisai", "", "事実", "３年目にあたります。"),
+                                                            pr("kotogara", "給付費の計画と実績", "事実", "計画比率は81.6パーセントにとどまりました。"),
+                                                            pr("kisai", "要介護認定率", "要望", "計画比率は81.6パーセントにとどまりました。")]},
+                                         {"p": 18, "rows": [pr("kisai", "介護予防の取り組み", "要望", "連携をお願いします。", N)]}]}],
+                       "steps": [{"kind": "質疑", "date": "2024-09-12", "member": member, "committee": "", "nbills": 1, "stance": "",
+                                  "sid": "sp:q1", "url": "u1", "rows": [
+                                      sr("1", "問い", "sp:q1", "議員", "最初の問い", "問1。", "給付費の計画と実績"),
+                                      sr("2", "問い", "sp:q1", "議員", "最初の問い", "問2。", "給付費の計画と実績"),
+                                      sr("3", "答え", "sp:a1", "厚生主監", "最初の問い", "答1。", "給付費の計画と実績"),
+                                      sr("4", "答え", "sp:a1", "厚生主監", "最初の問い", "答2。", "第8期の計画の指標"),
+                                      sr("5", "答え", "sp:a1", "厚生主監", "最初の問い", "答3。", ""),
+                                      sr("6", "問い", "sp:q2", "議員", "再質問1", "再1。", "介護予防の取り組み", N)]},
+                                 {"kind": "委員長の報告", "date": "2024-12-02", "member": {"key": "", "name": "x", "seat": ""},
+                                  "committee": "決算特別委員会", "nbills": 7, "stance": "", "sid": "sp:r1", "url": "u2"}]}}
+
+
 class FrameTest(unittest.TestCase):
     def test_honpen(self):
         honpen, kiroku = br.build(frame_data(), P)
@@ -243,6 +276,23 @@ class FrameTest(unittest.TestCase):
         self.assertEqual(br.Rag.bill_lines(2, b), ["議決：認定。採決の方法：起立多数。採決の日付：2025年12月1日。議決の会議：令和7年12月定例会議（出典：" + U + "m.html）"])
         b["kessan"]["steps"] = []
         self.assertEqual(br.Rag.bill_lines(1, b), [br.NO_STEPS, br.NO_IINKAI])
+
+    def test_bill_lines_records(self):
+        # 提案の説明の記録の行（paras）と、質疑の記録の行（rows）の箇条（LINK_SCHEMA §17、2026-11-15）
+        b = kessan_bill()
+        self.assertEqual(br.Rag.bill_lines(0, b), [
+            "議案：令和6年9月定例会議の議第64号「決算について」（出典：" + U + "m.html）",
+            "［2024年9月2日］提案の説明：町長（出典：p0）",
+            "［2024年9月2日］提案の説明：代表監査委員（出典：p1）",
+            "提案の説明の記載（代表監査委員。段落16）：［事実］「３年目にあたります。」"
+            "［事実］「計画比率は81.6パーセントにとどまりました。」（事項：給付費の計画と実績、要介護認定率（要望））",
+            "提案の説明の記載（代表監査委員。段落18）：【未確認】［要望］「連携をお願いします。」（事項：介護予防の取り組み）"])
+        self.assertEqual(br.Rag.bill_lines(1, b), [
+            "［2024年9月12日］質疑：4番 松田洋子 議員（1議案について）（出典：u1）",
+            "問い　4番 松田洋子 議員：「問1。」「問2。」（事項：給付費の計画と実績）",
+            "答え　厚生主監：「答1。」（事項：給付費の計画と実績）「答2。」（事項：第8期の計画の指標）「答3。」",
+            "再質問1　4番 松田洋子 議員：【未確認】「再1。」（事項：介護予防の取り組み）",
+            "［2024年12月2日］委員長の報告：決算特別委員会（7議案について）（出典：u2）", br.NO_IINKAI])
 
     def test_flow(self):
         # 要素に資料の種類が当たる枠組みは、年度ごとの節目の<枠組みの名前>（年度）に要素を番号の順に全部

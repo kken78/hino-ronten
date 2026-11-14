@@ -255,6 +255,36 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("年度不明", u)
         self.assertGreater(u.index("年度不明"), u.index("令和4年度"))
 
+    def test_kessan_flow_records(self):
+        # 決算の認定までの流れの要素3・4：提案の説明の記録の行（paras）と質疑の記録の行（rows）（LINK_SCHEMA §16.1。2026-11-15）
+        import test_build_rag as tb
+        d = json.loads(self.bytes.decode("utf-8"))
+        b = tb.kessan_bill()
+        d["bills"].append(b)
+        d["waku"] = [{"key": "waku:kessan-nintei", "name": "決算の認定までの流れ", "source": "地方自治法233条", "url": "", "note": "",
+                      "layer": "確定",
+                      "elements": [{"view": f"waku:kessan-nintei/{n}", "n": n, "name": nm, "note": "", "source": "", "shiryo": [],
+                                    "points": [], "rec": {}, "gikai": 0} for n, nm in ((3, "提出"), (4, "審議"), (5, "議決"))],
+                      "nendo": [{"fiscal_year": "2023", "elements": [{"n": n, "docs": [], "gian": [b["key"]]} for n in (3, 4, 5)]}]}]
+        u = run_page(bp.render(template(), json.dumps(d, ensure_ascii=False).encode("utf-8"), "hoiku"))["unei"]
+        # 提案の説明：その行の下に段落ごと。同じ文は1回で札を行の数だけ、記載の種類が違う行の札に「（要望）」。事項の無い行は札なし
+        self.assertIn('提案の説明　代表監査委員　<a href="p1"', u)
+        self.assertIn('<p class="para"><span class="kd">事実</span>３年目にあたります。 <span class="kd">事実</span>計画比率は81.6パーセントにとどまりました。'
+                      '<span class="fuda">給付費の計画と実績</span><span class="fuda">要介護認定率（要望）</span></p>', u)
+        self.assertIn('<p class="para"><span class="kd">要望</span>連携をお願いします。<span class="um">未確認</span>'
+                      '<span class="fuda">介護予防の取り組み</span></p>', u)
+        self.assertLess(u.index("提案の説明　代表監査委員"), u.index("３年目にあたります。"))
+        self.assertLess(u.index("提案の説明　町長"), u.index("提案の説明　代表監査委員"))
+        # 質疑：発言ごとに見出しと、引用を字のまま1つの段落に。札は事項が変わる所の前と段落の終わりだけ
+        self.assertIn('<div class="dochead">問い　4番 松田洋子 議員</div><p class="para">問1。 問2。<span class="fuda">給付費の計画と実績</span></p>', u)
+        self.assertIn('<div class="dochead">答え　厚生主監</div><p class="para">答1。<span class="fuda">給付費の計画と実績</span> '
+                      '答2。<span class="fuda">第8期の計画の指標</span> 答3。</p>', u)
+        self.assertIn('<div class="dochead">再質問1　4番 松田洋子 議員</div><p class="para">再1。<span class="um">未確認</span>'
+                      '<span class="fuda">介護予防の取り組み</span></p>', u)
+        self.assertLess(u.index("質疑　4番 松田洋子 議員"), u.index("問1。"))
+        self.assertLess(u.index("再1。"), u.index("決算特別委員会の委員長の報告"))
+        self.assertIn("委員会の会議録はありません。", u)
+
 
 
 @unittest.skipIf(shutil.which("node") is None, "node が無い")
