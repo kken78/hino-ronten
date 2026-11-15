@@ -8,6 +8,8 @@
 kotogara・tsunagari・kisai のテーマへの帰属は、テーマの定義の kind 事柄・記載・資料の値で決める（§13.4・§15.6）。
 資料の外の枠（waku。ref/waku.tsv とテーマの定義の kind 枠）、資料の種類（shiryo。ref/shiryo.tsv）、資料の中の筋（suji。
 kotogara・kisai の列 suji）を入れ、枠の要素（waku:<枠の id>/<n>）も見方として整理シートを作る（DESIGN.md ADR-37）。
+審査報告の記録（records/hokoku.tsv。§15.10）は報告の単位にまとめ、決算の議案の委員長の報告の区切りに、その議案の行を付ける
+（§13.4）。問われていない点では、その問いの事項を取り上げられたものとする（§13.2。2026-11-15 の5つめ）。
 
 先に tools/records.py の検査（LINK_SCHEMA §11 のテーマの定義・施設の参照表・記録の台帳）をかけ、誤りがあれば作らない。
 入力は inputs.lock.json の版だけを git で読む。台帳と参照表は作業ツリーの版を読み、その sha256 を ledgers に書く。
@@ -499,6 +501,7 @@ def add_kessan_records(d, data, ledgers=None):
             by_sp.setdefault(r["source"], []).append(
                 ("kisai", "about", dict(r, layer=CONFIRMED if r["status"] == "confirmed" else UNCONFIRMED), False))
     shitsugi = {q["question"]: q["rows"] for q in R["shitsugi"]}
+    hokoku = {q["question"]: q["rows"] for q in R.get("hokoku") or []}
     for b in data["bills"]:
         k = b.get("kessan")
         if not k:
@@ -520,6 +523,12 @@ def add_kessan_records(d, data, ledgers=None):
                 paras.setdefault(p, []).append(row)
             x["paras"] = [dict(p=p, rows=paras[p]) for p in sorted(paras)]
         for x in k["steps"]:
+            if x["kind"] == STEP_KIND["report"]:
+                # 委員長の報告：その報告の審査報告の記録のうち、bill がこの議案の行（§13.4。2026-11-15 の5つめ）
+                rs = sorted((r for r in hokoku.get("rp:" + x["sid"][3:], []) if r["bill"] == b["key"]), key=lambda r: int(r["row"]))
+                x["rows"] = [dict(row=r["row"], side=r["side"], sid=r["sid"], speaker=r["speaker"], quote=r["quote"],
+                                  point=r["point"], layer=r["layer"]) for r in rs]
+                continue
             if x["kind"] != STEP_KIND["shitsugi"]:
                 continue
             rs = sorted(shitsugi.get("sq:" + x["sid"][3:], []), key=lambda r: int(r["row"]))
@@ -562,7 +571,7 @@ def row_out(d, name, r, shiryo=None):
     src = r.get("sid") or r.get("source") or (r.get("sources") or "").split(",")[0]
     x["url"] = d.key_url(src) if src else ""
     x["layer"] = CONFIRMED if r["status"] == "confirmed" else UNCONFIRMED
-    if name not in ("yaritori", "shitsugi"):
+    if name not in ("yaritori", "shitsugi", "hokoku"):
         x["shurui"] = shiryo.of_key(src) if shiryo else ""
     if name in records.SUJI_LEDGERS:
         x["suji_key"] = suji_key(r)
@@ -609,6 +618,20 @@ def build_records(d, ledgers, theme, tkeys, shiryo=None):
             items.append(dict(question=q, meeting_id=mid, meeting=meeting_name(d, mid),
                               date=d.index[q[3:]]["date"], member=member_of(seg), rows=rows))
         out[name] = sorted(items, key=lambda x: (x["date"], x["question"]))
+    # 審査報告の記録（§15.10）：報告（question）の単位にまとめ、meeting_id・meeting・date と行（row の順）を持つ（§13.4）
+    groups = {}
+    for r in ledgers.get("hokoku") or []:
+        if r["question"] in tkeys["報告"] and r["status"] != "rejected":
+            groups.setdefault(r["question"], []).append(row_out(d, "hokoku", r))
+    items = []
+    for q, rows in groups.items():
+        seg = d.inp.segment_of(q)
+        if seg is None:
+            raise BuildError(f"審査報告の記録の {q} が、入力の委員長の報告の区切りに無い")
+        mid = seg.get("meetingId") or q[3:].split("_")[0]
+        items.append(dict(question=q, meeting_id=mid, meeting=meeting_name(d, mid), date=d.index[q[3:]]["date"],
+                          rows=sorted(rows, key=lambda r: int(r["row"]))))
+    out["hokoku"] = sorted(items, key=lambda x: (x["date"], x["question"]))
     return out
 
 
@@ -1321,14 +1344,18 @@ def issues_kurikaeshi(L, R):
     return out
 
 
-def scope_text(R, tk):
+def scope_text(R, tk, hokoku=False):
+    """比べた範囲の文（§13.2）。hokoku が真なら、審査報告の記録の報告も範囲に入れ、あれば「・委員長の報告N件」を足す
+    （問われていない点だけ。2026-11-15 の5つめ）。"""
     qs = asked_groups(R)
-    if not qs:
+    hk = [("hokoku", q) for q in R.get("hokoku") or []] if hokoku else []
+    rng = sorted(qs + hk, key=lambda x: (x[1]["date"], x[1]["question"]))
+    if not rng:
         return "記録した質問（なし）", []
     qs.sort(key=lambda x: (x[1]["date"], x[1]["question"]))
-    s = (f"記録した質問（一般質問{len(R['yaritori'])}問・議案質疑{len(R['shitsugi'])}件、"
-         f"{qs[0][1]['meeting']}〜{qs[-1][1]['meeting']}）")
-    return s, qs
+    s = (f"記録した質問（一般質問{len(R['yaritori'])}問・議案質疑{len(R['shitsugi'])}件"
+         + (f"・委員長の報告{len(hk)}件" if hk else "") + f"、{rng[0][1]['meeting']}〜{rng[-1][1]['meeting']}）")
+    return s, qs + hk
 
 
 def missing_text(R, tk):
@@ -1360,7 +1387,7 @@ def issues_kubun(L, R, tk):
 
 
 def issues_toware(L, R, tk, themes_rows, theme):
-    rng, qs = scope_text(R, tk)
+    rng, qs = scope_text(R, tk, hokoku=True)    # 審査報告の記録の問いの事項も、取り上げられたものとする（§13.2）
     asked = set()
     for name, q in qs:
         asked |= points_of(q, "問い")
@@ -1532,12 +1559,14 @@ def build_names(d, data, shisetsu_rows):
     issues の refs は records の行を指すので、その資料は records から入る。"""
     L = Labels(d, shisetsu_rows)
     keys = {c["from"] for c in data["council"]} | {w["source"] for w in data.get("waku") or [] if w["source"] and w["url"]}
-    for rows in data["records"].values():
+    for name, rows in data["records"].items():
         for x in rows:
             for r in (x["rows"] if "rows" in x else [x]):
                 for c in ("source", "sid", "upper_ref", "lower_ref"):
                     if r.get(c):
                         keys.add(r[c])
+                if name == "hokoku" and r.get("bill"):     # 審査報告の記録の議案（§13.4 の names。2026-11-15 の5つめ）
+                    keys.add(r["bill"])
                 keys |= {s for s in (r.get("sources") or "").split(",") if s}
     fac = {r["key"]: r for r in shisetsu_rows}
     facilities = {}

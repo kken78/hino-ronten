@@ -163,6 +163,28 @@ class ToolTest(unittest.TestCase):
         self.assertLess(text.index("提案の説明：代表監査委員"), text.index("提案の説明の記載（代表監査委員。段落16）"))
         self.assertLess(text.index("質疑：4番 松田洋子 議員"), text.index("問い　4番 松田洋子 議員："))
 
+    def test_hokoku(self):
+        # 審査報告の記録（LINK_SCHEMA §14。2026-11-15 の5つめ）：hokoku:<報告のキー>、kind「委員長の報告」、当局の答弁には入れない
+        s = mr.Server(tb.hokoku_data(), P, WORDS, SPEECHES, None)
+        text, _ = call(s, "overview")
+        self.assertIn("委員長の報告 1件、", text)
+        text, _ = call(s, "fetch", {"ids": ["hokoku:rp:r1"]})
+        self.assertTrue(text.startswith("[hokoku:rp:r1] 委員長の報告：2024年12月2日 令和6年12月定例会\n- [hokoku:rp:r1/1] "))
+        self.assertIn("発言者：委員。", text)
+        text, _ = call(s, "search", {"query": "問A", "kind": "委員長の報告"})
+        self.assertIn("[hokoku:rp:r1/1] 委員長の報告：", text)
+        text, _ = call(s, "council")
+        self.assertIn("- [hokoku:rp:r1] 2024年12月2日 令和6年12月定例会（委員長の報告）（6行）", text)
+        d = json.loads(tb.hokoku_data())
+        d["records"]["kotogara"].append(dict(d["records"]["kotogara"][0], point="要介護認定"))
+        text, _ = call(mr.Server(json.dumps(d, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None), "topic", {"name": "要介護認定"})
+        self.assertIn("この事項についての質問・答弁（記録したもの）：", text)
+        self.assertIn("[hokoku:rp:r1/3]", text)
+        self.assertNotIn("当局の答弁のうち新しいもの", text)
+        # 記録の無いテーマの overview は、いまのとおり
+        text, _ = call(mr.Server(tb.data(), P, WORDS, SPEECHES, None), "overview")
+        self.assertNotIn("委員長の報告", text)
+
     def test_topic_latest_all_and_stage_order(self):
         d = json.loads(data())
         d["records"]["kotogara"].append(dict(d["records"]["kotogara"][1], quote="もう1つの文。", target="令和12年4月"))

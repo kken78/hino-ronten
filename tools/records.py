@@ -7,7 +7,7 @@
 提案理由の記録（records/teian.tsv。§15.11、ADR-35）は、財源の面だけの記録で、§11 の「提案理由の記録」で確かめ、
 提案の区切りに入らない sid を一覧に出す。
 審査報告の記録（records/hokoku.tsv。§15.10、ADR-34 の7）は、委員長の報告（審議の記録の kind が report の区切り）を
-質疑の記録と同じ型で行に切ったもので、§11 の記録の台帳の検査で確かめる。テーマのノートのデータにはまだ入れない。
+質疑の記録と同じ型で行に切ったもので、§11 の記録の台帳の検査で確かめる。テーマのノートのデータには §13 の形で入れる（2026-11-15 の5つめ）。
 枠の参照表（ref/waku.tsv。§12.3）と資料の種類の参照表（ref/shiryo.tsv。§12.4）を確かめ、kotogara・kisai の列 suji（筋の番号）を
 資料の種類の参照表に当たる資料（監査委員の資料）について確かめる（DESIGN.md ADR-37）。check.md の「形の点検」の数も作る（§11）。
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
@@ -62,8 +62,8 @@ NUMERIC = ("row", "step")
 LEDGERS = tuple(COLUMNS)          # nozoki は無ければ0行（DESIGN.md ADR-24）
 OPTIONAL = ("nozoki", "teian", "hokoku")   # 無ければ0行（teian は DESIGN.md ADR-35、hokoku は §15.10 で足した）
 # テーマのノートのデータの ledgers に入れない台帳（teian は渡す形を次の段で決める。ADR-35。
-# hokoku はテーマのノートのデータ・画面・持ち込み用の資料・MCP にまだ出さない。§12）
-NOT_IN_THEME = ("teian", "hokoku")
+# hokoku は 2026-11-15 の5つめに §13 の形で入れた）
+NOT_IN_THEME = ("teian",)
 
 THEME_COLUMNS = ["theme", "kind", "value", "source", "views", "reviewer", "date", "note"]
 THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "報告", "事柄", "記載",

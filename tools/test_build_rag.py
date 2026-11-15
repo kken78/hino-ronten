@@ -220,6 +220,79 @@ def kessan_bill():
                                   "committee": "決算特別委員会", "nbills": 7, "stance": "", "sid": "sp:r1", "url": "u2"}]}}
 
 
+def hokoku_bill():
+    """kessan_bill の委員長の報告の区切りに、審査報告の記録の行（rows）を足したもの（LINK_SCHEMA §13.4・§16.1・§17.1。
+    2026-11-15 の5つめ）。問いの2行が同じ事項、答えの話した人は「より」付きの字と空、最後の答えは記録（未確認）。"""
+    b = kessan_bill()
+    hr = lambda row, side, speaker, quote, point, layer="確定": {"row": row, "side": side, "sid": "sp:r1", "speaker": speaker,
+                                                                 "quote": quote, "point": point, "layer": layer}
+    b["kessan"]["steps"][1]["rows"] = [hr("1", "問い", "委員", "問A。", "要介護認定"), hr("2", "問い", "委員", "問B。", "要介護認定"),
+                                       hr("3", "答え", "長寿福祉課専門員より", "答A。", "要介護認定"),
+                                       hr("4", "問い", "委員", "問C。", "介護人材の確保"),
+                                       hr("5", "答え", "", "答C。", "介護人材の確保", "記録（未確認）")]
+    return b
+
+
+def hokoku_records():
+    """records.hokoku の見本：報告1つ。議第64号の5行と、同じ報告の一般会計の決算（議第62号）の1行。"""
+    rows = []
+    for x in hokoku_bill()["kessan"]["steps"][1]["rows"]:
+        rows.append(dict(x, question="rp:r1", bill="gi:0000008116/議第64号", kind="事実の確認" if x["side"] == "問い" else "事実・数字",
+                         answers="", target="", target_text="", origin="", url=U + "r1"))
+    rows.append(dict(rows[0], row="6", bill="gi:0000008116/議第62号", quote="老人クラブの補助は。", point="多様な生きがいと居場所づくり"))
+    return [{"question": "rp:r1", "meeting_id": "0000008211", "meeting": "令和6年12月定例会", "date": "2024-12-02", "rows": rows}]
+
+
+def hokoku_data():
+    d = json.loads(data())
+    d["records"]["hokoku"] = hokoku_records()
+    d["names"]["sources"].update({"gi:0000008116/議第64号": "令和6年9月定例会議の議第64号",
+                                  "gi:0000008116/議第62号": "令和6年9月定例会議の議第62号"})
+    return json.dumps(d, ensure_ascii=False).encode("utf-8")
+
+
+class HokokuTest(unittest.TestCase):
+    """審査報告の記録（委員長の報告）の出し方（LINK_SCHEMA §17.1・§17.3。2026-11-15 の5つめ）。"""
+
+    def test_bill_lines(self):
+        self.assertEqual(br.rp_who("長寿福祉課より"), "長寿福祉課")
+        self.assertEqual(br.rp_who(""), "")
+        self.assertEqual(br.Rag.bill_lines(1, hokoku_bill())[-7:], [
+            "［2024年12月2日］委員長の報告：決算特別委員会（7議案について）（出典：u2）",
+            "委員長の報告の記載：" + br.RP_LEAD,
+            "問い　委員：「問A。」「問B。」（事項：要介護認定）",
+            "答え　長寿福祉課専門員：「答A。」（事項：要介護認定）",
+            "問い　委員：「問C。」（事項：介護人材の確保）",
+            "答え：【未確認】「答C。」（事項：介護人材の確保）",
+            br.NO_IINKAI])
+        # 行が無ければ、いまのとおり（頭の文も出さない）
+        self.assertEqual(br.Rag.bill_lines(1, kessan_bill())[-2:],
+                         ["［2024年12月2日］委員長の報告：決算特別委員会（7議案について）（出典：u2）", br.NO_IINKAI])
+
+    def test_honpen_and_kiroku(self):
+        honpen, kiroku = br.build(hokoku_data(), P)
+        self.assertIn("と、議案質疑0件、委員長の報告1件です。", honpen)
+        self.assertIn("- ［2024年12月2日］令和6年12月定例会の委員長の報告：発言：答弁。発言者：長寿福祉課専門員。議案：令和6年9月定例会議の議第64号。"
+                      "種類：事実・数値。「答A。」（出典：" + U + "r1）", honpen)
+        self.assertIn("- 【未確認】［2024年12月2日］令和6年12月定例会の委員長の報告：発言：答弁。議案：", honpen)   # 話した人の字が無い
+        # 一般会計の決算の行も事項の節に出る。同じ日付の中は row の順
+        part = honpen[honpen.index("事項ごとの質問・答弁：要介護認定"):]
+        part = part[:part.index("\n#")]
+        self.assertLess(part.index("「問A。」"), part.index("「問B。」"))
+        self.assertLess(part.index("「問B。」"), part.index("「答A。」"))
+        self.assertIn("事項ごとの質問・答弁：多様な生きがいと居場所づくり", honpen)
+        self.assertIn("議案：令和6年9月定例会議の議第62号", honpen)
+        self.assertIn("# 認定こども園整備事業（記録編）：審査報告（委員長の報告）", kiroku)
+        self.assertIn("## 認定こども園整備事業：記録：委員長の報告：2024年12月2日 令和6年12月定例会", kiroku)
+        self.assertIn("「問A。」（出典：" + U + "r1）　事項：要介護認定", kiroku)
+        self.assertNotIn("回：", kiroku[kiroku.index("審査報告（委員長の報告）"):kiroku.index("（記録編）：つながり")])
+        # 記録の無いテーマは、記録編に章を置かず、文もいまのとおり
+        honpen0, kiroku0 = br.build(data(), P)
+        self.assertNotIn("審査報告", kiroku0)
+        self.assertIn("と、議案質疑0件です。", honpen0)
+        self.assertNotIn("の委員長の報告：", honpen0)
+
+
 class FrameTest(unittest.TestCase):
     def test_honpen(self):
         honpen, kiroku = br.build(frame_data(), P)

@@ -289,7 +289,8 @@ class ItemsTest(unittest.TestCase):
 
     def test_records(self):
         r = self.data["records"]
-        self.assertEqual(sorted(r), ["katei", "kisai", "kotogara", "shisetsu", "shitsugi", "tsunagari", "yaritori"])
+        self.assertEqual(sorted(r), ["hokoku", "katei", "kisai", "kotogara", "shisetsu", "shitsugi", "tsunagari", "yaritori"])
+        self.assertEqual(r["hokoku"], [])      # テーマの kind 報告が無ければ空
         y = r["yaritori"][0]
         self.assertEqual((y["question"], y["meeting_id"], y["meeting"], y["member"]["key"], len(y["rows"])),
                          (f"iq:{sid(2)}", M, "令和7年3月定例会議", "mb:松田洋子", 4))
@@ -744,6 +745,68 @@ class RecordsFixTest(unittest.TestCase):
 
 
 
+class HokokuBuildTest(unittest.TestCase):
+    """審査報告の記録（records/hokoku.tsv）をテーマのノートのデータに入れる（LINK_SCHEMA §13.2・§13.4。2026-11-15 の5つめ）。
+    見本の入力と行は tools/test_hokoku.py のもの（報告の会議は議案の会議と違う）。"""
+
+    def setUp(self):
+        import test_hokoku as th
+        self.th = th
+        d = make_data()
+        d.inp.nodes |= {"node:sogo6/e011", "node:sogo6/e047"}
+        d.inp.series |= {"kodomo"}
+        hi = th.inputs()
+        d.inp.statements.update({s: hi.statements[s] for s in (th.RS, th.RS2)})
+        d.inp.reports = hi.reports
+        d.index[th.RS] = {"sid": th.RS, "meetingId": th.RM, "date": "2025-12-01", "role": "9番", "text": th.REPORT_TEXT,
+                          "pdf": "https://example.jp/r.pdf"}
+        d.meetings[th.RM] = {"id": th.RM, "name": "令和7年12月定例会議", "date": "2025-12-01", "url": ""}
+        self.d = d
+        led = tr.ledgers()
+        led["hokoku"] = th.hokoku_rows() + [th.hrow(row="6", side="問い", quote="道路の補修", speaker="委員", kind="その他",
+                                                    point="", status="rejected")]
+        themes = theme_rows() + [r for r in th.theme_rows() if r["kind"] in ("報告", "事柄", "記載") and r["value"] in
+                                 (th.RP, "要介護認定率", "成年後見制度の利用支援")]
+        self.themes = sorted(themes, key=lambda r: (r["theme"], r["kind"], r["value"]))
+        self.led = led
+        self.data = build(led=led, themes=self.themes, d=d)
+
+    def test_records(self):
+        (q,) = self.data["records"]["hokoku"]
+        self.assertEqual((q["question"], q["meeting_id"], q["meeting"], q["date"]), (self.th.RP, self.th.RM, "令和7年12月定例会議", "2025-12-01"))
+        self.assertEqual([r["row"] for r in q["rows"]], ["1", "2", "3", "4", "5"])          # rejected は入れない。row の順
+        self.assertTrue(all(r["layer"] == bt.CONFIRMED and r["url"] and "shurui" not in r for r in q["rows"]))
+        self.assertIn(self.th.BILL, self.data["names"]["sources"])                          # 議案の名前（§13.4 の names）
+        self.assertEqual(bt.check_no_empty_url(self.data), [])
+
+    def test_toware(self):
+        t = [x for x in self.data["issues"] if x["type"] == "問われていない点"]
+        heads = [x["statement"].split("」")[0] for x in t]
+        self.assertNotIn("「要介護認定率", heads)                # 審査報告の記録の問いの事項は取り上げられたものとする
+        self.assertNotIn("「成年後見制度の利用支援", heads)
+        self.assertIn("記録した質問（一般質問1問・議案質疑1件・委員長の報告1件、令和7年3月定例会議〜令和7年12月定例会議）では取り上げられていない",
+                      t[0]["statement"])
+        k = next(x for x in self.data["issues"] if x["type"] == "問われていない区分")
+        self.assertNotIn("委員長の報告", k["statement"])          # 区分の範囲には入れない（§13.2）
+        # 審査報告の記録が無いときは、いまのとおり
+        led = dict(self.led, hokoku=[])
+        t0 = [x for x in build(led=led, themes=self.themes, d=self.d)["issues"] if x["type"] == "問われていない点"]
+        self.assertIn("「要介護認定率", [x["statement"].split("」")[0] for x in t0])
+        self.assertNotIn("委員長の報告", t0[0]["statement"])
+
+    def test_kessan_report_rows(self):
+        # 委員長の報告の区切りの rows：その報告の行のうち bill がその議案のもの（§13.4）
+        data = {"records": self.data["records"],
+                "bills": [{"key": self.th.BILL, "kessan": {"proposals": [], "steps": [dict(kind="委員長の報告", sid=f"sp:{self.th.RS}")]}},
+                          {"key": f"gi:{M}/議第2号", "kessan": {"proposals": [], "steps": [dict(kind="委員長の報告", sid=f"sp:{self.th.RS}")]}}]}
+        bt.add_kessan_records(self.d, data)
+        a, b = (x["kessan"]["steps"][0]["rows"] for x in data["bills"])
+        self.assertEqual([(r["row"], r["side"], r["speaker"]) for r in a],
+                         [("1", "問い", "委員"), ("2", "問い", "委員"), ("3", "答え", ""), ("4", "問い", "委員"), ("5", "答え", "長寿福祉課より")])
+        self.assertEqual(set(a[0]), {"row", "side", "sid", "speaker", "quote", "point", "layer"})
+        self.assertEqual(b, [])
+
+
 class FrameBuildTest(unittest.TestCase):
     """枠（waku）・資料の種類（shiryo）・筋（suji）と、枠の要素の見方（LINK_SCHEMA §13.1・§13.3・§13.4。DESIGN.md ADR-37）。"""
 
@@ -920,7 +983,7 @@ class FrameBuildTest(unittest.TestCase):
                          [("1", "問い", "sp:Q1", "議員", ""), ("2", "問い", "sp:Q1", "議員", "A"), ("10", "答え", "sp:Q2", "厚生主監", "A")])
         self.assertEqual(set(q1["rows"][0]), {"row", "side", "sid", "speaker", "round", "quote", "point", "layer"})
         self.assertEqual(q9["rows"], [])
-        self.assertNotIn("rows", rpt)                         # 質疑のほかの行には持たない
+        self.assertEqual(rpt["rows"], [])                     # 委員長の報告：審査報告の記録が無ければ空（2026-11-15 の5つめ）
         self.assertEqual(data["bills"][0]["kessan"], {})
         # about が空で source が発言の kisai の行は、同じ段落にテーマの行があるときだけ入れる（rejected は入れない）
         led = {"kisai": [kis(quote="介護保険は３年目です。", about="", kind="事実", title="e", status="confirmed"),

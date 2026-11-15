@@ -91,7 +91,7 @@ class HokokuOkTest(tr.RecordsTestCase):
     def test_columns(self):
         self.assertIn("hokoku", rc.LEDGERS)
         self.assertIn("hokoku", rc.OPTIONAL)        # 無ければ0行
-        self.assertIn("hokoku", rc.NOT_IN_THEME)    # テーマのノートのデータにはまだ出さない
+        self.assertNotIn("hokoku", rc.NOT_IN_THEME)    # テーマのノートのデータに入れる（2026-11-15 の5つめ）
         self.assertIn("hokoku", rc.TARGET_LEDGERS)
         self.assertIn("報告", rc.THEME_KINDS)
         self.assertEqual(len(rc.THEME_KINDS), 17)   # §12 の17
