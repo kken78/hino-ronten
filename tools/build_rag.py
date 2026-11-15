@@ -80,28 +80,21 @@ MITA_LABEL = {"問い": "一般質問", "質疑": "議案質疑", "報告": "委
 CHIZU_GUIDE = "本編の章「論点の地図」に、分類の体系と年度を骨にして、事項（論点）ごとの記録の行の数を、段落と箇条で書いています"
 
 
-def chizu_count_text(counts, gikai):
-    """事項か要素の年度ごとの数の文（§17.2 の0 の <数>）。"""
+def chizu_count_text(counts):
+    """事項か要素の年度ごとの数の文（§17.2 の0 の <数>）。0の側は書かない。状態は「年度ごとの議会の側の状態」に1回だけ書く。"""
     out = []
     for y, (a, b) in counts.items():
-        t = f"{nendo_name(y)} 資料{a}・議会{b}"
-        st = gikai.get(y, "") if y else ""
-        if b == 0 and st:
-            t += f"（{GIKAI_STATE[st]}）"
-        elif b and st == "mi":
-            t += "（まだ見ていないものが残る）"
-        out.append(t)
+        out.append(f"{nendo_name(y)} " + "・".join(x for x in ((f"資料{a}" if a else ""), (f"議会{b}" if b else "")) if x))
     return "、".join(out) or "記録なし"
 
 
 def chizu_lines(c):
-    """論点の地図の段落と箇条（§17.2 の0）。chizu が空なら []。Markdown の行の並び（段落の後ろに空の行）。"""
+    """論点の地図の段落と箇条（§17.2 の0）。chizu が空なら []。Markdown の行の並び。要素は深さで字下げした入れ子の箇条。"""
     if not c:
         return []
     tk = c["taikei"]
     gikai = c.get("gikai") or {}
     pts = {p["name"]: p for p in c.get("points") or []}
-    els = {e["n"]: e for e in c.get("elements") or []}
     L = [f"分類の体系：{tk['name']}（出典：{tk['name']}（{tk['source']}）（出典：{tk['url']}））。"
          "縦に体系の要素（原典の見出しの字のまま）、横に年度（4月〜翌3月）を置き、事項（論点）ごとに記録の行の数を示します。", "",
          "読み方：数の「資料」は町の資料の記載の行で、資料の日付の年度で数えています。「議会」は議会の記録（一般質問・議案質疑・委員長の報告）の行で、"
@@ -122,39 +115,55 @@ def chizu_lines(c):
     L.append("- 経過（過程の記録の段階）：" + "、".join(f"{nendo_name(y)} " + "・".join(x["name"] for x in v) for y, v in katei.items())
              if katei else "- 経過：過程の記録なし")
 
-    def path(e):
-        out = [e["name"]]
-        while e.get("oya"):
-            e = els[e["oya"]]
-            out.append(e["name"])
-        return " ＞ ".join(reversed(out))
+    def li(depth, text):
+        L.append("  " * (depth - 1) + "- " + text)
 
     def marks(p):
-        m = "".join(f"。枠組み：{w['name']} 要素{w['n']} {w['element']}" for w in p.get("waku") or [])
-        return m + ("。対応は案" if p.get("an") else "")
+        m = "".join(f"（枠組み：{w['name']} 要素{w['n']}）" for w in p.get("waku") or [])
+        return m + ("（対応は案）" if p.get("an") else "")
 
-    def point_line(p, where):
-        return f"- 事項「{p['name']}」（{where}{marks(p)}）：{chizu_count_text(p['counts'], gikai)}"
-    for e in c.get("elements") or []:
-        ps = e.get("points") or []
-        if ps:
-            body = f"事項 {len(ps)}（{'、'.join(ps)}）。計：{chizu_count_text(e['counts'], gikai)}"
-        elif e.get("under"):
-            body = f"下の要素に事項 {e['under']}"
-        else:
-            body = "事項なし"
-        L.append(f"- {path(e)}：{body}")
-        if e.get("waku"):
-            w = e["waku"]
-            for we in w["elements"]:
-                L.append(f"- {path(e)} ＞ 枠組み「{w['name']}」の要素{we['n']} {we['name']}："
-                         + (f"事項 {len(we['points'])}（{'、'.join(we['points'])}）" if we["points"] else "事項なし"))
-        for n in ps:
-            L.append(point_line(pts[n], f"要素：{e['name']}"))
+    def point_line(depth, n):
+        p = pts[n]
+        li(depth, f"事項「{p['name']}」{marks(p)}：{chizu_count_text(p['counts'])}")
+    els = c.get("elements") or []
+    kids = {}
+    for e in els:
+        kids.setdefault(e.get("oya"), []).append(e)
+
+    def block(oya, depth):
+        empty = []
+        for e in kids.get(oya, []):
+            ps = e.get("points") or []
+            if not ps and not e.get("under"):
+                empty.append(e["name"])
+                continue
+            li(depth, f"{e['name']}：事項 {len(ps)}。計：{chizu_count_text(e['counts'])}" if ps else e["name"])
+            done = set()
+            if e.get("waku") and ps:
+                w = e["waku"]
+                none = []
+                for we in w["elements"]:
+                    if not we["points"]:
+                        none.append(f"要素{we['n']} {we['name']}")
+                        continue
+                    li(depth + 1, f"枠組み「{w['name']}」の要素{we['n']} {we['name']}")
+                    for n in we["points"]:
+                        if n not in done:
+                            done.add(n)
+                            point_line(depth + 2, n)
+                if none:
+                    li(depth + 1, f"事項なし（枠組み「{w['name']}」の要素）：" + "、".join(none))
+            for n in ps:
+                if n not in done:
+                    point_line(depth + 1, n)
+            block(e["n"], depth + 1)
+        if empty:
+            li(depth, "事項なし：" + "、".join(empty))
+    block(None, 1)
     soto = c.get("soto") or []
-    L.append(f"- 体系の外：事項 {len(soto)}（{'、'.join(soto)}）" if soto else "- 体系の外：事項なし")
+    L.append(f"- 体系の外：事項 {len(soto)}" if soto else "- 体系の外：事項なし")
     for n in soto:
-        L.append(point_line(pts[n], "体系の外"))
+        point_line(2, n)
     L.append("")
     return L
 
@@ -1175,6 +1184,9 @@ def document_xml(markdown):
             style, text = f"Heading{len(m.group(1))}", m.group(2)
         elif line.startswith("- "):
             style, text = None, "・" + line[2:]
+        elif re.match(r"( {2})+- ", line):     # 入れ子の箇条（論点の地図。§17.2 の0）。字下げを全角の空白で示す
+            k = len(line) - len(line.lstrip(" "))
+            style, text = None, "　" * (k // 2) + "・" + line[k + 2:]
         else:
             style, text = None, line
         ppr = f'<w:pPr><w:pStyle w:val="{style}"/></w:pPr>' if style else ""

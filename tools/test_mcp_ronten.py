@@ -322,7 +322,7 @@ class ChizuOverviewTest(unittest.TestCase):
         self.assertFalse(err)
         self.assertIn("\n## 論点の地図\n分類の体系：再編整備計画", t)
         self.assertLess(t.index("## 論点の地図"), t.index("## 事業の要点"))
-        self.assertIn("- 体系の外：事項 1（提言）", t)
+        self.assertIn("- 体系の外：事項 1\n  - 事項「提言」：記録なし", t)
         t0, _ = call(server(), "overview")
         self.assertNotIn("論点の地図", t0)
         self.assertTrue(t.endswith(t0[t0.index("## 事業の要点"):]))
