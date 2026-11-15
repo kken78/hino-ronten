@@ -347,7 +347,7 @@ function gaiyo(){
   /* 枠組みの表（LINK_SCHEMA §16.1。ADR-37）：要素・該当する事項・資料別の記載年・議会での質問・答弁の記録数。関係は出典の図で見る。要素の note は出さない */
   (D.waku||[]).forEach(W=>o.push(sec(`${W.name}と、資料の記載状況`,'',`<p class="note">出典：${W.url?`${A(W.url,lab(W.source))}（${esc(W.source)}）`:esc(W.source)}</p>`+
     tbl(['番号','要素','該当する事項','資料別の記載年','議会での質問・答弁の記録数'],W.elements.map(e=>`<tr><td class="num">${esc(e.n)}</td><td>${esc(e.name)}${e.source&&e.source!==W.source?`<div class="note">${esc(e.source)}</div>`:''}</td><td>${e.points.length?e.points.map(esc).join('<br>'):'<span class="note">該当する事項なし</span>'}</td><td>${Object.keys(e.rec).length?Object.entries(e.rec).map(([k,v])=>`${esc(k)}：${v.map(esc).join('・')}`).join('<br>'):'<span class="note">未記録</span>'}</td><td class="num">${e.points.length?esc(e.gikai):'—'}</td></tr>`))+
-    `<p class="note">要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。「資料別の記載年」は資料の日付の年で、未確認の記録を含みます。「議会での質問・答弁の記録数」は、その事項について記録した一般質問・議案質疑の、確定した行の数です。</p>`)));
+    `<p class="note">要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。「資料別の記載年」は資料の日付の年で、未確認の記録を含みます。「議会での質問・答弁の記録数」は、その事項について記録した一般質問・議案質疑・委員長の報告の、確定した行の数です。</p>`)));
   // 経過
   const ev=[];
   /* 過程の段階は step の順。from の無い段階は1つ前の段階の直後（最初なら先頭）に置き「日付なし」と示す（§16.2） */

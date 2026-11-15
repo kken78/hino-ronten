@@ -797,6 +797,19 @@ class HokokuBuildTest(unittest.TestCase):
         self.assertIn("「要介護認定率", [x["statement"].split("」")[0] for x in t0])
         self.assertNotIn("委員長の報告", t0[0]["statement"])
 
+    def test_waku_gikai(self):
+        # 枠組みの表の「議会での質問・答弁の記録数」（gikai）に、審査報告の記録の確定した行を入れる（§13.4。2026-11-15 の9つめ）
+        inp = tr.inputs()
+        waku = rc.check_waku_ref(tr.waku_ref(), inp, rc.Report())
+        shiryo = rc.check_shiryo_ref(tr.shiryo_ref(), inp, rc.Report())
+        themes = sorted(tr.with_waku(self.themes), key=lambda r: (r["theme"], r["kind"], r["value"]))
+        led = dict(self.led, hokoku=[dict(r, point="新こども園の定員" if r["point"] else "") for r in self.led["hokoku"]])
+        led["hokoku"][1]["status"] = "candidate"        # 記録（未確認）の行は数えない
+        gikai = lambda L: bt.build("hoiku", themes, L, self.d, {"hino-council-search": {"sha": "a" * 40}}, refs(), {"ref/themes.tsv": "x"},
+                                   tr.shisetsu_ref(), tr.chiku_ref() + tr.soshiki_ref(), waku, shiryo)["waku"][0]["elements"][0]["gikai"]
+        base = gikai(dict(self.led, hokoku=[]))
+        self.assertEqual(gikai(led) - base, 2)          # 事項のある確定の行（問い1・答え1）
+
     def test_kessan_report_rows(self):
         # 委員長の報告の区切りの rows：その報告の行のうち bill がその議案のもの（§13.4）
         data = {"records": self.data["records"],

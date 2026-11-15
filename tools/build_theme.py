@@ -1070,7 +1070,7 @@ def build_waku(d, data, themes_rows, theme, tk, waku):
                     if r.get("shurui") and ((r[col] and r[col] in points) or r["shurui"] in shiryo):
                         years.setdefault(r["shurui"], set()).add(r["source_date"][:4])
             rec = {sh: sorted(years[sh]) for sh in sorted(years, key=lambda x: (order.index(x) if x in order else len(order), x))}
-            gikai = sum(1 for name in ("yaritori", "shitsugi") for q in R[name] for r in q["rows"]
+            gikai = sum(1 for name in ("yaritori", "shitsugi", "hokoku") for q in R.get(name) or [] for r in q["rows"]
                         if r["layer"] == CONFIRMED and r["point"] and r["point"] in points)
             elements.append(dict(view=view, n=int(n), name=els[n]["name"], note=els[n]["note"], source=els[n]["source"],
                                  shiryo=shiryo, points=points, rec=rec, gikai=gikai))
