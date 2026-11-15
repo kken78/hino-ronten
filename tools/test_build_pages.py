@@ -310,6 +310,14 @@ class ScriptTest(unittest.TestCase):
         self.assertLess(u.index("決算特別委員会の委員長の報告"), u.index("問A。"))
         self.assertLess(u.index("答C。"), u.index("委員会の会議録はありません。"))
         self.assertNotIn("老人クラブの補助は。", u)          # 同じ報告のほかの議案の行は流れに出ない（records から作らない）
+        # 段落は行の p で分ける（2026-11-15 の6つめ）：同じ見出しが続いても p が違えば見出しから分け、札は段落ごとに付け直す
+        st = d["bills"][-1]["kessan"]["steps"][1]
+        st["rows"][1]["p"] = 9
+        for x in st["rows"][2:]:
+            x["p"] += 9
+        u2 = run_page(bp.render(template(), json.dumps(d, ensure_ascii=False).encode("utf-8"), "hoiku"))["unei"]
+        self.assertIn('<div class="dochead">問い　委員</div><p class="para">問A。<span class="fuda">要介護認定</span></p>'
+                      '<div class="dochead">問い　委員</div><p class="para">問B。<span class="fuda">要介護認定</span></p>', u2)
         # 事項ごとの質問・答弁：出典の欄に「（委員長の報告）」。一般会計の決算の行も出る。欄の下の文に報告の数
         q = r["ronten"]
         self.assertIn("<h3>要介護認定</h3>", q)

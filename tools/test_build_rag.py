@@ -224,12 +224,12 @@ def hokoku_bill():
     """kessan_bill の委員長の報告の区切りに、審査報告の記録の行（rows）を足したもの（LINK_SCHEMA §13.4・§16.1・§17.1。
     2026-11-15 の5つめ）。問いの2行が同じ事項、答えの話した人は「より」付きの字と空、最後の答えは記録（未確認）。"""
     b = kessan_bill()
-    hr = lambda row, side, speaker, quote, point, layer="確定": {"row": row, "side": side, "sid": "sp:r1", "speaker": speaker,
-                                                                 "quote": quote, "point": point, "layer": layer}
-    b["kessan"]["steps"][1]["rows"] = [hr("1", "問い", "委員", "問A。", "要介護認定"), hr("2", "問い", "委員", "問B。", "要介護認定"),
-                                       hr("3", "答え", "長寿福祉課専門員より", "答A。", "要介護認定"),
-                                       hr("4", "問い", "委員", "問C。", "介護人材の確保"),
-                                       hr("5", "答え", "", "答C。", "介護人材の確保", "記録（未確認）")]
+    hr = lambda row, side, speaker, quote, point, p, layer="確定": {"row": row, "side": side, "sid": "sp:r1", "speaker": speaker,
+                                                                    "quote": quote, "point": point, "layer": layer, "p": p}
+    b["kessan"]["steps"][1]["rows"] = [hr("1", "問い", "委員", "問A。", "要介護認定", 1), hr("2", "問い", "委員", "問B。", "要介護認定", 1),
+                                       hr("3", "答え", "長寿福祉課専門員より", "答A。", "要介護認定", 2),
+                                       hr("4", "問い", "委員", "問C。", "介護人材の確保", 3),
+                                       hr("5", "答え", "", "答C。", "介護人材の確保", 4, "記録（未確認）")]
     return b
 
 
@@ -237,6 +237,7 @@ def hokoku_records():
     """records.hokoku の見本：報告1つ。議第64号の5行と、同じ報告の一般会計の決算（議第62号）の1行。"""
     rows = []
     for x in hokoku_bill()["kessan"]["steps"][1]["rows"]:
+        x = {k: v for k, v in x.items() if k != "p"}
         rows.append(dict(x, question="rp:r1", bill="gi:0000008116/議第64号", kind="事実の確認" if x["side"] == "問い" else "事実・数字",
                          answers="", target="", target_text="", origin="", url=U + "r1"))
     rows.append(dict(rows[0], row="6", bill="gi:0000008116/議第62号", quote="老人クラブの補助は。", point="多様な生きがいと居場所づくり"))

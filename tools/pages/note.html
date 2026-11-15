@@ -432,9 +432,9 @@ function flowHtml(W){
   const qaHead=(st,r)=>r.side==='問い'?`${r.round&&r.round!=='最初の問い'?esc(r.round):'問い'}　${giin(st.member)}`:`答え　${esc(r.speaker)}`;
   const qaRows=st=>{const g=[];(st.rows||[]).forEach(r=>{const l=g[g.length-1];if(l&&l.sid===r.sid)l.rows.push(r);else g.push({sid:r.sid,rows:[r]})});
     return g.map(s=>`<div class="dochead">${qaHead(st,s.rows[0])}</div>${qaPara(s.rows)}`).join('')};
-  /* 委員長の報告の記録の行（steps の rows。LINK_SCHEMA §16.1、2026-11-15 の5つめ）：頭に文を1回。side と speaker が同じ行の続く間を
+  /* 委員長の報告の記録の行（steps の rows。LINK_SCHEMA §16.1、2026-11-15 の5つめ・6つめ）：頭に文を1回。行の p（段落の番号）が同じ行の続く間を
      1つのまとまりとし、見出しは「問い　委員」「答え　<話した人>」（字が無ければ「答え」だけ）。回の番号は出さない */
-  const rpRows=st=>{if(!(st.rows||[]).length)return '';const g=[];st.rows.forEach(r=>{const l=g[g.length-1];if(l&&l.side===r.side&&l.speaker===r.speaker)l.rows.push(r);else g.push({side:r.side,speaker:r.speaker,rows:[r]})});
+  const rpRows=st=>{if(!(st.rows||[]).length)return '';const g=[];st.rows.forEach(r=>{const l=g[g.length-1];if(l&&l.p===r.p)l.rows.push(r);else g.push({p:r.p,side:r.side,speaker:r.speaker,rows:[r]})});
     return `<div class="note">${esc(RP_LEAD)}</div>`+g.map(s=>`<div class="dochead">${s.side==='問い'?'問い　委員':`答え${rpWho(s.speaker)?'　'+esc(rpWho(s.speaker)):''}`}</div>${qaPara(s.rows)}`).join('')};
   const billHtml=(pos,b)=>{const k=b.kessan||{};
     if(pos===0)return `<div class="dochead">${esc(b.meeting)}　${A(b.url,b.no+'「'+b.title+'」')}</div>`+((k.proposals||[]).length?`<ul class="plain">${k.proposals.map(x=>`<li>${esc(jd(x.date))}　提案の説明　${esc(x.role)}　${A(x.url,'会議録')}${propParas(x)}</li>`).join('')}</ul>`:'<div class="note">提案の説明は、この会議の会議録にあります。発言ごとの出典は、まだ示していません。</div>');

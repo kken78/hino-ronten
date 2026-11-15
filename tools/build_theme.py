@@ -486,6 +486,33 @@ def para_of(text, quote):
     return next((p for p, s in reversed(paras) if s <= i), paras[0][0] if paras else 1), i
 
 
+def report_paras(text, rows):
+    """委員長の報告の記録の行の段落の番号 p（§13.4。2026-11-15 の6つめ）。rows は row の順。text は報告の発言の本文。
+    side か speaker が変われば分ける。続く問いの行は、本文で前の引用の終わりからこの引用の始まりまでに「。」があるか、
+    前の引用が「。」で終われば分ける。続く答えの行は、answers が変われば分ける。引用が本文に無い行は止める。"""
+    t = records.norm(text)
+    out, p, prev, prev_end = [], 0, None, 0
+    for r in rows:
+        q = records.norm(r["quote"])
+        i = t.find(q, prev_end) if q else -1
+        if i < 0:
+            i = t.find(q) if q else -1
+        if i < 0:
+            raise BuildError(f"records/hokoku/{r['question']}/{r['row']} の引用が、報告の発言の本文に無い")
+        if prev is None:
+            p = 1
+        elif (r["side"], r["speaker"]) != (prev["side"], prev["speaker"]):
+            p += 1
+        elif r["side"] == "問い":
+            if records.norm(prev["quote"]).endswith("。") or "。" in t[min(prev_end, i):max(prev_end, i)]:
+                p += 1
+        elif r.get("answers", "") != prev.get("answers", ""):
+            p += 1
+        out.append(p)
+        prev, prev_end = r, i + len(q)
+    return out
+
+
 def add_kessan_records(d, data, ledgers=None):
     """bills の kessan の proposals の paras と、steps の kind が質疑の行の rows（§13.4。DESIGN.md ADR-37 の経過、2026-11-15）。
     records を作ったあとに呼ぶ。引用が発言の本文に無い行は止める。about が空で source が発言の kisai の行（ledgers から。
@@ -526,8 +553,9 @@ def add_kessan_records(d, data, ledgers=None):
             if x["kind"] == STEP_KIND["report"]:
                 # 委員長の報告：その報告の審査報告の記録のうち、bill がこの議案の行（§13.4。2026-11-15 の5つめ）
                 rs = sorted((r for r in hokoku.get("rp:" + x["sid"][3:], []) if r["bill"] == b["key"]), key=lambda r: int(r["row"]))
+                ps = report_paras((d.index.get(x["sid"][3:]) or {}).get("text") or "", rs) if rs else []
                 x["rows"] = [dict(row=r["row"], side=r["side"], sid=r["sid"], speaker=r["speaker"], quote=r["quote"],
-                                  point=r["point"], layer=r["layer"]) for r in rs]
+                                  point=r["point"], layer=r["layer"], p=n) for r, n in zip(rs, ps)]
                 continue
             if x["kind"] != STEP_KIND["shitsugi"]:
                 continue

@@ -803,8 +803,37 @@ class HokokuBuildTest(unittest.TestCase):
         a, b = (x["kessan"]["steps"][0]["rows"] for x in data["bills"])
         self.assertEqual([(r["row"], r["side"], r["speaker"]) for r in a],
                          [("1", "問い", "委員"), ("2", "問い", "委員"), ("3", "答え", ""), ("4", "問い", "委員"), ("5", "答え", "長寿福祉課より")])
-        self.assertEqual(set(a[0]), {"row", "side", "sid", "speaker", "quote", "point", "layer"})
+        self.assertEqual(set(a[0]), {"row", "side", "sid", "speaker", "quote", "point", "layer", "p"})
+        self.assertEqual([r["p"] for r in a], [1, 1, 2, 3, 4])
         self.assertEqual(b, [])
+
+
+class ReportParasTest(unittest.TestCase):
+    """委員長の報告の記録の行の段落の番号 p（LINK_SCHEMA §13.4。2026-11-15 の6つめ）。"""
+
+    def r(self, row, side, quote, speaker="", answers=""):
+        return dict(question="rp:x", row=row, side=side, quote=quote, speaker=speaker or ("委員" if side == "問い" else ""), answers=answers)
+
+    def test_questions(self):
+        text = ("Aの推移、Bの実施などについて質問。委員より、利用が少ないことは検証しないといけないだろう。"
+                "また、介護度の違いを伺いたい、ケアマネジャーの処遇改善はどうか、との質問に、課より、答えるとの答弁。"
+                "委員より、調査はどのような方法か、更新はどうか、との質問。")
+        rows = [self.r("1", "問い", "Aの推移"), self.r("2", "問い", "Bの実施"),
+                self.r("3", "問い", "利用が少ないことは検証しないといけないだろう"),
+                self.r("4", "問い", "介護度の違いを伺いたい"), self.r("5", "問い", "ケアマネジャーの処遇改善はどうか"),
+                self.r("6", "答え", "答える", "課より", "4"),
+                self.r("7", "問い", "調査はどのような方法か、"), self.r("8", "問い", "更新はどうか")]
+        # 同じ文の中の項目の並びと「…か、」のつながりは続け、間に「。」があれば分ける。見出しが変われば分ける
+        self.assertEqual(bt.report_paras(text, rows), [1, 1, 2, 3, 3, 4, 5, 5])
+
+    def test_answers_and_period(self):
+        text = "質問。答えA1。答えA2。答えB。問い1。問い2。"
+        rows = [self.r("1", "答え", "答えA1。", answers="1"), self.r("2", "答え", "答えA2。", answers="1"),
+                self.r("3", "答え", "答えB。", answers="2"), self.r("4", "問い", "問い1。"), self.r("5", "問い", "問い2。")]
+        # 答えは answers が変われば分ける。前の問いの引用が「。」で終われば分ける
+        self.assertEqual(bt.report_paras(text, rows), [1, 1, 2, 3, 4])
+        with self.assertRaises(bt.BuildError):
+            bt.report_paras(text, [self.r("1", "問い", "本文に無い")])
 
 
 class FrameBuildTest(unittest.TestCase):
