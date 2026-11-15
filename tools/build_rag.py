@@ -62,6 +62,11 @@ def jd(s):
     return f"{m.group(1)}年{int(m.group(2))}月" + (f"{int(m.group(3))}日" if m.group(3) else "")
 
 
+def n_mention(d):
+    """関連する一般質問（exchanges）のうち、系列の計画への言及を含む問いの数（mentions のある問い。LINK_SCHEMA §14 の言い分け）。"""
+    return sum(1 for x in d.get("exchanges") or [] if x.get("mentions"))
+
+
 def fy_name(y):
     return f"令和{'元' if y == 2019 else y - 2018}年度" if y >= 2019 else f"{y}年度"
 
@@ -348,6 +353,7 @@ class Rag:
         self.names = (data.get("names") or {}).get("sources") or {}
         self.fac = (data.get("names") or {}).get("facilities") or {}
         self.vnames = (data.get("names") or {}).get("views") or {}   # 見方のキーごとの名前（§13.3 names.views）
+        self.btitles = (data.get("names") or {}).get("bills") or {}   # 審査報告の記録の議案の題（§13.3 names.bills）
         for k in ("names", "theme_questions", "chushin"):
             if k not in data:
                 raise RagError(f"テーマのノートのデータに {k} が無い（tools/build_theme.py で作り直す）")
@@ -892,7 +898,7 @@ class Rag:
                         qa.setdefault(r["point"], []).append((n, q, r))
         rq = len(self.R.get("yaritori") or [])
         nh = len(self.R.get("hokoku") or [])
-        doc.p(f"質問・答弁を項目ごとに記録したのは、関連する一般質問{d.get('theme_questions')}問のうち{rq}問と、議案質疑{len(self.R.get('shitsugi') or [])}件"
+        doc.p(f"質問・答弁を項目ごとに記録したのは、題材に選んだ一般質問{d.get('theme_questions')}問のうち{rq}問と、議案質疑{len(self.R.get('shitsugi') or [])}件"
               f"{f'、委員長の報告{nh}件' if nh else ''}です。")
         for p in sorted(qa, key=lambda p: (-len(qa[p]), p)):
             doc.h(3, f"{self.pname}：事項ごとの質問・答弁：{p}")
@@ -925,7 +931,7 @@ class Rag:
                 doc.end_list()
 
         doc.h(2, f"{self.pname}：一般質問と議案")
-        doc.p("関連する一般質問（日付順）：")
+        doc.p(f"関連する一般質問（日付順。系列の計画への言及を含む問い{n_mention(d)}問と、題材に選んだ問い{d.get('theme_questions')}問を、重ねずに並べています）：")
         for x in d.get("exchanges") or []:
             doc.li(self.exchange_line(x))
         doc.end_list()
@@ -1053,13 +1059,20 @@ class Rag:
         if n == "hokoku":     # 審査報告の記録の行（LINK_SCHEMA §17.1。2026-11-15 の5つめ）。回と区分は書かない
             return self.entry(q["date"], f"{q.get('meeting')}の委員長の報告", r["quote"], r.get("url"),
                               [("発言", side), ("発言者", "委員" if r["side"] == "問い" else rp_who(r.get("speaker"))),
-                               ("議案", self.name(r["bill"]) if r.get("bill") else ""), ("種類", KIND.get(r.get("kind"), r.get("kind")))],
+                               ("議案", self.bill_name(r.get("bill"))), ("種類", KIND.get(r.get("kind"), r.get("kind")))],
                               r.get("layer"))
         who = f"{q['member'].get('name')} 議員" if r["side"] == "問い" else r.get("speaker")
         src = f"{q.get('meeting')}の{'一般質問' if n == 'yaritori' else '議案質疑'}"
         return self.entry(q["date"], src, r["quote"], r.get("url"),
                           [("発言", side), ("発言者", who), ("回", r.get("round")), ("区分", STAGE.get(r.get("stage"), r.get("stage")) if r["side"] == "問い" else ""),
                            ("種類", KIND.get(r.get("kind"), r.get("kind")))], r.get("layer"))
+
+    def bill_name(self, key):
+        """審査報告の記録の行の議案の欄：<議案の名前> <議案の題>（題が無ければ名前だけ。§17.1）。key が空なら空。"""
+        if not key:
+            return ""
+        t = self.btitles.get(key) or ""
+        return f"{self.name(key)} {t}" if t else self.name(key)
 
     def shisetsu_entry(self, r):
         return self.entry(r["source_date"], self.name(r["source"]), r["quote"], r.get("url"),

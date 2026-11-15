@@ -777,6 +777,7 @@ class HokokuBuildTest(unittest.TestCase):
         self.assertEqual([r["row"] for r in q["rows"]], ["1", "2", "3", "4", "5"])          # rejected は入れない。row の順
         self.assertTrue(all(r["layer"] == bt.CONFIRMED and r["url"] and "shurui" not in r for r in q["rows"]))
         self.assertIn(self.th.BILL, self.data["names"]["sources"])                          # 議案の名前（§13.4 の names）
+        self.assertEqual(self.data["names"]["bills"], {self.th.BILL: "一般会計予算"})        # 議案の題（§13.4 の names.bills）
         self.assertEqual(bt.check_no_empty_url(self.data), [])
 
     def test_toware(self):

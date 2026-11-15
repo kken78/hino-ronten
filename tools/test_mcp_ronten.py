@@ -87,7 +87,9 @@ class ToolTest(unittest.TestCase):
         self.assertIn("- 検討の段階：段階：懇話会。期間：2022年7月12日〜2024年1月12日。資料：懇話会の資料（第1回）。", text)
         self.assertIn("- 開園時期（3件）", text)
         self.assertIn("- 日野幼稚園（1件）", text)
-        self.assertIn("一般質問 1問（うち質問・答弁を項目ごとに記録したもの 1問。", text)
+        # 一般質問の数の言い分け（§14。2026-11-15 の MCP の確かめ）
+        self.assertIn("## 議会（council で取る）：関連する一般質問 1問（系列の計画への言及を含む問い 0問と、題材に選んだ問い 16問を、"
+                      "重ねずに数えた数。うち質問・答弁を項目ごとに記録した問い 1問。ほかの問いの答弁は speeches で会議録の本文を読む）、", text)
         self.assertNotIn("キーワードの一致", text)
 
     def test_search_and_fetch(self):
@@ -195,6 +197,46 @@ class ToolTest(unittest.TestCase):
         # 記録の無いテーマの overview は、いまのとおり
         text, _ = call(mr.Server(tb.data(), P, WORDS, SPEECHES, None), "overview")
         self.assertNotIn("委員長の報告", text)
+
+    def test_topic_all_points(self):
+        # テーマの定義の事項は、記録の有無にかかわらず topic で取れる（§14。2026-11-15 の MCP の確かめ）
+        d = json.loads(tb.hokoku_data())
+        d["names"]["bills"] = {"gi:0000008116/議第62号": "令和５年度日野町一般会計歳入歳出決算について"}
+        d["chizu"] = tb.chizu()
+        d["records"]["kisai"][0]["about"] = "提言"
+        raw = json.dumps(d, ensure_ascii=False).encode("utf-8")
+        pts = ["開園時期", "多様な生きがいと居場所づくり", "新こども園の開園時期", "提言", "要介護認定"]
+        s = mr.Server(raw, P, WORDS, SPEECHES, None, pts)
+        # 委員長の報告の行だけを持つ事項：その行を返す。議案の欄に議案の題
+        text, err = call(s, "topic", {"name": "多様な生きがいと居場所づくり"})
+        self.assertFalse(err)
+        self.assertTrue(text.startswith("## 事項：多様な生きがいと居場所づくり\n事柄の記録と記載の行は無い。\nこの事項についての質問・答弁（記録したもの）：\n- [hokoku:rp:r1/6] "))
+        self.assertIn("議案：令和6年9月定例会議の議第62号 令和５年度日野町一般会計歳入歳出決算について。", text)
+        # 記録が1行も無い事項：「記録が無い」と地図での置き場所（枠組みと対応の案の印）
+        text, err = call(s, "topic", {"name": "新こども園の開園時期"})
+        self.assertFalse(err)
+        self.assertEqual(text.split("\n")[0], "## 事項：新こども園の開園時期")
+        self.assertIn("記録が無い（", text)
+        self.assertIn("論点の地図での置き場所：再編整備計画：第１章 はじめに：１ 計画の期間（枠組み：流れ 要素1）（対応は案）", text)
+        # 記載の行のある事項：記載の行と、質問・答弁（ここでは無い）
+        text, _ = call(s, "topic", {"name": "提言"})
+        self.assertTrue(text.startswith("## 記載の見出し：提言\n- [kisai:1] "))
+        self.assertNotIn("記録が無い", text)
+        # 体系の外の事項・地図の無いテーマ
+        d2 = json.loads(raw)
+        d2["records"]["kisai"][0]["about"] = ""
+        s2 = mr.Server(json.dumps(d2, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None, pts)
+        self.assertIn("論点の地図での置き場所：体系の外", call(s2, "topic", {"name": "提言"})[0])
+        del d2["chizu"]
+        d2["chizu"] = {}
+        s3 = mr.Server(json.dumps(d2, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None, pts)
+        self.assertNotIn("置き場所", call(s3, "topic", {"name": "提言"})[0])
+        # テーマの定義に無い名前は、いまのとおりエラー
+        self.assertTrue(call(s, "topic", {"name": "無い"})[1])
+        # overview：事柄・記載の記録の無い事項の行（テーマの定義の順）
+        text, _ = call(s, "overview")
+        self.assertIn("- 事柄・記載の記録の無い事項（topic で取れる）：多様な生きがいと居場所づくり（質問・答弁 1件）、新こども園の開園時期（記録なし）", text)
+        self.assertNotIn("事柄・記載の記録の無い事項", call(mr.Server(raw, P, WORDS, SPEECHES), "overview")[0])
 
     def test_topic_latest_all_and_stage_order(self):
         d = json.loads(data())
@@ -308,6 +350,7 @@ class ToolTest(unittest.TestCase):
                 f.write("theme\tkind\tvalue\tsource\treviewer\tdate\tnote\n"
                         "hoiku\t語\tこども園\t\t\t\t\nhoiku\t事柄\t開園時期\t\t\t\t\nother\t語\t道路\t\t\t\t\n")
             self.assertEqual(mr.theme_words(p, "hoiku"), ["こども園"])
+            self.assertEqual(mr.theme_points(p, "hoiku"), ["開園時期"])
 
 
 

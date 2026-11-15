@@ -1249,6 +1249,14 @@ class Labels:
             return f"{meeting_name(d, m.group(1))}の{m.group(2)}"
         return key
 
+    def bill_title(self, key):
+        """議案の題（gian.json の title を字のまま）。無ければ空（§13.4 の names.bills）。"""
+        m = records.RE_GI.fullmatch(key)
+        if not m:
+            return ""
+        a = next((x for x in (self.d.gian.get(m.group(1)) or {}).get("agenda") or [] if x.get("no") == m.group(2)), {})
+        return a.get("title", "")
+
     def fac(self, key):
         return (self.facility.get(key) or {}).get("name", key)
 
@@ -1756,6 +1764,7 @@ def build_names(d, data, shisetsu_rows):
     issues の refs は records の行を指すので、その資料は records から入る。"""
     L = Labels(d, shisetsu_rows)
     keys = {c["from"] for c in data["council"]} | {w["source"] for w in data.get("waku") or [] if w["source"] and w["url"]}
+    bills = set()     # 審査報告の記録の議案（names.bills。§13.4。2026-11-15 の MCP の確かめ）
     for name, rows in data["records"].items():
         for x in rows:
             for r in (x["rows"] if "rows" in x else [x]):
@@ -1764,13 +1773,15 @@ def build_names(d, data, shisetsu_rows):
                         keys.add(r[c])
                 if name == "hokoku" and r.get("bill"):     # 審査報告の記録の議案（§13.4 の names。2026-11-15 の5つめ）
                     keys.add(r["bill"])
+                    bills.add(r["bill"])
                 keys |= {s for s in (r.get("sources") or "").split(",") if s}
     fac = {r["key"]: r for r in shisetsu_rows}
     facilities = {}
     for r in data["records"]["shisetsu"]:
         f = fac.get(r["facility"]) or {}
         facilities[r["facility"]] = dict(name=f.get("name", ""), district=f.get("district", ""))
-    return {"sources": {k: L.source(k) for k in sorted(keys)}, "facilities": dict(sorted(facilities.items()))}
+    return {"sources": {k: L.source(k) for k in sorted(keys)}, "facilities": dict(sorted(facilities.items())),
+            "bills": {k: L.bill_title(k) for k in sorted(bills)}}
 
 
 def names_views(data, themes_rows, theme, shisetsu_rows, area_rows=(), waku=None):
