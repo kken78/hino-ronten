@@ -278,6 +278,7 @@ class HokokuTest(unittest.TestCase):
 
     def test_honpen_and_kiroku(self):
         honpen, kiroku = br.build(hokoku_data(), P)
+        self.assertIn("質問・答弁を項目ごとに記録したのは、題材に選んだ一般質問", honpen)
         self.assertIn("と、議案質疑0件、委員長の報告1件です。", honpen)
         self.assertIn("- ［2024年12月2日］令和6年12月定例会の委員長の報告：発言：答弁。発言者：長寿福祉課専門員。議案：令和6年9月定例会議の議第64号。"
                       "種類：事実・数値。「答A。」（出典：" + U + "r1）", honpen)
@@ -293,10 +294,18 @@ class HokokuTest(unittest.TestCase):
         self.assertIn("## 認定こども園整備事業：記録：委員長の報告：2024年12月2日 令和6年12月定例会", kiroku)
         self.assertIn("「問A。」（出典：" + U + "r1）　事項：要介護認定", kiroku)
         self.assertNotIn("回：", kiroku[kiroku.index("審査報告（委員長の報告）"):kiroku.index("（記録編）：つながり")])
+        # 議案の欄に議案の題を添える（names.bills。§17.1。2026-11-15 の MCP の確かめ）。題が無ければ名前だけ
+        d = json.loads(hokoku_data())
+        d["names"]["bills"] = {"gi:0000008116/議第62号": "令和５年度日野町一般会計歳入歳出決算について"}
+        honpen2, kiroku2 = br.build(json.dumps(d, ensure_ascii=False).encode("utf-8"), P)
+        self.assertIn("議案：令和6年9月定例会議の議第62号 令和５年度日野町一般会計歳入歳出決算について。種類：", honpen2)
+        self.assertIn("議案：令和6年9月定例会議の議第62号 令和５年度日野町一般会計歳入歳出決算について。種類：", kiroku2)
+        self.assertIn("議案：令和6年9月定例会議の議第64号。種類：", honpen2)
         # 記録の無いテーマは、記録編に章を置かず、文もいまのとおり
         honpen0, kiroku0 = br.build(data(), P)
         self.assertNotIn("審査報告", kiroku0)
         self.assertIn("と、議案質疑0件です。", honpen0)
+        self.assertIn("関連する一般質問（日付順。系列の計画への言及を含む問い0問と、題材に選んだ問い16問を、重ねずに並べています）：", honpen0)
         self.assertNotIn("の委員長の報告：", honpen0)
 
 

@@ -293,6 +293,8 @@ class ScriptTest(unittest.TestCase):
         b = tb.hokoku_bill()
         d["bills"].append(b)
         d["records"]["hokoku"] = tb.hokoku_records()
+        d["names"]["sources"]["gi:0000008116/議第64号"] = "令和6年9月定例会議の議第64号"
+        d["names"]["bills"] = {"gi:0000008116/議第64号": "令和５年度日野町介護保険特別会計歳入歳出決算について"}
         d["records"]["yaritori"] = []     # 事項ごとの質問・答弁の最初の事項を「要介護認定」にする（開いて見る欄は最初の事項だけ）
         d["waku"] = [{"key": "waku:kessan-nintei", "name": "決算の認定までの流れ", "source": "地方自治法233条", "url": "", "note": "",
                       "layer": "確定",
@@ -326,6 +328,12 @@ class ScriptTest(unittest.TestCase):
         self.assertIn('<div class="who">委員</div>', q)
         self.assertIn('<div class="who">長寿福祉課専門員</div>', q)
         self.assertIn("議案質疑1件、委員長の報告1件です。", q)
+        # 議案の欄に議案の題（names.bills。§16.1。2026-11-15 の MCP の確かめ）
+        self.assertIn("令和6年12月定例会（委員長の報告）</a>　議案：令和6年9月定例会議の議第64号 令和５年度日野町介護保険特別会計歳入歳出決算について", q)
+        # 一般質問の数の言い分け（§16.1）
+        self.assertIn("質問・答弁を項目ごとに記録したのは、題材に選んだ一般質問", q)
+        self.assertIn("を、重ねずに並べています。</p>", q)
+        self.assertNotIn("関連する一般質問" + str(d["theme_questions"]) + "問", q)
 
 
 

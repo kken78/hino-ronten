@@ -58,6 +58,12 @@ def theme_words(path, theme):
         return [r["value"] for r in csv.DictReader(f, delimiter="\t") if r["theme"] == theme and r["kind"] == "語"]
 
 
+def theme_points(path, theme):
+    """ref/themes.tsv の、そのテーマの kind 事柄・記載の値（テーマの定義の順。topic が受ける事項の名前。LINK_SCHEMA §14）。"""
+    with open(path, encoding="utf-8", newline="") as f:
+        return [r["value"] for r in csv.DictReader(f, delimiter="\t") if r["theme"] == theme and r["kind"] in ("事柄", "記載")]
+
+
 QA_KIND = {"yaritori": "一般質問", "shitsugi": "議案質疑", "hokoku": "委員長の報告"}
 
 
@@ -69,10 +75,11 @@ def qa_title(name, q):
 
 
 class Server:
-    def __init__(self, data_bytes, view, words=(), speeches=None, log=None):
+    def __init__(self, data_bytes, view, words=(), speeches=None, log=None, points=()):
         self.d = json.loads(data_bytes.decode("utf-8"))
         self.r = br.Rag(self.d, data_bytes, view)
         self.log = log
+        self.points = list(points)     # テーマの定義の kind 事柄・記載の値（§14 の事項の名前）
         self.items = {}
         self.questions = {}
         self.speech_of = {}
@@ -180,6 +187,10 @@ class Server:
         others = sorted(p for p in r.kot_all if p not in r.view_points and p not in r.theme_points)
         if others:
             out.append("- ほかの見方の事項（topic で取れる）：" + "、".join(f"{p}（{len(r.kot_all[p])}件）" for p in others))
+        bare = self.bare_points()     # 事柄・記載の記録の無い事項（§14。2026-11-15 の MCP の確かめ）
+        if bare:
+            out.append("- 事柄・記載の記録の無い事項（topic で取れる）：" + "、".join(
+                f"{p}（質問・答弁 {n}件）" if n else f"{p}（記録なし）" for p, n in bare))
         fs = {}
         for x in d["records"].get("shisetsu") or []:
             fs[self.facility(x["facility"])] = fs.get(self.facility(x["facility"]), 0) + 1
@@ -192,8 +203,7 @@ class Server:
         for x in d.get("issues") or []:
             ts[x["type"]] = ts.get(x["type"], 0) + 1
         out += ["", "## 照合結果（未確認）（issues で取る）"] + [f"- {k}（{v}件）" for k, v in ts.items()]
-        out += ["", f"## 議会（council で取る）：一般質問 {len(d.get('exchanges') or [])}問（うち質問・答弁を項目ごとに記録したもの "
-                f"{len(d['records'].get('yaritori') or [])}問。ほかの問いの答弁は speeches で会議録の本文を読む）、"
+        out += ["", f"## 議会（council で取る）：{self.ippan_text()}、"
                 f"議案質疑 {len(d['records'].get('shitsugi') or [])}件、"
                 + (f"委員長の報告 {len(d['records']['hokoku'])}件、" if d["records"].get("hokoku") else "")
                 + f"関係議案 {len(d.get('bills') or [])}件"]
@@ -310,14 +320,65 @@ class Server:
         ks = self.by_key("kisai:", name) if name not in r.kot_all else []     # 事柄の記載の行は記載の推移に入れた
         if ks:
             out += [f"## 記載の見出し：{name}"] + [self.line(i) for i in ks]
+        if name in self.points and name not in r.kot_all:     # 事柄の記録の行が無い事項（§14。2026-11-15 の MCP の確かめ）
+            qa = self.by_key(("yaritori:", "shitsugi:", "hokoku:"), name)
+            if not ks:
+                out.append(f"## 事項：{name}")
+            if qa:
+                if not ks:
+                    out.append("事柄の記録と記載の行は無い。")
+                out.append("この事項についての質問・答弁（記録したもの）：")
+                out += [self.line(i) for i in qa]
+            elif not ks:
+                out.append("記録が無い（事柄の記録・構造にしていない記載・やりとりの記録・質疑の記録・審査報告の記録に、この事項の行が無い）。")
+                place = self.chizu_place(name)
+                if place:
+                    out.append(f"論点の地図での置き場所：{place}")
         if not out:
             raise McpError(f"「{name}」という事項・施設・記載の見出しは無い。overview の一覧の名前を使うか、search で探す")
         return "\n".join(out)
 
+    def bare_points(self):
+        """事柄の記録の行も記載の行も無い事項と、その質問・答弁の行の数（テーマの定義の順。§14）。"""
+        kis = {x.get("about") for x in self.d["records"].get("kisai") or []}
+        out = []
+        for p in self.points:
+            if p in self.r.kot_all or p in kis:
+                continue
+            out.append((p, len(self.by_key(("yaritori:", "shitsugi:", "hokoku:"), p))))
+        return out
+
+    def chizu_place(self, name):
+        """論点の地図での置き場所（§14）：その事項を points に持つ体系の要素の名前を、いちばん上の要素から「：」でつなぐ。
+        体系のどの要素にも無ければ「体系の外」。テーマに kind 体系が無ければ空。"""
+        c = self.d.get("chizu") or {}
+        if not c:
+            return ""
+        els = {e["n"]: e for e in c.get("elements") or []}
+        pt = next((p for p in c.get("points") or [] if p["name"] == name), {})
+        mark = "".join(f"（枠組み：{w['name']} 要素{w['n']}）" for w in pt.get("waku") or []) + ("（対応は案）" if pt.get("an") else "")
+        paths = []
+        for e in c.get("elements") or []:
+            if name not in (e.get("points") or []):
+                continue
+            chain, x = [], e
+            while x is not None:
+                chain.append(x["name"])
+                x = els.get(x.get("oya"))
+            paths.append("：".join([c["taikei"]["name"]] + chain[::-1]))
+        return ("、".join(paths) if paths else "体系の外") + mark
+
+    def ippan_text(self, speeches=True):
+        """一般質問の数の言い分け（§14。2026-11-15 の MCP の確かめ）。"""
+        d = self.d
+        return (f"関連する一般質問 {len(d.get('exchanges') or [])}問（系列の計画への言及を含む問い {br.n_mention(d)}問と、"
+                f"題材に選んだ問い {d.get('theme_questions')}問を、重ねずに数えた数。うち質問・答弁を項目ごとに記録した問い "
+                f"{len(d['records'].get('yaritori') or [])}問" + ("。ほかの問いの答弁は speeches で会議録の本文を読む）" if speeches else "）"))
+
     def t_council(self, a):
         f, t = a.get("from_date") or "", a.get("to_date") or "9999"
         rows = sorted((it["date"], i) for i, it in self.items.items() if i.startswith(("exchange:", "bill:")) and f <= it["date"] <= t)
-        out = ["一般質問と関係議案（日付順）。一般質問の会議録の本文は speeches で、項目ごとに記録した質問は fetch で取る。"]
+        out = [f"一般質問と関係議案（日付順）。{self.ippan_text(False)}。一般質問の会議録の本文は speeches で、項目ごとに記録した質問は fetch で取る。"]
         out += [self.line(i) for _, i in rows]
         out.append("項目ごとに記録した質問・質疑：")
         for k, (name, q) in self.questions.items():
@@ -369,7 +430,7 @@ class Server:
          "yaritori:<問いのキー> で、記録した一般質問の全行を、hokoku:<報告のキー> で、記録した委員長の報告の全行を、suji:<資料の id>/<番号> で、資料の項目の段落（全部の文と事項）とその置き場所を取る。",
          {"ids": {"type": "array", "items": {"type": "string"}}}, "t_fetch"),
         ("topic", "事項（事柄）・施設・記載の見出しの名前を指定して、その記載を資料の日付順に取る。事柄は、いまの町の説明の原文と、"
-         "当局の新しい答弁の原文を先に返す。名前は overview の一覧のとおり。", {"name": {"type": "string"}}, "t_topic"),
+         "当局の新しい答弁の原文を先に返す。名前は overview の一覧（論点の地図の事項を含む）のとおり。", {"name": {"type": "string"}}, "t_topic"),
         ("council", "関連する一般質問と関係議案の一覧（日付・質問者・議決結果）。from_date・to_date（YYYY-MM-DD）で絞れる。",
          {"from_date": {"type": "string"}, "to_date": {"type": "string"}}, "t_council"),
         ("speeches", "一般質問1問の会議録の本文（質問と答弁の全文）を取る。exchange に council が返す exchange:<番号> を渡す。"
@@ -454,7 +515,8 @@ def main(argv):
     try:
         with open(os.path.join(THEME_DIR, f"{theme}.json"), "rb") as f:
             raw = f.read()
-        server = Server(raw, view, theme_words(THEMES_TSV, theme), load_speeches(json.loads(raw)), log)
+        server = Server(raw, view, theme_words(THEMES_TSV, theme), load_speeches(json.loads(raw)), log,
+                        theme_points(THEMES_TSV, theme))
     except (OSError, br.RagError, ValueError) as e:
         print(f"止めた：{e}", file=sys.stderr)
         return 1
