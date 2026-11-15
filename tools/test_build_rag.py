@@ -266,6 +266,12 @@ class HokokuTest(unittest.TestCase):
             "問い　委員：「問C。」（事項：介護人材の確保）",
             "答え：【未確認】「答C。」（事項：介護人材の確保）",
             br.NO_IINKAI])
+        # 箇条は段落の番号 p でまとめる（2026-11-15 の7つめ）：同じ見出しが続いても p が違えば分け、事項は書き直す
+        b = hokoku_bill()
+        b["kessan"]["steps"][1]["rows"][1]["p"] = 9
+        lines = br.Rag.bill_lines(1, b)
+        i = lines.index("委員長の報告の記載：" + br.RP_LEAD)
+        self.assertEqual(lines[i + 1:i + 3], ["問い　委員：「問A。」（事項：要介護認定）", "問い　委員：「問B。」（事項：要介護認定）"])
         # 行が無ければ、いまのとおり（頭の文も出さない）
         self.assertEqual(br.Rag.bill_lines(1, kessan_bill())[-2:],
                          ["［2024年12月2日］委員長の報告：決算特別委員会（7議案について）（出典：u2）", br.NO_IINKAI])

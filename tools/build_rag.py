@@ -209,14 +209,14 @@ def rp_who(speaker):
 
 
 def rp_lines(st):
-    """委員長の報告の記録の行（steps の rows。LINK_SCHEMA §17.1、2026-11-15 の5つめ）：頭の文を1つと、side と speaker が同じ行の
+    """委員長の報告の記録の行（steps の rows。LINK_SCHEMA §17.1、2026-11-15 の5つめ・7つめ）：頭の文を1つと、段落の番号 p が同じ行の
     続く間ごとに「<見出し>：「<文>」…（事項：<事項の名前>）」。見出しは「問い　委員」「答え　<話した人>」（字が無ければ「答え」）。"""
     rows = st.get("rows") or []
     if not rows:
         return []
     groups = []
     for r in rows:
-        if groups and (groups[-1][-1]["side"], groups[-1][-1].get("speaker")) == (r["side"], r.get("speaker")):
+        if groups and groups[-1][-1].get("p") == r.get("p"):     # 画面と同じ段落の番号（§13.4・§17.1。2026-11-15 の7つめ）
             groups[-1].append(r)
         else:
             groups.append([r])

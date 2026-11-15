@@ -181,6 +181,17 @@ class ToolTest(unittest.TestCase):
         self.assertIn("この事項についての質問・答弁（記録したもの）：", text)
         self.assertIn("[hokoku:rp:r1/3]", text)
         self.assertNotIn("当局の答弁のうち新しいもの", text)
+        # 要素4 の委員長の報告の箇条は段落の番号 p ごと（資料と同じ文。2026-11-15 の7つめ）
+        d = json.loads(tb.frame_data())
+        b = tb.hokoku_bill()
+        b["kessan"]["steps"][1]["rows"][1]["p"] = 9
+        d["bills"].append(b)
+        d["waku"].append({"key": "waku:kessan-nintei", "name": "決算の認定までの流れ", "source": "地方自治法233条", "url": "", "note": "",
+                          "layer": "確定", "elements": [{"view": f"waku:kessan-nintei/{n}", "n": n, "name": nm, "note": "", "source": "",
+                                                         "shiryo": [], "points": [], "rec": {}, "gikai": 0} for n, nm in ((3, "提出"), (4, "審議"))],
+                          "nendo": [{"fiscal_year": "2023", "elements": [{"n": n, "docs": [], "gian": [b["key"]]} for n in (3, 4)]}]})
+        text, _ = call(mr.Server(json.dumps(d, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES, None), "overview")
+        self.assertIn("問い　委員：「問A。」（事項：要介護認定） 問い　委員：「問B。」（事項：要介護認定）", text)
         # 記録の無いテーマの overview は、いまのとおり
         text, _ = call(mr.Server(tb.data(), P, WORDS, SPEECHES, None), "overview")
         self.assertNotIn("委員長の報告", text)
