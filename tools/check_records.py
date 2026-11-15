@@ -1,5 +1,6 @@
 """記録の台帳（records/）・テーマの定義（ref/themes.tsv）・施設の参照表（ref/shisetsu.tsv）・
-地区と組織の参照表（ref/chiku.tsv・ref/soshiki.tsv）を確かめる
+地区と組織の参照表（ref/chiku.tsv・ref/soshiki.tsv）を確かめる。審査報告の記録（records/hokoku.tsv。§15.10）も、
+ファイルが無ければ0行として扱う。
 （LINK_SCHEMA.md §11 の「テーマの定義」「施設の参照表」「地区・組織の参照表」「記録の台帳」「発言の取りこぼし」「引用の前後」
 「届き先」、DESIGN.md ADR-24・ADR-31・ADR-32）。地区と組織の参照表は、ファイルが無ければ0行として扱う。
 
@@ -100,13 +101,15 @@ def read_inputs(gi):
     statements = {e["sid"]: {"text": e.get("text") or "", "role": e.get("role"), "meetingId": e.get("meetingId")}
                   for e in index}
     proceedings = gi.read_json(gm.HS, "public/data/proceedings.json")
-    segments, proposals = {}, []
+    segments, proposals, reports = {}, [], {}
     for mid, m in proceedings.items():
         for sg in m.get("segments") or []:
             if sg.get("kind") in ("ippan", "shitsugi"):
                 segments[sg["from"]] = dict(sg, meetingId=mid)
             elif sg.get("kind") == "proposal":   # 提案理由の記録の (a)（§11。DESIGN.md ADR-35）
                 proposals.append((sg["from"], sg["to"], mid, list(sg.get("bills") or [])))
+            elif sg.get("kind") == "report":     # 委員長の報告の区切り（§2 の rp。審査報告の記録 §15.10）
+                reports[sg["from"]] = dict(sg, meetingId=mid)
     gian = {mid: {a["no"] for a in m.get("agenda") or []}
             for mid, m in gi.read_json(gm.HS, "public/data/gian.json").items()}
     questions = gi.read_json(gm.CD, "docs/data/questions.json")["questions"]
@@ -151,7 +154,8 @@ def read_inputs(gi):
         doc_text=lambda did, layer: text_of(gm.TD, f"data/{layer}/{did}.txt", doc_files),
         pt_text=lambda pid, name, layer: text_of(gm.SP, f"data/{layer}/{pid}/{name}.txt", pt_files),
         plans=plan_ids, nodes=nodes, series=series, plans_in_lineage=plans_in_lineage,
-        fuhyo_keys=fuhyo_keys, struct=hosei.read_struct(gi), proposals=proposals, **confirmed_links())
+        fuhyo_keys=fuhyo_keys, struct=hosei.read_struct(gi), proposals=proposals, reports=reports,
+        **confirmed_links())
 
 
 def confirmed_links(links_dir=LINKS_DIR):

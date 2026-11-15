@@ -42,7 +42,9 @@ ASPECT = {"種類": "種別", "状態": "状況"}
 CATEGORY = {"koho": "広報ひの", "shingi": "懇話会・審議会", "jigyo": "事業資料", "yosan": "予算", "kessan": "決算",
             "kofukin": "交付金", "bosai": "防災"}
 LEDGER_NAMES = [("kotogara", "事柄"), ("shisetsu", "施設"), ("yaritori", "やりとり（一般質問）"), ("shitsugi", "質疑（議案）"),
+                ("hokoku", "審査報告（委員長の報告）"),     # テーマに記録があるときだけ章を置く（LINK_SCHEMA §17.3）
                 ("tsunagari", "つながり"), ("katei", "過程"), ("kisai", "構造にしていない記載")]
+QA_LEDGERS = ("yaritori", "shitsugi", "hokoku")     # 問いの単位にまとめた記録（審査報告の記録は報告の単位。§13.4）
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 UNASKED = "問われていない点"
 KISAI_NONE = "（記載の名前なし）"
@@ -156,9 +158,10 @@ def section_lead(sh_row, shurui, flows):
     la = law_article((sh_row or {}).get("konkyo"))
     return (f"{la}による{shurui}です。" if la else "") + (f"{'・'.join(w['name'] for w in flows)}とは別のものです。" if flows else "")
 NO_IINKAI = "委員会の会議録はありません。"
+RP_LEAD = "委員長の報告（委員会の審査の要約）からの記録です。"    # LINK_SCHEMA §16.4（2026-11-15 の5つめ）
 WAKU_NOTE = ("要素の名前は出典の語のままです。要素間の関係は、出典の図をご覧ください。"
              "「資料別の記載年」は資料の日付の年で、未確認の記録を含みます。"
-             "「議会での質問・答弁の記録数」は、その事項について記録した一般質問・議案質疑の、確定した行の数です。")
+             "「議会での質問・答弁の記録数」は、その事項について記録した一般質問・議案質疑・委員長の報告の、確定した行の数です。")
 
 
 def para_text(rows):
@@ -196,15 +199,43 @@ def qa_lines(st, giin):
             groups[-1].append(r)
         else:
             groups.append([r])
-    out = []
+    return [f"{qa_head(st, g[0], giin)}：{quote_run(g)}" for g in groups]
+
+
+def rp_who(speaker):
+    """審査報告の記録の答えの話した人：報告の字から終わりの「より」を除いた字。字が無ければ空（LINK_SCHEMA §16.1）。"""
+    s = speaker or ""
+    return s[:-2] if s.endswith("より") else s
+
+
+def rp_lines(st):
+    """委員長の報告の記録の行（steps の rows。LINK_SCHEMA §17.1、2026-11-15 の5つめ・7つめ）：頭の文を1つと、段落の番号 p が同じ行の
+    続く間ごとに「<見出し>：「<文>」…（事項：<事項の名前>）」。見出しは「問い　委員」「答え　<話した人>」（字が無ければ「答え」）。"""
+    rows = st.get("rows") or []
+    if not rows:
+        return []
+    groups = []
+    for r in rows:
+        if groups and groups[-1][-1].get("p") == r.get("p"):     # 画面と同じ段落の番号（§13.4・§17.1。2026-11-15 の7つめ）
+            groups[-1].append(r)
+        else:
+            groups.append([r])
+    out = [f"委員長の報告の記載：{RP_LEAD}"]
     for g in groups:
-        parts = []
-        for i, r in enumerate(g):
-            nx = g[i + 1] if i + 1 < len(g) else None
-            parts.append(f"{'【未確認】' if r.get('layer') != CONFIRMED else ''}「{r['quote']}」"
-                         + (f"（事項：{r['point']}）" if r.get("point") and (nx is None or nx.get("point") != r["point"]) else ""))
-        out.append(f"{qa_head(st, g[0], giin)}：{''.join(parts)}")
+        who = rp_who(g[0].get("speaker"))
+        head = "問い　委員" if g[0]["side"] == "問い" else "答え" + (f"　{who}" if who else "")
+        out.append(f"{head}：{quote_run(g)}")
     return out
+
+
+def quote_run(g):
+    """引用を row の順に続け、事項は、同じ事項が続く間は書かず、事項が変わる所の前と終わりに書く（LINK_SCHEMA §17.1）。"""
+    parts = []
+    for i, r in enumerate(g):
+        nx = g[i + 1] if i + 1 < len(g) else None
+        parts.append(f"{'【未確認】' if r.get('layer') != CONFIRMED else ''}「{r['quote']}」"
+                     + (f"（事項：{r['point']}）" if r.get("point") and (nx is None or nx.get("point") != r["point"]) else ""))
+    return "".join(parts)
 
 
 class Rag:
@@ -418,7 +449,7 @@ class Rag:
         n, x = hit
         if n.endswith("/row"):
             return x[0].get("date") or ""
-        if n in ("yaritori", "shitsugi"):
+        if n in QA_LEDGERS:
             return x.get("date") or ""
         return x.get("source_date") or ""
 
@@ -440,7 +471,7 @@ class Rag:
         ds = []
         for n, rows in self.R.items():
             for x in rows:
-                if n in ("yaritori", "shitsugi"):
+                if n in QA_LEDGERS:
                     ds.append(x.get("date") or "")
                 else:
                     ds += [x.get("source_date") or "", x.get("from") or "", x.get("to") or ""]
@@ -656,6 +687,7 @@ class Rag:
                     out += qa_lines(x, giin)
                 elif x["kind"] == "委員長の報告":
                     out.append(f"［{jd(x['date'])}］委員長の報告：{x.get('committee')}（{x['nbills']}議案について）（出典：{x.get('url')}）")
+                    out += rp_lines(x)
                 else:
                     out.append(f"［{jd(x['date'])}］討論：{giin(x['member'])}" + (f"。賛否：{x['stance']}" if x.get("stance") else "")
                                + f"（出典：{x.get('url')}）")
@@ -746,18 +778,21 @@ class Rag:
         doc.h(1, f"{self.pname}（本編）：3 論点整理")
         doc.h(2, f"{self.pname}：事項ごとの質問・答弁")
         qa = {}
-        for n in ("yaritori", "shitsugi"):
+        for n in QA_LEDGERS:
             for q in self.R.get(n) or []:
                 for r in q["rows"]:
                     if r.get("point"):
                         qa.setdefault(r["point"], []).append((n, q, r))
         rq = len(self.R.get("yaritori") or [])
-        doc.p(f"質問・答弁を項目ごとに記録したのは、関連する一般質問{d.get('theme_questions')}問のうち{rq}問と、議案質疑{len(self.R.get('shitsugi') or [])}件です。")
+        nh = len(self.R.get("hokoku") or [])
+        doc.p(f"質問・答弁を項目ごとに記録したのは、関連する一般質問{d.get('theme_questions')}問のうち{rq}問と、議案質疑{len(self.R.get('shitsugi') or [])}件"
+              f"{f'、委員長の報告{nh}件' if nh else ''}です。")
         for p in sorted(qa, key=lambda p: (-len(qa[p]), p)):
             doc.h(3, f"{self.pname}：事項ごとの質問・答弁：{p}")
-            rows = [(q["date"], self.qa_entry(n, q, r)) for n, q, r in qa[p]]
-            rows += self.point_rows(p, docs_only=True)
-            for _, t in sorted(rows, key=lambda e: (e[0], e[1])):
+            # 審査報告の記録の行は、同じ日付の中で報告と row の順（委員長の要約の問いと答えの順を保つ。§17.1）。ほかはいまのとおり
+            rows = [(q["date"], (f"1{q['question']}", int(r["row"])) if n == "hokoku" else ("", 0), self.qa_entry(n, q, r)) for n, q, r in qa[p]]
+            rows += [(dt, ("", 0), t) for dt, t in self.point_rows(p, docs_only=True)]
+            for _, _, t in sorted(rows, key=lambda e: (e[0], e[1][0], e[1][1] if e[1][0] else 0, e[2] if not e[1][0] else "")):
                 doc.li(t)
             doc.end_list()
 
@@ -844,7 +879,7 @@ class Rag:
             self._refs = {}
             for n, rows in self.R.items():
                 for x in rows:
-                    if n in ("yaritori", "shitsugi"):
+                    if n in QA_LEDGERS:
                         self._refs[f"records/{n}/{x['question']}"] = (n, x)
                         for row in x["rows"]:
                             self._refs[f"records/{n}/{x['question']}/{row['row']}"] = (n + "/row", (x, row))
@@ -884,6 +919,8 @@ class Rag:
         if n.endswith("/row"):
             q, row = x
             return self.qa_entry(n.split("/")[0], q, row)
+        if n == "hokoku":
+            return f"［{jd(x['date'])}］{x.get('meeting')}の委員長の報告（出典：{r.get('url')}）"
         if n in ("yaritori", "shitsugi"):
             kind = "一般質問" if n == "yaritori" else "議案質疑"
             return f"［{jd(x['date'])}］{x.get('meeting')}の{kind}　質問者：{x['member'].get('name')} 議員（出典：{r.get('url')}）"
@@ -906,6 +943,11 @@ class Rag:
 
     def qa_entry(self, n, q, r):
         side = "質問" if r["side"] == "問い" else "答弁"
+        if n == "hokoku":     # 審査報告の記録の行（LINK_SCHEMA §17.1。2026-11-15 の5つめ）。回と区分は書かない
+            return self.entry(q["date"], f"{q.get('meeting')}の委員長の報告", r["quote"], r.get("url"),
+                              [("発言", side), ("発言者", "委員" if r["side"] == "問い" else rp_who(r.get("speaker"))),
+                               ("議案", self.name(r["bill"]) if r.get("bill") else ""), ("種類", KIND.get(r.get("kind"), r.get("kind")))],
+                              r.get("layer"))
         who = f"{q['member'].get('name')} 議員" if r["side"] == "問い" else r.get("speaker")
         src = f"{q.get('meeting')}の{'一般質問' if n == 'yaritori' else '議案質疑'}"
         return self.entry(q["date"], src, r["quote"], r.get("url"),
@@ -939,6 +981,8 @@ class Rag:
         self.guide(doc, "記録編")
         R = self.R
         for name, label in LEDGER_NAMES:
+            if name == "hokoku" and not R.get("hokoku"):     # 記録があるテーマだけ（LINK_SCHEMA §17.3）
+                continue
             doc.h(1, f"{self.pname}（記録編）：{label}")
             if name == "kotogara":
                 for p in sorted(self.kot_all):
@@ -960,6 +1004,12 @@ class Rag:
                 for q in R.get(name) or []:
                     kind = "一般質問" if name == "yaritori" else "議案質疑"
                     doc.h(2, f"{self.pname}：記録：{kind}：{jd(q['date'])} {q.get('meeting')}　質問者：{q['member'].get('name')} 議員")
+                    for r in sorted(q["rows"], key=lambda r: int(r["row"])):
+                        doc.li(self.qa_entry(name, q, r) + (f"　事項：{r['point']}" if r.get("point") else ""))
+                    doc.end_list()
+            elif name == "hokoku":
+                for q in R.get("hokoku") or []:
+                    doc.h(2, f"{self.pname}：記録：委員長の報告：{jd(q['date'])} {q.get('meeting')}")
                     for r in sorted(q["rows"], key=lambda r: int(r["row"])):
                         doc.li(self.qa_entry(name, q, r) + (f"　事項：{r['point']}" if r.get("point") else ""))
                     doc.end_list()

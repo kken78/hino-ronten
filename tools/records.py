@@ -6,6 +6,8 @@
 確かめる。hs・hj・hk・hz は hino-town-docs の構造化の層（tools/hosei.py の Struct）で照らす（DESIGN.md ADR-34）。
 提案理由の記録（records/teian.tsv。§15.11、ADR-35）は、財源の面だけの記録で、§11 の「提案理由の記録」で確かめ、
 提案の区切りに入らない sid を一覧に出す。
+審査報告の記録（records/hokoku.tsv。§15.10、ADR-34 の7）は、委員長の報告（審議の記録の kind が report の区切り）を
+質疑の記録と同じ型で行に切ったもので、§11 の記録の台帳の検査で確かめる。テーマのノートのデータには §13 の形で入れる（2026-11-15 の5つめ）。
 枠の参照表（ref/waku.tsv。§12.3）と資料の種類の参照表（ref/shiryo.tsv。§12.4）を確かめ、kotogara・kisai の列 suji（筋の番号）を
 資料の種類の参照表に当たる資料（監査委員の資料）について確かめる（DESIGN.md ADR-37）。check.md の「形の点検」の数も作る（§11）。
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
@@ -40,6 +42,8 @@ COLUMNS = {
     "shisetsu": ["facility", "aspect", "value", "source", "source_date", "quote", "target", "kind", "prev"] + COMMON,
     "nozoki": ["question", "n", "sid", "quote", "reason"] + COMMON,
     "teian": ["maru", "bill", "sid", "quote"] + COMMON,
+    "hokoku": ["question", "row", "bill", "side", "sid", "quote", "speaker", "kind", "answers", "target", "target_text",
+               "point", "origin"] + COMMON,                         # §15.10（ADR-34 の7）
 }
 # 行のキー（§15 の各台帳）。row と step は数の順、ほかは文字コード順（§1）
 KEYS = {
@@ -52,15 +56,18 @@ KEYS = {
     "shisetsu": ("facility", "aspect", "source", "quote"),
     "nozoki": ("question", "n", "sid", "quote"),
     "teian": ("maru", "sid", "quote"),
+    "hokoku": ("question", "row"),
 }
 NUMERIC = ("row", "step")
 LEDGERS = tuple(COLUMNS)          # nozoki は無ければ0行（DESIGN.md ADR-24）
-OPTIONAL = ("nozoki", "teian")   # 無ければ0行（teian は DESIGN.md ADR-35 で足した）
-NOT_IN_THEME = ("teian",)         # テーマのノートのデータの ledgers に入れない台帳（渡す形は次の段で決める。ADR-35）
+OPTIONAL = ("nozoki", "teian", "hokoku")   # 無ければ0行（teian は DESIGN.md ADR-35、hokoku は §15.10 で足した）
+# テーマのノートのデータの ledgers に入れない台帳（teian は渡す形を次の段で決める。ADR-35。
+# hokoku は 2026-11-15 の5つめに §13 の形で入れた）
+NOT_IN_THEME = ("teian",)
 
 THEME_COLUMNS = ["theme", "kind", "value", "source", "views", "reviewer", "date", "note"]
-THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "事柄", "記載", "施設",
-               "地区", "組織", "枠")   # 枠は DESIGN.md ADR-37（報告 §15.10 はまだ置いていない）
+THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "報告", "事柄", "記載",
+               "施設", "地区", "組織", "枠")   # 枠は DESIGN.md ADR-37、報告は §15.10（ADR-34 の7）
 VIEW_KINDS = ("事柄", "記載", "施設", "施策", "地区", "組織")   # views を持てる kind（§12）
 POINT_KINDS = ("事柄", "記載")                  # 届き先の信号で見る点の kind（§11 届き先）
 SHISETSU_COLUMNS = ["key", "name", "aliases", "district", "source", "reviewer", "date", "note"]
@@ -90,6 +97,7 @@ SID = r"[0-9]{10}_[^\s/,:]+_[0-9]{4}"
 RE_SP = re.compile(r"sp:" + SID)
 RE_IQ = re.compile(r"iq:" + SID)
 RE_SQ = re.compile(r"sq:" + SID)
+RE_RP = re.compile(r"rp:" + SID)   # 委員会の審査報告（§2。ADR-34 の7）
 RE_BQ = re.compile(r"bq:[0-9]+/[^/\s]+/[0-9]+")
 RE_DOC_PAGE = re.compile(r"doc:([a-z0-9][a-z0-9-]*)/([1-9][0-9]*)")
 RE_DOC = re.compile(r"doc:([a-z0-9][a-z0-9-]*)")
@@ -142,7 +150,9 @@ KATACHI_COLUMNS = ["kind", "ledger", "key", "detail"]          # §11 形の点�
 SUJI_LEDGERS = ("kotogara", "kisai")                            # 列 suji を持つ台帳（§15.3・§15.6）
 
 # 対象の形（§11・§15.2）：target のキーの種類と、target_text の種類
-TARGET_LEDGERS = ("yaritori", "shitsugi")   # target を持つ台帳（審査報告の記録 §15.10 はまだ置いていない）
+TARGET_LEDGERS = ("yaritori", "shitsugi", "hokoku")   # target を持つ台帳（§15.2・§15.7・§15.10）
+Q_SPEAKER_HOKOKU = "委員"            # 審査報告の記録の問いの行の speaker（§15.10）
+NO_SPEAKER_NOTE = "報告に答えた人の字が無い"   # speaker が空の答えの行の note（§15.10。2026-11-15）
 TARGET_KINDS = ("fh", "hs", "hj", "hk", "hz")
 RE_FH = re.compile(r"fh:[a-z0-9][a-z0-9-]*/b[0-9]{3,}")
 TEXT_KINDS = ("名", "款", "頁", "額", "源")
@@ -174,6 +184,7 @@ class Inputs:
     gian_hs: dict = field(default_factory=dict)    # 議案と回の台帳の confirmed の行：gi → hs の集まり
     hj_fh: dict = field(default_factory=dict)      # ○の行と附表の台帳の confirmed の行：hj → fh の集まり
     proposals: list = field(default_factory=list)  # 提案の区切り（kind が proposal）：(from, to, 会議 id, bills) の並び
+    reports: dict = field(default_factory=dict)    # 委員長の報告の区切り（kind が report）：from の sid → 区切り（§2 の rp）
 
     def __post_init__(self):
         self.pos = {s: i for i, s in enumerate(self.order)}
@@ -186,13 +197,15 @@ class Inputs:
                     self.qturns[self.order[k]] = f
 
     def segment_of(self, key):
-        """iq（q の最初の発言）か sq（まとまりの from）→ 場面。無ければ None。"""
+        """iq（q の最初の発言）か sq（まとまりの from）か rp（報告の区切りの from）→ 場面。無ければ None。"""
         if RE_IQ.fullmatch(key or ""):
             f = self.qturns.get(key[3:])
             return self.segments.get(f) if f else None
         if RE_SQ.fullmatch(key or ""):
             sg = self.segments.get(key[3:])
             return sg if sg and sg["kind"] == "shitsugi" else None
+        if RE_RP.fullmatch(key or ""):
+            return self.reports.get(key[3:])
         return None
 
 
@@ -495,6 +508,8 @@ def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_
             ok = bool(seg)
             if ok and not member_in(seg["member"], r["source"]):
                 rep.err(w, f"source の議員の名前が審議の記録の member（{seg['member']}）と合わない")
+        elif k == "報告":
+            ok = bool(RE_RP.fullmatch(v)) and v[3:] in inp.reports
         elif k == "資料":
             m = RE_DOC.fullmatch(v)
             ok = bool(m) and m.group(1) in inp.docs
@@ -846,6 +861,69 @@ def check_exchange(name, rows, inp, theme, rep):
     return by_q
 
 
+def check_hokoku(rows, inp, theme, rep):
+    """審査報告の記録（§15.10・§11）。question は報告の区切り（rp）で、どれかのテーマの kind 報告の値。
+    sid はその報告の区切りの発言、bill は gian.json の議案、answers は同じ報告の問いの行。
+    speaker が空の答えの行は note に「報告に答えた人の字が無い」がある。問いの行と報告ごとの行の集まりを返す。"""
+    name = "hokoku"
+    by_q = {}
+    for r in rows:
+        by_q.setdefault(r["question"], []).append(r)
+    for q, rs in by_q.items():
+        seg = inp.segment_of(q) if RE_RP.fullmatch(q) else None
+        if not seg:
+            rep.err(f"{name} {q}", "question が §2 の rp の形でないか、審議の記録の報告の区切り（kind が report）に無い")
+        themes = theme.themes_of("報告", q)
+        if not themes:
+            rep.err(f"{name} {q}", "question がテーマの定義の kind 報告に無い")
+        points = set()
+        for t in themes:
+            points |= theme.values(t, "事柄", "記載")
+        sids = set(segment_sids(inp, seg)) if seg else set()
+        q_rows = {r["row"] for r in rs if r["side"] == "問い"}
+        for r in rs:
+            w = label(name, r)
+            check_common(name, r, rep)
+            if not RE_INT.fullmatch(r["row"]):
+                rep.err(w, "row が1からの整数でない")
+            m = RE_GI.fullmatch(r["bill"])
+            if not m or m.group(2) not in inp.gian.get(m.group(1), set()):
+                rep.err(w, f"bill が §2 の gi の形でないか、gian.json に無い（{r['bill']}）")
+            if r["origin"]:
+                rep.err(w, "origin が空でない（委員会の会議録が入るまで空。§15.10）")
+            if r["side"] not in SIDES:
+                rep.err(w, f"side が {SIDES} のどれでもない")
+                continue
+            if seg:
+                if not RE_SP.fullmatch(r["sid"]) or r["sid"][3:] not in sids:
+                    rep.err(w, f"sid が、この報告の区切りの発言でない（{r['sid']}）")
+                else:
+                    check_quote(inp, name, r, r["sid"], rep)
+            if r["side"] == "問い":
+                if r["speaker"] != Q_SPEAKER_HOKOKU:
+                    rep.err(w, f"問いの行の speaker が「{Q_SPEAKER_HOKOKU}」でない")
+                if r["kind"] not in Q_KINDS:
+                    rep.err(w, f"問いの行の kind が §15.2 の値でない（{r['kind']}）")
+                if r["answers"]:
+                    rep.err(w, "問いの行に answers がある")
+            else:
+                if r["speaker"] == Q_SPEAKER_HOKOKU:
+                    rep.err(w, f"答えの行の speaker が「{Q_SPEAKER_HOKOKU}」")
+                if not r["speaker"] and NO_SPEAKER_NOTE not in r["note"]:
+                    rep.err(w, f"speaker が空の答えの行の note に「{NO_SPEAKER_NOTE}」が無い（§15.10）")
+                if r["kind"] not in A_KINDS:
+                    rep.err(w, f"答えの行の kind が §15.2 の値でない（{r['kind']}）")
+                ans = r["answers"].split(",") if r["answers"] else []
+                if not ans:
+                    rep.err(w, "答えの行に answers が無い")
+                for a in ans:
+                    if a not in q_rows:
+                        rep.err(w, f"answers の {a} が、同じ報告の問いの行でない")
+            if r["point"] and r["point"] not in points:
+                rep.err(w, f"point がテーマの kind 事柄か記載の値でない（{r['point']!r}）")
+    return by_q
+
+
 def check_kotogara(rows, inp, theme, yaritori_keys, rep, shiryo=None):
     """事柄の記録（§15.3）。point は、どれかのテーマの kind 事柄の値（テーマは問わない。ADR-31 の2）。"""
     name = "kotogara"
@@ -978,14 +1056,18 @@ def check_shisetsu(rows, inp, theme, shisetsu_keys, rep):
 
 
 def check_nozoki(rows, inp, exchanges, rep):
-    """記録しない文（§15.9）。question・n が、やりとりの記録か質疑の記録にある問いで、sid がその場面の発言で、quote がその発言にある。"""
+    """記録しない文（§15.9）。question・n が、やりとりの記録か質疑の記録にある問い（question が rp のときは、
+    審査報告の記録にある報告で、n は空）で、sid がその場面の発言で、quote がその発言にある。"""
     name = "nozoki"
-    known = {(q, x["n"]) for q, rs in exchanges.items() for x in rs}
+    known = {(q, x.get("n", "")) for q, rs in exchanges.items() for x in rs}
     for r in rows:
         w = label(name, r)
         check_common(name, r, rep)
+        if RE_RP.fullmatch(r["question"]) and r["n"]:
+            rep.err(w, "question が rp の行の n が空でない（§15.9）")
+            continue
         if (r["question"], r["n"]) not in known:
-            rep.err(w, "question と n が、やりとりの記録か質疑の記録に無い")
+            rep.err(w, "question と n が、やりとりの記録か質疑の記録に無い（question が rp のときは、審査報告の記録に無い）")
             continue
         seg = inp.segment_of(r["question"])
         if not RE_SP.fullmatch(r["sid"]) or r["sid"][3:] not in set(segment_sids(inp, seg)):
@@ -1047,14 +1129,22 @@ def torikoboshi(inp, exchanges, nozoki, theme, rep):
                 continue
             by_n = {}
             for r in rs:
-                by_n.setdefault(r["n"], []).append(r)
+                by_n.setdefault(r.get("n", ""), []).append(r)
             tsids = turn_sids(inp, seg)
             order = [s for s, _ in tsids]
             words = None
-            if name == "shitsugi":
+            if name in ("shitsugi", "hokoku"):
                 words = set()
-                for t in theme.themes_of("質疑", q):
+                for t in theme.themes_of("質疑" if name == "shitsugi" else "報告", q):
                     words |= theme.values(t, "語")
+            if name == "hokoku":
+                # 報告は区切りの全部の発言を見て、テーマの語を含む文だけを残す（§11。n は無い。§15.9）
+                for sid in segment_sids(inp, seg):
+                    quotes = [r["quote"] for r in rs if r["sid"][3:] == sid]
+                    for s in uncovered(inp, sid, quotes, noz.get((q, "", sid), []), words):
+                        rep.torikoboshi.append({"ledger": name, "question": q, "n": "", "sid": "sp:" + sid,
+                                                "quote": s})
+                continue
             for n, nrs in sorted(by_n.items(), key=lambda x: int(x[0]) if RE_INT.fullmatch(x[0]) else 0):
                 if name == "yaritori":
                     idx = [order.index(r["sid"][3:]) for r in nrs if r["sid"][3:] in order]
@@ -1167,6 +1257,7 @@ def zero_values(ledgers):
     for n in ("yaritori", "shitsugi"):
         checks += [(n, "side", None, SIDES), (n, "stage", "問い", STAGES), (n, "kind", "問い", Q_KINDS),
                    (n, "kind", "答え", A_KINDS)]
+    checks += [("hokoku", "side", None, SIDES), ("hokoku", "kind", "問い", Q_KINDS), ("hokoku", "kind", "答え", A_KINDS)]
     checks += [("yaritori", "bulletin", None, BULLETIN), ("kotogara", "kind", None, TIME_KINDS),
                ("shisetsu", "kind", None, TIME_KINDS), ("shisetsu", "aspect", None, ASPECTS),
                ("kisai", "kind", None, KISAI_KINDS), ("tsunagari", "link", None, LINKS)]
@@ -1297,13 +1388,13 @@ def check_targets(name, rows, inp, rep):
         if st is None:
             continue
         keys = [k for k in keys if target_kind(k) == "fh" or st.exists(k)]
-        if name == "shitsugi":
-            bills = r["bills"].split(",") if r["bills"] else []
+        if name in ("shitsugi", "hokoku"):
+            bills = r["bills"].split(",") if name == "shitsugi" and r["bills"] else ([r["bill"]] if name == "hokoku" and r["bill"] else [])
             kai = sorted({h[3:] for b in bills for h in inp.gian_hs.get(b, set())})
             for k in keys:
                 if target_kind(k) in ("hs", "hj", "hk", "hz") and st.kai_of(k) not in kai:
                     rep.target_bill.append({"ledger": name, "question": r["question"], "row": r["row"], "key": k,
-                                            "bills": r["bills"], "kai": ",".join(f"hs:{x}" for x in kai)})
+                                            "bills": ",".join(bills), "kai": ",".join(f"hs:{x}" for x in kai)})
         words = [norm(s) for kk, s in parts if kk in ("名", "款")]
         for k in keys:
             kind = target_kind(k)
@@ -1537,23 +1628,23 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
         check_order(rows, KEYS[name], f"records/{name}.tsv", rep)
     yar = check_exchange("yaritori", ledgers["yaritori"], inp, theme, rep)
     shi = check_exchange("shitsugi", ledgers["shitsugi"], inp, theme, rep)
+    hok = check_hokoku(ledgers.get("hokoku", []), inp, theme, rep)
     ykeys = {f"{r['question']}/{r['row']}" for r in ledgers["yaritori"]}
     check_kotogara(ledgers["kotogara"], inp, theme, ykeys, rep, rep.shiryo)
     check_tsunagari(ledgers["tsunagari"], inp, theme, rep)
     check_katei(ledgers["katei"], inp, theme, rep)
     check_kisai(ledgers["kisai"], inp, theme, rep, rep.shiryo)
     check_shisetsu(ledgers["shisetsu"], inp, theme, shisetsu_keys, rep)
-    check_nozoki(ledgers.get("nozoki", []), inp, {**yar, **shi}, rep)
+    check_nozoki(ledgers.get("nozoki", []), inp, {**yar, **shi, **hok}, rep)
     check_teian(ledgers.get("teian", []), inp, rep)
     check_unused_docs(ledgers, themes_rows, rep)
     for name in TARGET_LEDGERS:
-        check_targets(name, ledgers[name], inp, rep)
+        check_targets(name, ledgers.get(name, []), inp, rep)
     rep.target_unchecked = target_order(rep.target_unchecked)
     rep.target_bill = target_order(rep.target_bill)
     rep.target_name = target_order(rep.target_name)
-    live = {n: [r for r in ledgers[n] if r["status"] != "rejected"] for n in ("yaritori", "shitsugi")}
-    torikoboshi(inp, {"yaritori": group(live["yaritori"]), "shitsugi": group(live["shitsugi"])},
-                ledgers.get("nozoki", []), theme, rep)
+    live = {n: [r for r in ledgers.get(n, []) if r["status"] != "rejected"] for n in ("yaritori", "shitsugi", "hokoku")}
+    torikoboshi(inp, {n: group(live[n]) for n in ("yaritori", "shitsugi", "hokoku")}, ledgers.get("nozoki", []), theme, rep)
     for name in LEDGERS:
         live = [r for r in ledgers.get(name, []) if r["status"] != "rejected"]
         if name == "teian":

@@ -357,7 +357,7 @@ class ThemeTest(RecordsTestCase):
         self.assertErr(run(themes=rows), "名前 の行が1行でない")
         rows = theme_rows() + [dict(theme_rows()[0], kind="会計", value="一般会計")]
         rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
-        self.assertErr(run(themes=rows), "kind が §12 の16")
+        self.assertErr(run(themes=rows), "kind が §12 の17")   # 報告を足して17（§12）
 
     def test_shisetsu_ref(self):
         self.assertErr(run(ref=[dict(shisetsu_ref()[0], key="fa:A")]), "fa の形でない")

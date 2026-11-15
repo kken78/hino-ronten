@@ -8,6 +8,8 @@
 kotogara・tsunagari・kisai のテーマへの帰属は、テーマの定義の kind 事柄・記載・資料の値で決める（§13.4・§15.6）。
 資料の外の枠（waku。ref/waku.tsv とテーマの定義の kind 枠）、資料の種類（shiryo。ref/shiryo.tsv）、資料の中の筋（suji。
 kotogara・kisai の列 suji）を入れ、枠の要素（waku:<枠の id>/<n>）も見方として整理シートを作る（DESIGN.md ADR-37）。
+審査報告の記録（records/hokoku.tsv。§15.10）は報告の単位にまとめ、決算の議案の委員長の報告の区切りに、その議案の行を付ける
+（§13.4）。問われていない点では、その問いの事項を取り上げられたものとする（§13.2。2026-11-15 の5つめ）。
 
 先に tools/records.py の検査（LINK_SCHEMA §11 のテーマの定義・施設の参照表・記録の台帳）をかけ、誤りがあれば作らない。
 入力は inputs.lock.json の版だけを git で読む。台帳と参照表は作業ツリーの版を読み、その sha256 を ledgers に書く。
@@ -484,6 +486,33 @@ def para_of(text, quote):
     return next((p for p, s in reversed(paras) if s <= i), paras[0][0] if paras else 1), i
 
 
+def report_paras(text, rows):
+    """委員長の報告の記録の行の段落の番号 p（§13.4。2026-11-15 の6つめ）。rows は row の順。text は報告の発言の本文。
+    side か speaker が変われば分ける。続く問いの行は、本文で前の引用の終わりからこの引用の始まりまでに「。」があるか、
+    前の引用が「。」で終われば分ける。続く答えの行は、answers が変われば分ける。引用が本文に無い行は止める。"""
+    t = records.norm(text)
+    out, p, prev, prev_end = [], 0, None, 0
+    for r in rows:
+        q = records.norm(r["quote"])
+        i = t.find(q, prev_end) if q else -1
+        if i < 0:
+            i = t.find(q) if q else -1
+        if i < 0:
+            raise BuildError(f"records/hokoku/{r['question']}/{r['row']} の引用が、報告の発言の本文に無い")
+        if prev is None:
+            p = 1
+        elif (r["side"], r["speaker"]) != (prev["side"], prev["speaker"]):
+            p += 1
+        elif r["side"] == "問い":
+            if records.norm(prev["quote"]).endswith("。") or "。" in t[min(prev_end, i):max(prev_end, i)]:
+                p += 1
+        elif r.get("answers", "") != prev.get("answers", ""):
+            p += 1
+        out.append(p)
+        prev, prev_end = r, i + len(q)
+    return out
+
+
 def add_kessan_records(d, data, ledgers=None):
     """bills の kessan の proposals の paras と、steps の kind が質疑の行の rows（§13.4。DESIGN.md ADR-37 の経過、2026-11-15）。
     records を作ったあとに呼ぶ。引用が発言の本文に無い行は止める。about が空で source が発言の kisai の行（ledgers から。
@@ -499,6 +528,7 @@ def add_kessan_records(d, data, ledgers=None):
             by_sp.setdefault(r["source"], []).append(
                 ("kisai", "about", dict(r, layer=CONFIRMED if r["status"] == "confirmed" else UNCONFIRMED), False))
     shitsugi = {q["question"]: q["rows"] for q in R["shitsugi"]}
+    hokoku = {q["question"]: q["rows"] for q in R.get("hokoku") or []}
     for b in data["bills"]:
         k = b.get("kessan")
         if not k:
@@ -520,6 +550,13 @@ def add_kessan_records(d, data, ledgers=None):
                 paras.setdefault(p, []).append(row)
             x["paras"] = [dict(p=p, rows=paras[p]) for p in sorted(paras)]
         for x in k["steps"]:
+            if x["kind"] == STEP_KIND["report"]:
+                # 委員長の報告：その報告の審査報告の記録のうち、bill がこの議案の行（§13.4。2026-11-15 の5つめ）
+                rs = sorted((r for r in hokoku.get("rp:" + x["sid"][3:], []) if r["bill"] == b["key"]), key=lambda r: int(r["row"]))
+                ps = report_paras((d.index.get(x["sid"][3:]) or {}).get("text") or "", rs) if rs else []
+                x["rows"] = [dict(row=r["row"], side=r["side"], sid=r["sid"], speaker=r["speaker"], quote=r["quote"],
+                                  point=r["point"], layer=r["layer"], p=n) for r, n in zip(rs, ps)]
+                continue
             if x["kind"] != STEP_KIND["shitsugi"]:
                 continue
             rs = sorted(shitsugi.get("sq:" + x["sid"][3:], []), key=lambda r: int(r["row"]))
@@ -562,7 +599,7 @@ def row_out(d, name, r, shiryo=None):
     src = r.get("sid") or r.get("source") or (r.get("sources") or "").split(",")[0]
     x["url"] = d.key_url(src) if src else ""
     x["layer"] = CONFIRMED if r["status"] == "confirmed" else UNCONFIRMED
-    if name not in ("yaritori", "shitsugi"):
+    if name not in ("yaritori", "shitsugi", "hokoku"):
         x["shurui"] = shiryo.of_key(src) if shiryo else ""
     if name in records.SUJI_LEDGERS:
         x["suji_key"] = suji_key(r)
@@ -609,6 +646,20 @@ def build_records(d, ledgers, theme, tkeys, shiryo=None):
             items.append(dict(question=q, meeting_id=mid, meeting=meeting_name(d, mid),
                               date=d.index[q[3:]]["date"], member=member_of(seg), rows=rows))
         out[name] = sorted(items, key=lambda x: (x["date"], x["question"]))
+    # 審査報告の記録（§15.10）：報告（question）の単位にまとめ、meeting_id・meeting・date と行（row の順）を持つ（§13.4）
+    groups = {}
+    for r in ledgers.get("hokoku") or []:
+        if r["question"] in tkeys["報告"] and r["status"] != "rejected":
+            groups.setdefault(r["question"], []).append(row_out(d, "hokoku", r))
+    items = []
+    for q, rows in groups.items():
+        seg = d.inp.segment_of(q)
+        if seg is None:
+            raise BuildError(f"審査報告の記録の {q} が、入力の委員長の報告の区切りに無い")
+        mid = seg.get("meetingId") or q[3:].split("_")[0]
+        items.append(dict(question=q, meeting_id=mid, meeting=meeting_name(d, mid), date=d.index[q[3:]]["date"],
+                          rows=sorted(rows, key=lambda r: int(r["row"]))))
+    out["hokoku"] = sorted(items, key=lambda x: (x["date"], x["question"]))
     return out
 
 
@@ -1019,7 +1070,7 @@ def build_waku(d, data, themes_rows, theme, tk, waku):
                     if r.get("shurui") and ((r[col] and r[col] in points) or r["shurui"] in shiryo):
                         years.setdefault(r["shurui"], set()).add(r["source_date"][:4])
             rec = {sh: sorted(years[sh]) for sh in sorted(years, key=lambda x: (order.index(x) if x in order else len(order), x))}
-            gikai = sum(1 for name in ("yaritori", "shitsugi") for q in R[name] for r in q["rows"]
+            gikai = sum(1 for name in ("yaritori", "shitsugi", "hokoku") for q in R.get(name) or [] for r in q["rows"]
                         if r["layer"] == CONFIRMED and r["point"] and r["point"] in points)
             elements.append(dict(view=view, n=int(n), name=els[n]["name"], note=els[n]["note"], source=els[n]["source"],
                                  shiryo=shiryo, points=points, rec=rec, gikai=gikai))
@@ -1321,14 +1372,20 @@ def issues_kurikaeshi(L, R):
     return out
 
 
-def scope_text(R, tk):
+def scope_text(R, tk, hokoku=False):
+    """比べた範囲の文（§13.2）。hokoku が真で審査報告の記録があれば、委員長の報告を期間を分けて足す：「記録した質問（…）と
+    委員長の報告（N件、<最初の会議>〜<最後の会議>）」（問われていない点だけ。2026-11-15 の5つめ・8つめ）。返す並びは、
+    範囲に入れた問い・質疑・報告のまとまり。"""
     qs = asked_groups(R)
-    if not qs:
-        return "記録した質問（なし）", []
+    hk = sorted((("hokoku", q) for q in R.get("hokoku") or []), key=lambda x: (x[1]["date"], x[1]["question"])) if hokoku else []
     qs.sort(key=lambda x: (x[1]["date"], x[1]["question"]))
-    s = (f"記録した質問（一般質問{len(R['yaritori'])}問・議案質疑{len(R['shitsugi'])}件、"
-         f"{qs[0][1]['meeting']}〜{qs[-1][1]['meeting']}）")
-    return s, qs
+    if not qs and not hk:
+        return "記録した質問（なし）", []
+    s = (f"記録した質問（一般質問{len(R['yaritori'])}問・議案質疑{len(R['shitsugi'])}件、{qs[0][1]['meeting']}〜{qs[-1][1]['meeting']}）"
+         if qs else "記録した質問（なし）")
+    if hk:
+        s += f"と委員長の報告（{len(hk)}件、{hk[0][1]['meeting']}〜{hk[-1][1]['meeting']}）"
+    return s, qs + hk
 
 
 def missing_text(R, tk):
@@ -1360,7 +1417,7 @@ def issues_kubun(L, R, tk):
 
 
 def issues_toware(L, R, tk, themes_rows, theme):
-    rng, qs = scope_text(R, tk)
+    rng, qs = scope_text(R, tk, hokoku=True)    # 審査報告の記録の問いの事項も、取り上げられたものとする（§13.2）
     asked = set()
     for name, q in qs:
         asked |= points_of(q, "問い")
@@ -1532,12 +1589,14 @@ def build_names(d, data, shisetsu_rows):
     issues の refs は records の行を指すので、その資料は records から入る。"""
     L = Labels(d, shisetsu_rows)
     keys = {c["from"] for c in data["council"]} | {w["source"] for w in data.get("waku") or [] if w["source"] and w["url"]}
-    for rows in data["records"].values():
+    for name, rows in data["records"].items():
         for x in rows:
             for r in (x["rows"] if "rows" in x else [x]):
                 for c in ("source", "sid", "upper_ref", "lower_ref"):
                     if r.get(c):
                         keys.add(r[c])
+                if name == "hokoku" and r.get("bill"):     # 審査報告の記録の議案（§13.4 の names。2026-11-15 の5つめ）
+                    keys.add(r["bill"])
                 keys |= {s for s in (r.get("sources") or "").split(",") if s}
     fac = {r["key"]: r for r in shisetsu_rows}
     facilities = {}

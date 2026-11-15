@@ -58,6 +58,16 @@ def theme_words(path, theme):
         return [r["value"] for r in csv.DictReader(f, delimiter="\t") if r["theme"] == theme and r["kind"] == "語"]
 
 
+QA_KIND = {"yaritori": "一般質問", "shitsugi": "議案質疑", "hokoku": "委員長の報告"}
+
+
+def qa_title(name, q):
+    """記録した質問・質疑・委員長の報告の見出し（fetch と council）。委員長の報告は質問者を書かない。"""
+    if name == "hokoku":
+        return f"{QA_KIND[name]}：{br.jd(q['date'])} {q['meeting']}"
+    return f"{QA_KIND[name]}：{br.jd(q['date'])} {q['meeting']}　質問者：{q['member']['name']} 議員"
+
+
 class Server:
     def __init__(self, data_bytes, view, words=(), speeches=None, log=None):
         self.d = json.loads(data_bytes.decode("utf-8"))
@@ -87,11 +97,11 @@ class Server:
             self._add(f"kisai:{n}", f"記載：{x.get('about') or ''}", x["source_date"],
                       r.kisai_entry(x),
                       x.get("about") or "")
-        for name in ("yaritori", "shitsugi"):
+        for name in br.QA_LEDGERS:     # 審査報告の記録は hokoku:<報告のキー>（LINK_SCHEMA §14。2026-11-15 の5つめ）
             for q in R.get(name) or []:
                 self.questions[f"{name}:{q['question']}"] = (name, q)
                 for row in q["rows"]:
-                    self._add(f"{name}:{q['question']}/{row['row']}", "一般質問" if name == "yaritori" else "議案質疑", q["date"],
+                    self._add(f"{name}:{q['question']}/{row['row']}", QA_KIND[name], q["date"],
                               r.qa_entry(name, q, row) + (f"　事項：{row['point']}" if row.get("point") else ""), row.get("point") or "")
         for n, x in enumerate(d.get("exchanges") or [], 1):
             self._add(f"exchange:{n}", "一般質問の一覧", x["date"], r.exchange_line(x))
@@ -182,7 +192,9 @@ class Server:
         out += ["", "## 照合結果（未確認）（issues で取る）"] + [f"- {k}（{v}件）" for k, v in ts.items()]
         out += ["", f"## 議会（council で取る）：一般質問 {len(d.get('exchanges') or [])}問（うち質問・答弁を項目ごとに記録したもの "
                 f"{len(d['records'].get('yaritori') or [])}問。ほかの問いの答弁は speeches で会議録の本文を読む）、"
-                f"議案質疑 {len(d['records'].get('shitsugi') or [])}件、関係議案 {len(d.get('bills') or [])}件"]
+                f"議案質疑 {len(d['records'].get('shitsugi') or [])}件、"
+                + (f"委員長の報告 {len(d['records']['hokoku'])}件、" if d["records"].get("hokoku") else "")
+                + f"関係議案 {len(d.get('bills') or [])}件"]
         if d.get("waku") or d.get("shiryo"):     # 枠組みの表と資料の種類（§14・§17.1。ADR-37）
             doc = br.Doc()
             r.waku_lines(doc)
@@ -254,8 +266,7 @@ class Server:
                     out.append(self.issue_text(int(n)))
             elif i in self.questions:
                 name, q = self.questions[i]
-                out.append(f"[{i}] {'一般質問' if name == 'yaritori' else '議案質疑'}：{br.jd(q['date'])} {q['meeting']}　"
-                           f"質問者：{q['member']['name']} 議員")
+                out.append(f"[{i}] {qa_title(name, q)}")
                 out += [self.line(f"{name}:{q['question']}/{row['row']}") for row in sorted(q["rows"], key=lambda x: int(x["row"]))]
             elif i in self.items:
                 out.append(f"[{i}] {self.items[i]['kind']}：{self.items[i]['text']}")
@@ -287,7 +298,7 @@ class Server:
                 out += [self.line(i) for i in ans[-3:]]
             out.append("記載の推移（資料の日付順）：")
             out += [self.line(i) for i in self.by_key(("kotogara:", "kisai:"), name)]
-            qa = self.by_key(("yaritori:", "shitsugi:"), name)
+            qa = self.by_key(("yaritori:", "shitsugi:", "hokoku:"), name)     # 委員長の報告も（当局の答弁には入れない。§14）
             if qa:
                 out.append("この事項についての質問・答弁（記録したもの）：")
                 out += [self.line(i) for i in qa]
@@ -309,7 +320,7 @@ class Server:
         out.append("項目ごとに記録した質問・質疑：")
         for k, (name, q) in self.questions.items():
             if f <= q["date"] <= t:
-                out.append(f"- [{k}] {br.jd(q['date'])} {q['meeting']}　質問者：{q['member']['name']} 議員（{len(q['rows'])}行）")
+                out.append(f"- [{k}] {qa_title(name, q).split('：', 1)[1]}{'（委員長の報告）' if name == 'hokoku' else ''}（{len(q['rows'])}行）")
         return "\n".join(out)
 
     def t_speeches(self, a):
@@ -350,10 +361,10 @@ class Server:
         ("overview", "最初に呼ぶ。見方の要点（事業のときは事業名・概算事業費・当初予算額・総合計画の位置）、資料の時点、正式な名前、目的の原文、"
          "いまの段階、事項・施設・記載の見出し・照合結果の一覧、分野の枠組みの表と資料の種類、枠組みの流れ（年度ごと）と資料の種類ごとの項目の一覧を返す。", {}, "t_overview"),
         ("search", "記載を語で探す。語は空白で区切る（例「開園時期 令和11年」）。kind で種類を絞れる（事柄・施設・つながり・過程・記載・"
-         "一般質問・議案質疑・一般質問の一覧・会議録の本文・議案・照合結果・項目）。返すのは id と抜粋。全文は fetch で取る。",
+         "一般質問・議案質疑・委員長の報告・一般質問の一覧・会議録の本文・議案・照合結果・項目）。返すのは id と抜粋。全文は fetch で取る。",
          {"query": {"type": "string"}, "kind": {"type": "string"}, "limit": {"type": "integer"}}, "t_search"),
         ("fetch", "id を指定して記載の全文を取る（search・topic・council・speeches・issues が返す id）。"
-         "yaritori:<問いのキー> で、記録した一般質問の全行を、suji:<資料の id>/<番号> で、資料の項目の段落（全部の文と事項）とその置き場所を取る。",
+         "yaritori:<問いのキー> で、記録した一般質問の全行を、hokoku:<報告のキー> で、記録した委員長の報告の全行を、suji:<資料の id>/<番号> で、資料の項目の段落（全部の文と事項）とその置き場所を取る。",
          {"ids": {"type": "array", "items": {"type": "string"}}}, "t_fetch"),
         ("topic", "事項（事柄）・施設・記載の見出しの名前を指定して、その記載を資料の日付順に取る。事柄は、いまの町の説明の原文と、"
          "当局の新しい答弁の原文を先に返す。名前は overview の一覧のとおり。", {"name": {"type": "string"}}, "t_topic"),

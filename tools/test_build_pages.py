@@ -284,6 +284,48 @@ class ScriptTest(unittest.TestCase):
         self.assertLess(u.index("質疑　4番 松田洋子 議員"), u.index("問1。"))
         self.assertLess(u.index("再1。"), u.index("決算特別委員会の委員長の報告"))
         self.assertIn("委員会の会議録はありません。", u)
+        self.assertNotIn("委員長の報告（委員会の審査の要約）", u)     # 委員長の報告に記録の行が無ければ頭の文も出さない
+
+    def test_kessan_flow_hokoku(self):
+        # 要素4 の委員長の報告の記録の行と、事項ごとの質問・答弁（LINK_SCHEMA §16.1・§16.4。2026-11-15 の5つめ）
+        import test_build_rag as tb
+        d = json.loads(self.bytes.decode("utf-8"))
+        b = tb.hokoku_bill()
+        d["bills"].append(b)
+        d["records"]["hokoku"] = tb.hokoku_records()
+        d["records"]["yaritori"] = []     # 事項ごとの質問・答弁の最初の事項を「要介護認定」にする（開いて見る欄は最初の事項だけ）
+        d["waku"] = [{"key": "waku:kessan-nintei", "name": "決算の認定までの流れ", "source": "地方自治法233条", "url": "", "note": "",
+                      "layer": "確定",
+                      "elements": [{"view": f"waku:kessan-nintei/{n}", "n": n, "name": nm, "note": "", "source": "", "shiryo": [],
+                                    "points": [], "rec": {}, "gikai": 0} for n, nm in ((3, "提出"), (4, "審議"), (5, "議決"))],
+                      "nendo": [{"fiscal_year": "2023", "elements": [{"n": n, "docs": [], "gian": [b["key"]]} for n in (3, 4, 5)]}]}]
+        r = run_page(bp.render(template(), json.dumps(d, ensure_ascii=False).encode("utf-8"), "hoiku"))
+        u = r["unei"]
+        # 頭の文を1回、見出しは「問い　委員」「答え　<より を除いた字>」、字が無ければ「答え」だけ。回の番号は出さない
+        self.assertEqual(u.count("委員長の報告（委員会の審査の要約）からの記録です。"), 1)
+        self.assertIn('<div class="dochead">問い　委員</div><p class="para">問A。 問B。<span class="fuda">要介護認定</span></p>', u)
+        self.assertIn('<div class="dochead">答え　長寿福祉課専門員</div><p class="para">答A。<span class="fuda">要介護認定</span></p>', u)
+        self.assertIn('<div class="dochead">答え</div><p class="para">答C。<span class="um">未確認</span><span class="fuda">介護人材の確保</span></p>', u)
+        self.assertNotIn("より</div>", u)
+        self.assertLess(u.index("決算特別委員会の委員長の報告"), u.index("問A。"))
+        self.assertLess(u.index("答C。"), u.index("委員会の会議録はありません。"))
+        self.assertNotIn("老人クラブの補助は。", u)          # 同じ報告のほかの議案の行は流れに出ない（records から作らない）
+        # 段落は行の p で分ける（2026-11-15 の6つめ）：同じ見出しが続いても p が違えば見出しから分け、札は段落ごとに付け直す
+        st = d["bills"][-1]["kessan"]["steps"][1]
+        st["rows"][1]["p"] = 9
+        for x in st["rows"][2:]:
+            x["p"] += 9
+        u2 = run_page(bp.render(template(), json.dumps(d, ensure_ascii=False).encode("utf-8"), "hoiku"))["unei"]
+        self.assertIn('<div class="dochead">問い　委員</div><p class="para">問A。<span class="fuda">要介護認定</span></p>'
+                      '<div class="dochead">問い　委員</div><p class="para">問B。<span class="fuda">要介護認定</span></p>', u2)
+        # 事項ごとの質問・答弁：出典の欄に「（委員長の報告）」。一般会計の決算の行も出る。欄の下の文に報告の数
+        q = r["ronten"]
+        self.assertIn("<h3>要介護認定</h3>", q)
+        self.assertIn("令和6年12月定例会（委員長の報告）", q)
+        self.assertIn('<span class="t">多様な生きがいと居場所づくり</span><span class="v meta">質問・答弁 1件</span>', q)
+        self.assertIn('<div class="who">委員</div>', q)
+        self.assertIn('<div class="who">長寿福祉課専門員</div>', q)
+        self.assertIn("議案質疑1件、委員長の報告1件です。", q)
 
 
 
