@@ -172,6 +172,24 @@ ol.flow .st small,.dochead small{display:block;font-weight:400;font-size:11.5px;
 .para.on{outline:2px solid var(--accent);outline-offset:4px}
 .fuda.self{color:var(--ink);border-color:var(--ink)}
 .para,.yrblk{scroll-margin-top:96px}
+/* 論点の地図（LINK_SCHEMA §16.5。DESIGN.md ADR-38）：縦に分類の体系の要素と事項、横に年度。数は字で示し、地の濃さは補助 */
+table.chizu{font-size:12.5px}
+table.chizu th{text-align:center;white-space:normal}
+table.chizu td{border:1px solid var(--rule);padding:3px 6px}
+table.chizu td.y{text-align:center;white-space:nowrap;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:12px;min-width:5.5em}
+table.chizu td.k{font-size:12px;text-align:left}
+table.chizu tr.g td{background:var(--paper);font-weight:700}
+table.chizu tr.w td.nm{color:var(--muted)}
+table.chizu td.nm{min-width:18em}
+table.chizu .c1{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+table.chizu .c2{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+table.chizu .c3{background:color-mix(in srgb,var(--accent) 38%,transparent)}
+table.chizu .z{color:var(--l-mikakunin);font-weight:700;font-size:11.5px}
+table.chizu .s0{color:var(--muted)}
+.st{display:inline-block;font-size:11px;padding:0 3px;border:1px solid var(--muted);border-radius:2px;color:var(--muted);white-space:nowrap}
+.st.mi{border-style:dashed;color:var(--l-mikakunin);border-color:var(--l-mikakunin)}
+table.chizu button.pt{font:inherit;background:none;border:none;padding:0;color:var(--accent);cursor:pointer;text-align:left;text-decoration:underline}
+#pk-qa-panel{scroll-margin-top:96px}
 @media (max-width:640px){ol.flow>li{grid-template-columns:1fr;gap:4px}nav.menu{grid-template-columns:1fr}nav.menu a{border-radius:0;border-bottom:1px solid var(--rule)}.row{grid-template-columns:1fr}.lv2{margin-left:14px}.lv3{margin-left:28px}.lv4{margin-left:42px}.nen{grid-template-columns:6.5em 1fr}}
 </style>
 <div class="wrap">
@@ -377,19 +395,63 @@ function gaiyo(){
 /* キーワード検索の結果の語：語の一致の回数の多い順に3つ（同じ回数は語の順） */
 function topWords(){const c={};D.hits.council.concat(D.hits.docs).forEach(h=>(h.words||[]).forEach(w=>c[w.word]=(c[w.word]||0)+w.count));
   return Object.keys(c).sort((a,b)=>c[b]-c[a]||(a<b?-1:a>b?1:0)).slice(0,3).map(w=>`「${w}」`).join('')}
+/* 事項ごとの質問・答弁の欄（LINK_SCHEMA §16.1）。質問・答弁の記録が無い事項も、町の資料の記載の行を出す（論点の地図から開くとき。§16.5） */
+function qaPanel(p){
+  const rows=(qa[p]||[]).map(x=>({d:x.q.date,k:x.r.side==='問い'?'q':(x.r.kind==='留保'?'hold':'a'),who:x.n==='hokoku'?(x.r.side==='問い'?'委員':rpWho(x.r.speaker)):x.r.side==='問い'?`${x.q.member.name} 議員`:x.r.speaker,text:x.r.quote,url:x.r.url,src:x.q.meeting+(x.n==='shitsugi'?'（議案質疑）':x.n==='hokoku'?'（委員長の報告）':''),kind:KIND[x.r.kind]||x.r.kind}))
+    .concat(grouped((kot[p]||[]).filter(r=>!r.source.startsWith('sp:')).map(r=>({led:'kotogara',r})).concat((kis[p]||[]).map(r=>({led:'kisai',r})))
+      .sort((a,b)=>(a.r.source_date+a.r.source).localeCompare(b.r.source_date+b.r.source))).map(x=>{const r=x.r;
+      if(x.grp){const it=SUJI.get(x.key);return {d:r.source_date,k:'doc',tag:shuruiOf(r),html:itemLines(it,p),who:'',url:r.url,src:lab(r.source),kind:'',extra:sujiBlock(it,p)}}
+      return {d:r.source_date,k:'doc',tag:shuruiOf(r),mk:KD(kindOf(x.led,r))+(x.led==='kisai'&&r.target?`<span class="um">対象の時期：${esc(r.target)}</span> `:''),um:UM(r.layer),who:'',text:r.quote,url:r.url,src:lab(r.source),kind:''}}))
+    .sort((a,b)=>a.d.localeCompare(b.d));
+  const TAG={q:['t-q','質問'],a:['t-a','答弁'],hold:['t-hold','答弁（今後検討）'],doc:['t-doc','町の資料']};
+  return `<h3>${esc(p)}</h3><div class="note">質問・答弁と町の資料を日付順に示します。「答弁（今後検討）」は、時期や内容を今後決めるとした答弁です。</div><div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.d))}</span><span><span class="tag ${TAG[r.k][0]}">${esc(r.tag||TAG[r.k][1])}</span><div class="who">${esc(r.who)}</div></span><span>${r.html!=null?r.html:`${r.mk||''}${esc(r.text)}${r.um||''}`}<div class="src">${A(r.url,r.src)}${r.kind?'　'+esc(r.kind):''}</div>${r.extra||''}</span></div>`).join('')}</div>`}
+/* 論点の地図（LINK_SCHEMA §16.5。DESIGN.md ADR-38）：chizu が空なら出さない */
+const CH=D.chizu&&D.chizu.taikei?D.chizu:null;
+const nendo=y=>!y?'年度の無いもの':(+y>=2019?`令和${+y===2019?'元':+y-2018}年度`:`平成${+y-1988}年度`);
+const GST={nai:['議 無','記録した範囲に無い'],mi:['議 未','まだ見ていない'],nashi:['議 ・','題材の問いが無い']};
+function chizuHtml(){
+  const ys=CH.years.map(String), G=CH.gikai||{}, PT=new Map(CH.points.map(p=>[p.name,p])), E=new Map(CH.elements.map(e=>[e.n,e]));
+  const ncol=ys.length+2;
+  const st=y=>G[y]?`<span class="st${G[y]==='mi'?' mi':''}" title="${esc(GST[G[y]][1])}">${esc(GST[G[y]][0])}</span>`:'';
+  const cell=(c,y)=>{const v=(c||{})[y]||[0,0],a=v[0],b=v[1],n=a+b,cls=n===0?'':n<5?'c1':n<20?'c2':'c3';
+    const g=b>0?`議${b}`+(y&&G[y]==='mi'?'<span class="z">＋未</span>':''):(y?st(y):'<span class="s0">議0</span>');
+    return `<td class="y ${cls}">${a?`資${a}`:'<span class="s0">資0</span>'} ${g}</td>`};
+  const cells=c=>ys.map(y=>cell(c,y)).join('')+cell(c,'');
+  const pad=d=>`padding-left:${0.4+(d-1)*1.2}em`;
+  const tags=p=>(p.waku||[]).map(w=>` <span class="chip">枠組み：${esc(w.name)} 要素${w.n}</span>`).join('')+(p.an?' <span class="mk" title="体系の要素への対応が、まだ確かめていない案であることを示します">案</span>':'');
+  const prow=(p,d)=>`<tr><td class="nm" style="${pad(d)}">・<button type="button" class="pt" data-p="${esc(p.name)}">${esc(p.name)}</button>${tags(p)}</td>${cells(p.counts)}</tr>`;
+  const o=[];
+  o.push(`<tr><td class="k"><b>経過</b>（過程の記録の段階）</td>${ys.concat(['']).map(y=>`<td class="k">${((CH.katei||{})[y]||[]).map(x=>esc(x.name)).join('<br>')}</td>`).join('')}</tr>`);
+  const LB={'問い':'一般質問','質疑':'議案質疑','報告':'委員長の報告'};
+  o.push(`<tr><td class="k"><b>見た範囲</b>（題材に選んだ問い・質疑・報告のうち、記録が済んだ数）</td>${ys.map(y=>`<td class="k">${Object.entries((CH.mita||{})[y]||{}).map(([k,v])=>`${esc(LB[k])} ${v[0]}のうち${v[1]}`).join('<br>')}</td>`).join('')}<td class="k"></td></tr>`);
+  CH.elements.forEach(e=>{
+    const ps=e.points||[];
+    if(!ps.length&&e.under){o.push(`<tr class="g"><td colspan="${ncol}" style="${pad(e.depth)}">${esc(e.name)}</td></tr>`);return}
+    if(!ps.length){o.push(`<tr><td class="nm" style="${pad(e.depth)}"><b>${esc(e.name)}</b> <span class="z">事項なし</span></td>${cells({})}</tr>`);return}
+    o.push(`<tr><td class="nm" style="${pad(e.depth)}"><b>${esc(e.name)}</b></td>${cells(e.counts)}</tr>`);
+    const done=new Set();
+    if(e.waku){e.waku.elements.forEach(w=>{
+      if(!w.points.length){o.push(`<tr class="w"><td class="nm" style="${pad(e.depth+1)}">${esc(e.waku.name)}　要素${w.n} ${esc(w.name)} <span class="z">事項なし</span></td>${cells({})}</tr>`);return}
+      o.push(`<tr class="w"><td class="nm" colspan="${ncol}" style="${pad(e.depth+1)}">${esc(e.waku.name)}　要素${w.n} ${esc(w.name)}</td></tr>`);
+      w.points.forEach(n=>{if(!done.has(n)){done.add(n);o.push(prow(PT.get(n),e.depth+2))}})})}
+    ps.filter(n=>!done.has(n)).forEach(n=>o.push(prow(PT.get(n),e.depth+1)));
+  });
+  o.push(`<tr class="g"><td colspan="${ncol}">体系の外${(CH.soto||[]).length?'':'の事項なし'}</td></tr>`);
+  (CH.soto||[]).forEach(n=>o.push(prow(PT.get(n),2)));
+  const head=`<tr><th>分類の体系（原典の見出し）と事項（論点）</th>${ys.map(y=>`<th>${esc(nendo(y))}</th>`).join('')}<th>年度の無いもの</th></tr>`;
+  const lead=`<div class="note">縦は分類の体系（${esc(CH.taikei.name)}の見出しの字のまま）、横は年度（4月〜翌3月）です。町の資料の記載は資料の日付、議会の記録は発言の日の年度で数えています。数は記録の行の数で、却下の行を除き、未確認の行を含みます。`+
+    `「資N」は町の資料の記載の行、「議N」は議会の記録（一般質問・議案質疑・委員長の報告）の行の数です。議会の記録が無いマスは、${st0('nai')}＝記録した範囲に無い（その年度に題材に選んだ問い・質疑・報告を全部記録したうえで無い）、${st0('mi')}＝まだ見ていない（その年度に記録していない問い・質疑・報告が残る）、${st0('nashi')}＝題材の問いが無い（その年度に題材に選んだ問い・質疑・報告が無い）と示します。「議N＋未」は、記録はあるが、その年度にまだ見ていないものも残ることを示します。`+
+    `町の資料は、資料の中を全部読んだかを持っていないので、状態を分けていません。<span class="mk">案</span> は、体系の要素への対応が、まだ確かめていない案であることを示します。<span class="chip">枠組み：…</span> は、その事項が対応づいている枠組みの要素です。</div>`;
+  return lead+`<div class="tbl"><table class="chizu"><thead>${head}</thead><tbody>${o.join('')}</tbody></table></div><div class="note">分類の体系の出典：${A(CH.taikei.url,CH.taikei.name)}</div>`;
+}
+function st0(k){return `<span class="st${k==='mi'?' mi':''}">${esc(GST[k][0])}</span>`}
+
 /* ===== 論点整理 ===== */
 function ronten(){
   const o=[`<p class="intro">一般質問や答弁を作成する際の準備に使います。事項ごとに、これまでの質問・答弁と町の資料の記載を日付順に並べ、過去の答弁との整合や、まだ取り上げられていない事項を確認できます。</p>`];
   const pts=Object.keys(qa).sort((a,b)=>qa[b].length-qa[a].length);
-  const items=pts.map(p=>({title:p,value:`質問・答弁 ${qa[p].length}件`,meta:true,render:()=>{
-    const rows=qa[p].map(x=>({d:x.q.date,k:x.r.side==='問い'?'q':(x.r.kind==='留保'?'hold':'a'),who:x.n==='hokoku'?(x.r.side==='問い'?'委員':rpWho(x.r.speaker)):x.r.side==='問い'?`${x.q.member.name} 議員`:x.r.speaker,text:x.r.quote,url:x.r.url,src:x.q.meeting+(x.n==='shitsugi'?'（議案質疑）':x.n==='hokoku'?'（委員長の報告）':''),kind:KIND[x.r.kind]||x.r.kind}))
-      .concat(grouped((kot[p]||[]).filter(r=>!r.source.startsWith('sp:')).map(r=>({led:'kotogara',r})).concat((kis[p]||[]).map(r=>({led:'kisai',r})))
-        .sort((a,b)=>(a.r.source_date+a.r.source).localeCompare(b.r.source_date+b.r.source))).map(x=>{const r=x.r;
-        if(x.grp){const it=SUJI.get(x.key);return {d:r.source_date,k:'doc',tag:shuruiOf(r),html:itemLines(it,p),who:'',url:r.url,src:lab(r.source),kind:'',extra:sujiBlock(it,p)}}
-        return {d:r.source_date,k:'doc',tag:shuruiOf(r),mk:KD(kindOf(x.led,r))+(x.led==='kisai'&&r.target?`<span class="um">対象の時期：${esc(r.target)}</span> `:''),um:UM(r.layer),who:'',text:r.quote,url:r.url,src:lab(r.source),kind:''}}))
-      .sort((a,b)=>a.d.localeCompare(b.d));
-    const TAG={q:['t-q','質問'],a:['t-a','答弁'],hold:['t-hold','答弁（今後検討）'],doc:['t-doc','町の資料']};
-    return `<h3>${esc(p)}</h3><div class="note">質問・答弁と町の資料を日付順に示します。「答弁（今後検討）」は、時期や内容を今後決めるとした答弁です。</div><div class="rows">${rows.map(r=>`<div class="row"><span class="d">${esc(jd(r.d))}</span><span><span class="tag ${TAG[r.k][0]}">${esc(r.tag||TAG[r.k][1])}</span><div class="who">${esc(r.who)}</div></span><span>${r.html!=null?r.html:`${r.mk||''}${esc(r.text)}${r.um||''}`}<div class="src">${A(r.url,r.src)}${r.kind?'　'+esc(r.kind):''}</div>${r.extra||''}</span></div>`).join('')}</div>`}}));
+  const items=pts.map(p=>({title:p,value:`質問・答弁 ${qa[p].length}件`,meta:true,render:()=>qaPanel(p)}));
+  if(CH)o.push(sec('論点の地図','縦は分類の体系、横は年度です。事項の名前を押すと、下の「事項ごとの質問・答弁」にその事項の欄が開きます',chizuHtml()));
   o.push(sec('事項ごとの質問・答弁','事項を選ぶと、質問・答弁と町の資料の記載を日付順に表示します',KIND_NOTE+picker('pk-qa',items)+`<div class="note">質問・答弁を項目ごとに記録したのは、関連する一般質問${D.theme_questions}問のうち${R.yaritori.length}問と、議案質疑${R.shitsugi.length}件${(R.hokoku||[]).length?`、委員長の報告${R.hokoku.length}件`:''}です。</div>`));
   const iss=t=>D.issues.filter(x=>x.type===t);
   /* 照合結果の文と、比べた記載（出典つき。閉じた欄） */
@@ -493,6 +555,11 @@ document.getElementById('p-gaiyo').innerHTML=gaiyo();
 document.getElementById('p-ronten').innerHTML=ronten();
 document.getElementById('p-unei').innerHTML=unei();
 bindPickers();
+/* 地図の事項の名前を押すと、事項ごとの質問・答弁の欄にその事項を開く（LINK_SCHEMA §16.5） */
+if(CH)document.getElementById('p-ronten').addEventListener('click',e=>{const b=e.target.closest('button.pt');if(!b)return;const p=b.dataset.p;
+  const pk=document.getElementById('pk-qa'),pn=document.getElementById('pk-qa-panel');
+  pk.querySelectorAll('button').forEach(x=>{const t=x.querySelector('.t');x.setAttribute('aria-selected',String(!!t&&t.textContent===p))});
+  pn.innerHTML=qaPanel(p);pn.scrollIntoView()});
 document.getElementById('about').innerHTML=`<div>資料の文は原文のまま引用しています。「未確認」の表示がある項目は、機械による照合の結果で、人による確認が済んでいません。議員ごとの件数や順位は示していません。</div><div>データの版：build/theme/${esc(D.theme)}.json（${esc(P.source_sha256.slice(0,12))}）、`+Object.entries(D.lock).map(([r,s])=>`${esc(r)} ${esc(s.slice(0,7))}`).join('、')+'</div>';
 const views=['gaiyo','ronten','unei'];
 function show(){const h=location.hash.slice(1).split('/');const v=views.includes(h[0])?h[0]:'gaiyo';views.forEach(n=>document.getElementById('p-'+n).hidden=(n!==v));document.querySelectorAll('nav.menu a').forEach(a=>{if(a.dataset.v===v)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});

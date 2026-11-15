@@ -125,11 +125,12 @@ def merge(ledger, body, drafts):
 
 
 def check(ledger, drafts, ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=(), waku_rows=(),
-          shiryo_rows=()):
+          shiryo_rows=(), taikei_rows=()):
     """写しに下書きの行を足して records.check_all をかける。(Report, Theme) を返す。"""
     copy = {n: list(rows) for n, rows in ledgers.items()}
     copy[ledger], dup = merge(ledger, ledgers.get(ledger, []), drafts)
-    rep = records.check_all(copy, themes_rows, shisetsu_rows, inp, chiku_rows, soshiki_rows, waku_rows, shiryo_rows)
+    rep = records.check_all(copy, themes_rows, shisetsu_rows, inp, chiku_rows, soshiki_rows, waku_rows, shiryo_rows,
+                            taikei_rows)
     for r in drafts:
         if row_key(ledger, r) in dup:
             rep.err(records.label(ledger, r), f"本体に同じキーの行がある（records/{ledger}.tsv）")
@@ -270,7 +271,7 @@ def main(argv):
                                               n in records.OPTIONAL) for n in records.LEDGERS}
         themes_rows = check_records.read_file(check_records.THEMES, records.THEME_COLUMNS)
         shisetsu = check_records.read_file(check_records.SHISETSU, records.SHISETSU_COLUMNS)
-        area = check_records.read_area_refs() + check_records.read_frame_refs()
+        area = check_records.read_area_refs() + check_records.read_frame_refs() + (check_records.read_taikei_ref(),)
     except (OSError, DraftError, gm.GenError, records.RecordsError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
@@ -280,7 +281,7 @@ def main(argv):
 
 def run(a, drafts, mayoi, ledgers, themes_rows, shisetsu, inp, outdir, area=((), ())):
     """検査をかけ、出すものを書き、件数を表示する。終了コード（誤りがあれば1）を返す。area は地区・組織の参照表の行
-    （と、あれば枠と資料の種類の参照表の行）。"""
+    （と、あれば枠と資料の種類の参照表の行と、分類の体系の参照表の行）。"""
     rep, theme = check(a.ledger, drafts, ledgers, themes_rows, shisetsu, inp, *area)
     names = write_all(outdir, a.sheet, a.ledger, a.date, a.model, drafts, mayoi, rep, theme)
     mis = mismatch_keys(a.ledger, rep)

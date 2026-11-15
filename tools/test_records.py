@@ -357,7 +357,7 @@ class ThemeTest(RecordsTestCase):
         self.assertErr(run(themes=rows), "名前 の行が1行でない")
         rows = theme_rows() + [dict(theme_rows()[0], kind="会計", value="一般会計")]
         rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
-        self.assertErr(run(themes=rows), "kind が §12 の17")   # 報告を足して17（§12）
+        self.assertErr(run(themes=rows), "kind が §12 の18")   # 報告を足して17、体系を足して18（§12。ADR-38）
 
     def test_shisetsu_ref(self):
         self.assertErr(run(ref=[dict(shisetsu_ref()[0], key="fa:A")]), "fa の形でない")
@@ -374,10 +374,10 @@ class ThemeTest(RecordsTestCase):
     def test_area_ref_ok(self):
         rep = run()
         self.assertFalse(rep.errors)
-        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 2, "soshiki": 1, "waku": 0, "shiryo": 0})
+        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 2, "soshiki": 1, "waku": 0, "shiryo": 0, "taikei": 0})
         rep = run(chiku=[], soshiki=[])     # ファイルが無い（0行）ときも止めない
         self.assertFalse(rep.errors)
-        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 0, "soshiki": 0, "waku": 0, "shiryo": 0})
+        self.assertEqual(rep.ref_counts, {"shisetsu": 1, "chiku": 0, "soshiki": 0, "waku": 0, "shiryo": 0, "taikei": 0})
 
     def test_area_ref_errors(self):
         c, o = chiku_ref(), soshiki_ref()
@@ -447,8 +447,8 @@ class ThemeTest(RecordsTestCase):
                  ("事柄", "fa:b", "views のキーが入力に無い"),
                  ("事柄", "dist:nai", "views のキーが入力に無い"),
                  ("事柄", "org:nai", "views のキーが入力に無い"),
-                 ("事柄", "lin:youho/1", "見方のキー（node・plan・fa・dist・org・waku の要素）の形でない"),
-                 ("事柄", "kaigo", "見方のキー（node・plan・fa・dist・org・waku の要素）の形でない")]
+                 ("事柄", "lin:youho/1", "見方のキー（node・plan・fa・dist・org・waku の要素・tk の要素）の形でない"),
+                 ("事柄", "kaigo", "見方のキー（node・plan・fa・dist・org・waku の要素・tk の要素）の形でない")]
         for kind, views, msg in cases:
             with self.subTest(kind=kind, views=views):
                 self.assertErr(run(themes=self.views(kind, views)), msg)
@@ -838,7 +838,7 @@ class FrameTest(RecordsTestCase):
         rows = with_waku(theme_rows(), "waku:keikaku/3")
         self.assertErr(run_frame(themes=rows), "views のキーが入力に無い（waku:keikaku/3")
         rows = with_waku(theme_rows(), "waku:keikaku/0")
-        self.assertErr(run_frame(themes=rows), "見方のキー（node・plan・fa・dist・org・waku の要素）の形でない")
+        self.assertErr(run_frame(themes=rows), "見方のキー（node・plan・fa・dist・org・waku の要素・tk の要素）の形でない")
         rows = [r for r in with_waku(theme_rows()) if r["kind"] != "枠"]
         self.assertErr(run_frame(themes=rows), "views の waku:keikaku/1 の枠が、同じテーマの kind 枠の行に無い")
         rows = with_waku(theme_rows())
@@ -891,6 +891,86 @@ class FrameTest(RecordsTestCase):
         self.assertIn("- kotogara：confirmed 1", lines)
 
 
+TK_ID = "keikaku"
+
+
+def taikei_ref(**over):
+    rows = [{"taikei": TK_ID, "n": "0", "name": "計画期間", "source": "pt:youho/honpen/1"},
+            {"taikei": TK_ID, "n": "1", "name": "計画期間は", "source": "pt:youho/honpen/1"},
+            {"taikei": TK_ID, "n": "2", "oya": "1", "name": "令和6年", "source": "pt:youho/honpen/1", "waku": WAKU_ID}]
+    out = []
+    for r in rows:
+        x = {c: "" for c in rc.TAIKEI_COLUMNS}
+        x.update(reviewer="kken78", date="2026-11-15")
+        x.update(r)
+        x.update(over.get(r["n"], {}))
+        out.append(x)
+    return out
+
+
+def run_taikei(themes=None, taikei=None):
+    return rc.check_all(ledgers(), themes if themes is not None else theme_rows(), shisetsu_ref(), inputs(), chiku_ref(),
+                        soshiki_ref(), waku_ref(), shiryo_ref(), taikei if taikei is not None else taikei_ref())
+
+
+def with_taikei(rows, views=f"tk:{TK_ID}/2", kind_row=True):
+    """テーマの定義に kind 体系の行を足し、事柄「新こども園の定員」の views に体系の要素を書く。"""
+    base = rows[0]
+    out = [dict(r, views=",".join(x for x in (r["views"], views) if x)) if (r["kind"], r["value"]) == ("事柄", "新こども園の定員")
+           else r for r in rows]
+    if kind_row:
+        out.append(dict(base, kind="体系", value=f"tk:{TK_ID}", source="pt:youho/honpen/1", views="", note=""))
+    return sorted(out, key=lambda r: (r["theme"], r["kind"], r["value"]))
+
+
+class TaikeiTest(RecordsTestCase):
+    """分類の体系の参照表とテーマの定義の kind 体系・見方 tk（§11・§12・§12.5。DESIGN.md ADR-38）。"""
+
+    def test_baseline(self):
+        rep = run_taikei(themes=with_taikei(theme_rows()))
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(sorted(rep.taikei[TK_ID]), ["0", "1", "2"])
+        self.assertEqual(rep.ref_counts["taikei"], 3)
+
+    def test_tk_not_in_views(self):
+        # tk の見方は地図だけで使い、Theme の views（整理シートと届き先の信号）には入れない（§12.5）
+        th = rc.check_themes(with_taikei(theme_rows()), inputs(), {"fa:a"}, rc.Report(), taikei={TK_ID: {"0": {}, "2": {}}})
+        self.assertEqual(th.views_of("事柄", "新こども園の定員"), {P})
+
+    def test_ref_errors(self):
+        for over, msg in [({"1": {"name": "無い字"}}, "name が source のページの原典の文字に無い"),
+                          ({"1": {"source": "doc:teigen"}}, "doc か pt のページのキーでない"),
+                          ({"1": {"source": "pt:youho/honpen/9"}}, "source が lock の版の入力に無い"),
+                          ({"2": {"oya": "2"}}, "oya が同じ体系の、この要素より前の要素の番号でない"),
+                          ({"2": {"oya": "0"}}, "oya が同じ体系の"),
+                          ({"2": {"waku": "nai"}}, "waku が枠組みの参照表の枠組みの id でない"),
+                          ({"0": {"oya": "1"}}, "n が0の行の oya か waku が空でない"),
+                          ({"1": {"reviewer": ""}}, "reviewer か date"),
+                          ({"2": {"n": "3"}}, "要素の番号が1からの続いた番号でない")]:
+            with self.subTest(over=over):
+                self.assertErr(run_taikei(taikei=taikei_ref(**over)), msg)
+        self.assertErr(run_taikei(taikei=taikei_ref()[1:]), "n が0の行（体系そのもの）が無い")
+        self.assertErr(run_taikei(taikei=list(reversed(taikei_ref()))), "行がキーの順でない")
+
+    def test_theme_taikei(self):
+        self.assertErr(run_taikei(themes=with_taikei(theme_rows(), f"tk:{TK_ID}/3")), f"views のキーが入力に無い（tk:{TK_ID}/3")
+        self.assertErr(run_taikei(themes=with_taikei(theme_rows(), f"tk:{TK_ID}/0")), "tk の要素）の形でない")
+        self.assertErr(run_taikei(themes=with_taikei(theme_rows(), kind_row=False)),
+                       f"views の tk:{TK_ID}/2 の体系が、同じテーマの kind 体系の行に無い")
+        rows = with_taikei(theme_rows())
+        next(r for r in rows if r["kind"] == "体系")["value"] = "tk:nai"
+        self.assertErr(run_taikei(themes=rows), "value が kind の形に合わないか")
+        rows = with_taikei(theme_rows())
+        rows.append(dict(next(r for r in rows if r["kind"] == "体系"), value="tk:betsu"))
+        rows.sort(key=lambda r: (r["theme"], r["kind"], r["value"]))
+        tr = taikei_ref() + [dict(taikei_ref()[0], taikei="betsu")]
+        tr.sort(key=lambda r: (r["taikei"], int(r["n"])))
+        self.assertErr(run_taikei(themes=rows, taikei=tr), "体系 の行が2行以上ある")
+        rows = with_taikei(theme_rows())
+        next(r for r in rows if r["kind"] == "体系")["views"] = f"tk:{TK_ID}/1"
+        self.assertErr(run_taikei(themes=rows), "views を持てるのは kind")
+
+
 class CheckRecordsTest(unittest.TestCase):
     def test_bulletin_texts(self):
         q = {"issue": "30", "member": "松田 洋子", "q_num": "1", "title": "題", "question_text": "問い",
@@ -907,7 +987,7 @@ class CheckRecordsTest(unittest.TestCase):
         self.assertEqual(lines[8:12], ["- 届き先の信号：views の無い点の確定行 2（signal_todoku.tsv）",
                                        "- 届き先の信号：問いごとの点が空の割合（signal_point.tsv。問い 2）",
                                        "- 届き先の信号：中心の見方に出る行の割合（signal_chushin.tsv。テーマ 1）",
-                                       "- 参照表の行の数：shisetsu 1・chiku 2・soshiki 1・waku 0・shiryo 0"])
+                                       "- 参照表の行の数：shisetsu 1・chiku 2・soshiki 1・waku 0・shiryo 0・taikei 0"])
 
     def test_read_area_refs(self):
         # ファイルが無ければ0行。あれば §1 の形と §12.1 の列で読む（列名と列の順が違えば止める）

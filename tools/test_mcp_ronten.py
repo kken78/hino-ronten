@@ -310,5 +310,22 @@ class ToolTest(unittest.TestCase):
             self.assertEqual(mr.theme_words(p, "hoiku"), ["こども園"])
 
 
+
+class ChizuOverviewTest(unittest.TestCase):
+    """overview の頭の論点の地図（LINK_SCHEMA §14。DESIGN.md ADR-38）。"""
+
+    def test_overview(self):
+        d = json.loads(data())
+        d["chizu"] = tb.chizu()
+        s = mr.Server(json.dumps(d, ensure_ascii=False).encode("utf-8"), P, WORDS, SPEECHES)
+        t, err = call(s, "overview")
+        self.assertFalse(err)
+        self.assertIn("\n## 論点の地図\n分類の体系：再編整備計画", t)
+        self.assertLess(t.index("## 論点の地図"), t.index("## 事業の要点"))
+        self.assertIn("- 体系の外：事項 1（提言）", t)
+        t0, _ = call(server(), "overview")
+        self.assertNotIn("論点の地図", t0)
+        self.assertTrue(t.endswith(t0[t0.index("## 事業の要点"):]))
+
 if __name__ == "__main__":
     unittest.main()

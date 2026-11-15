@@ -66,6 +66,99 @@ def fy_name(y):
     return f"令和{'元' if y == 2019 else y - 2018}年度" if y >= 2019 else f"{y}年度"
 
 
+def nendo_name(y):
+    """論点の地図の年度の名前（LINK_SCHEMA §17.2 の0）：令和N年度（令和元年度）、令和より前は平成N年度。年度の無いものは空の字。"""
+    if not y:
+        return "年度の無いもの"
+    y = int(y)
+    return f"令和{'元' if y == 2019 else y - 2018}年度" if y >= 2019 else f"平成{y - 1988}年度"
+
+
+# 論点の地図（LINK_SCHEMA §14・§17.2 の0。DESIGN.md ADR-38）
+GIKAI_STATE = {"nai": "記録した範囲に無い", "mi": "まだ見ていない", "nashi": "題材の問いが無い"}
+MITA_LABEL = {"問い": "一般質問", "質疑": "議案質疑", "報告": "委員長の報告"}
+CHIZU_GUIDE = "本編の章「論点の地図」に、分類の体系と年度を骨にして、事項（論点）ごとの記録の行の数を、段落と箇条で書いています"
+
+
+def chizu_count_text(counts, gikai):
+    """事項か要素の年度ごとの数の文（§17.2 の0 の <数>）。"""
+    out = []
+    for y, (a, b) in counts.items():
+        t = f"{nendo_name(y)} 資料{a}・議会{b}"
+        st = gikai.get(y, "") if y else ""
+        if b == 0 and st:
+            t += f"（{GIKAI_STATE[st]}）"
+        elif b and st == "mi":
+            t += "（まだ見ていないものが残る）"
+        out.append(t)
+    return "、".join(out) or "記録なし"
+
+
+def chizu_lines(c):
+    """論点の地図の段落と箇条（§17.2 の0）。chizu が空なら []。Markdown の行の並び（段落の後ろに空の行）。"""
+    if not c:
+        return []
+    tk = c["taikei"]
+    gikai = c.get("gikai") or {}
+    pts = {p["name"]: p for p in c.get("points") or []}
+    els = {e["n"]: e for e in c.get("elements") or []}
+    L = [f"分類の体系：{tk['name']}（出典：{tk['name']}（{tk['source']}）（出典：{tk['url']}））。"
+         "縦に体系の要素（原典の見出しの字のまま）、横に年度（4月〜翌3月）を置き、事項（論点）ごとに記録の行の数を示します。", "",
+         "読み方：数の「資料」は町の資料の記載の行で、資料の日付の年度で数えています。「議会」は議会の記録（一般質問・議案質疑・委員長の報告）の行で、"
+         "発言の日の年度で数えています。却下の行を除き、未確認の行を含みます。議会の記録の行が無い年度は、年度ごとの状態で3つに分けます。"
+         "「記録した範囲に無い」は、その年度に題材に選んだ問い・質疑・報告を全部記録したうえで無いこと、"
+         "「まだ見ていない」は、その年度に記録していない問い・質疑・報告が残ること、"
+         "「題材の問いが無い」は、その年度に題材に選んだ問い・質疑・報告が無いことです。"
+         "町の資料は、資料の中を全部読んだかを持っていないので、状態を分けていません。"
+         "「対応は案」は、体系の要素への対応が、まだ確かめていない案であることを示します。", ""]
+    mita = c.get("mita") or {}
+    if mita:
+        L.append("- 見た範囲（題材に選んだ問い・質疑・報告のうち、記録が済んだ数）：" + "、".join(
+            f"{nendo_name(y)} " + "・".join(f"{MITA_LABEL[k]} {v[0]}のうち{v[1]}" for k, v in m.items()) for y, m in mita.items()))
+    else:
+        L.append("- 見た範囲：題材に選んだ問い・質疑・報告なし")
+    L.append("- 年度ごとの議会の側の状態：" + ("、".join(f"{nendo_name(y)} {GIKAI_STATE[st]}" for y, st in gikai.items()) or "年度なし"))
+    katei = c.get("katei") or {}
+    L.append("- 経過（過程の記録の段階）：" + "、".join(f"{nendo_name(y)} " + "・".join(x["name"] for x in v) for y, v in katei.items())
+             if katei else "- 経過：過程の記録なし")
+
+    def path(e):
+        out = [e["name"]]
+        while e.get("oya"):
+            e = els[e["oya"]]
+            out.append(e["name"])
+        return " ＞ ".join(reversed(out))
+
+    def marks(p):
+        m = "".join(f"。枠組み：{w['name']} 要素{w['n']} {w['element']}" for w in p.get("waku") or [])
+        return m + ("。対応は案" if p.get("an") else "")
+
+    def point_line(p, where):
+        return f"- 事項「{p['name']}」（{where}{marks(p)}）：{chizu_count_text(p['counts'], gikai)}"
+    for e in c.get("elements") or []:
+        ps = e.get("points") or []
+        if ps:
+            body = f"事項 {len(ps)}（{'、'.join(ps)}）。計：{chizu_count_text(e['counts'], gikai)}"
+        elif e.get("under"):
+            body = f"下の要素に事項 {e['under']}"
+        else:
+            body = "事項なし"
+        L.append(f"- {path(e)}：{body}")
+        if e.get("waku"):
+            w = e["waku"]
+            for we in w["elements"]:
+                L.append(f"- {path(e)} ＞ 枠組み「{w['name']}」の要素{we['n']} {we['name']}："
+                         + (f"事項 {len(we['points'])}（{'、'.join(we['points'])}）" if we["points"] else "事項なし"))
+        for n in ps:
+            L.append(point_line(pts[n], f"要素：{e['name']}"))
+    soto = c.get("soto") or []
+    L.append(f"- 体系の外：事項 {len(soto)}（{'、'.join(soto)}）" if soto else "- 体系の外：事項なし")
+    for n in soto:
+        L.append(point_line(pts[n], "体系の外"))
+    L.append("")
+    return L
+
+
 def posted_date(posted):
     """計画の meta の posted の文のうち、最後に出る年月（YYYY-MM）。無ければ空（LINK_SCHEMA §17.1）。"""
     ms = list(RE_YM.finditer(posted or ""))
@@ -498,6 +591,8 @@ class Rag:
                "決算の認定までの流れでは、要素ごとに、要素に当たる資料の項目か、議案（提案の説明・質疑・委員長の報告・討論・議決）を書いています")
         doc.li("「【未確認】」の段落と「照合結果（未確認）」の節は、機械による照合の結果か、人による確認が済んでいない記録です")
         doc.li(ARCHIVE_NOTE)
+        if self.d.get("chizu"):     # 論点の地図（LINK_SCHEMA §17.1。DESIGN.md ADR-38）
+            doc.li(CHIZU_GUIDE)
         doc.li("評価や判断は加えていません。議員ごとの件数や順位は示していません")
         doc.end_list()
 
@@ -714,6 +809,9 @@ class Rag:
     def honpen(self):
         doc, d = Doc(), self.d
         self.guide(doc, "本編")
+        if d.get("chizu"):     # 論点の地図（LINK_SCHEMA §17.2 の0。DESIGN.md ADR-38）
+            doc.h(1, f"{self.pname}（本編）：論点の地図")
+            doc.lines += chizu_lines(d["chizu"])
         self.youten(doc)
 
         doc.h(1, f"{self.pname}（本編）：2 概要")
