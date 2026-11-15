@@ -1,0 +1,92 @@
+taikei	n	oya	name	source	waku	reviewer	date	note
+kaigo9	0		日野町高齢者福祉計画・介護保険事業計画（第９期）	pt:kaigo9/honpen/1		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち。体系は、第9期の計画の目次（pt:kaigo9/honpen/5・6）の章・節と、第４章の施策目標5・施策15（施策の体系 pt:kaigo9/honpen/38）
+kaigo9	1		第１章 はじめに	pt:kaigo9/honpen/7		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	2	1	１ 計画策定の背景と目的	pt:kaigo9/honpen/7		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	3	1	２ 計画の位置づけ	pt:kaigo9/honpen/8		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	4	1	３ 計画の期間	pt:kaigo9/honpen/9		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	5	1	４ 計画の策定体制	pt:kaigo9/honpen/9		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	6		第２章 高齢者を取り巻く現状と課題	pt:kaigo9/honpen/10		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	7	6	１ 高齢者の現状	pt:kaigo9/honpen/10		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	8	6	２ 地域包括ケア「見える化」システムを用いた分析	pt:kaigo9/honpen/15		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	9	6	３ アンケート調査の概要と結果からみる課題	pt:kaigo9/honpen/18		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	10	6	４ 第８期計画の評価・検証結果	pt:kaigo9/honpen/23		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	11	6	５ 高齢者福祉の主な課題	pt:kaigo9/honpen/30		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	12		第３章 計画の基本的な考え方	pt:kaigo9/honpen/31		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	13	12	１ 計画の基本理念	pt:kaigo9/honpen/31		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	14	12	２ 基本理念を達成するための施策目標	pt:kaigo9/honpen/32		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	15	12	３ 地域包括ケアシステムの深化・推進	pt:kaigo9/honpen/34		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	16	12	４ 施策の体系	pt:kaigo9/honpen/38		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	17		第４章 高齢者福祉の施策	pt:kaigo9/honpen/39		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	18	17	施策目標１ 包括的な支援体制づくり	pt:kaigo9/honpen/39		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	19	18	（１）地域共生社会づくりの推進	pt:kaigo9/honpen/39		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	20	18	（２）地域包括支援センターの機能強化	pt:kaigo9/honpen/39		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	21	18	（３）多様な連携の推進	pt:kaigo9/honpen/40		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	22	17	施策目標２ いきいき過ごせる健康と生きがいづくり	pt:kaigo9/honpen/41		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	23	22	（１）多様な生きがいと居場所づくり	pt:kaigo9/honpen/41		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	24	22	（２）働く場と機会づくり	pt:kaigo9/honpen/42		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	25	22	（３）健康寿命の延伸	pt:kaigo9/honpen/42		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	26	17	施策目標３ 安心と尊厳のある暮らしの環境づくり	pt:kaigo9/honpen/43		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	27	26	（１）災害時・緊急時の備えの確保	pt:kaigo9/honpen/43		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	28	26	（２）生活安全対策の推進	pt:kaigo9/honpen/43		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	29	26	（３）住み続けられる環境づくり	pt:kaigo9/honpen/44		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	30	26	（４）権利擁護の推進	pt:kaigo9/honpen/44		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	31	17	施策目標４ 認知症を支える地域づくり	pt:kaigo9/honpen/45		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	32	31	（１）総合的な支援体制の構築	pt:kaigo9/honpen/45		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	33	31	（２）認知症支援の充実	pt:kaigo9/honpen/46		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	34	17	施策目標５ 暮らしを支えるサービス提供の体制づくり	pt:kaigo9/honpen/47		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	35	34	（１）生活支援サービスの充実	pt:kaigo9/honpen/47		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	36	34	（２）介護保険サービス提供体制の確保	pt:kaigo9/honpen/47		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	37	34	（３）介護保険事業の適正運営	pt:kaigo9/honpen/48		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	38		第５章 介護サービスの見込量と介護保険料	pt:kaigo9/honpen/49		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	39	38	１ 介護保険料の計算の流れ	pt:kaigo9/honpen/49	kaigo-hokenryo	kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち。介護保険料の計算の流れ（枠組み kaigo-hokenryo。49ページの図）が載る節
+kaigo9	40	38	２ 日常生活圏域の設定	pt:kaigo9/honpen/50		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	41	38	３ 人口・認定者数の推計	pt:kaigo9/honpen/53		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	42	38	４ 介護保険サービスの量の見込み	pt:kaigo9/honpen/57		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	43	38	５ 総給付費の推計	pt:kaigo9/honpen/59		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	44	38	６ 標準給付費等の見込み	pt:kaigo9/honpen/61		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	45	38	７ 第１号被保険者の介護保険料の設定	pt:kaigo9/honpen/62		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	46		第６章 計画の推進	pt:kaigo9/honpen/66		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	47	46	１ 計画の推進体制	pt:kaigo9/honpen/66		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	48	46	２ 計画の進行管理	pt:kaigo9/honpen/66		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	49		資料編	pt:kaigo9/honpen/67		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	50	49	１ 日野町介護保険運営協議会規則	pt:kaigo9/honpen/67		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	51	49	２ 日野町介護保険運営協議会委員名簿	pt:kaigo9/honpen/69		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	52	49	３ 日野町介護保険運営協議会開催概要	pt:kaigo9/honpen/70		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	53	49	４ 介護保険サービスの種類と内容	pt:kaigo9/honpen/71		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+kaigo9	54	49	５ 用語集	pt:kaigo9/honpen/78		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	0		日野町幼児教育保育施設再編整備計画	pt:youho/honpen/1		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち。体系は、再編整備計画（令和７年３月、令和８年６月一部改正）の目次（pt:youho/honpen/2）の章・節と、第３章の基本方針（１）①〜④・（２）①〜③、再編整備計画の施設①〜⑥
+youho	1		第１章 計画策定にあたって	pt:youho/honpen/3		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	2	1	１ 計画策定の趣旨と背景	pt:youho/honpen/3		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	3	1	２ 計画の位置づけ	pt:youho/honpen/3		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	4	1	３ 計画の期間	pt:youho/honpen/4		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	5	1	４ 区域および対象施設	pt:youho/honpen/4		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	6		第２章 日野町の幼稚園・保育所をめぐる状況	pt:youho/honpen/5		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	7	6	１ 人口等の推移	pt:youho/honpen/5		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	8	6	２ 教育・保育の状況	pt:youho/honpen/9		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	9	6	３ 世帯の状況	pt:youho/honpen/12		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	10	6	４ 女性の就労状況	pt:youho/honpen/13		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	11	6	５ 児童虐待の状況	pt:youho/honpen/14		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	12	6	６ アンケート調査結果	pt:youho/honpen/14		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	13	6	７ 日野町の幼児教育・保育をめぐる課題	pt:youho/honpen/20		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	14	6	８ 日野町幼児教育・保育の在り方検討懇話会	pt:youho/honpen/22		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち。目次の字は「８ 日野町の幼児教育・保育の在り方検討懇話会」
+youho	15		第３章 日野町幼児教育保育施設の再編整備計画	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	16	15	１ 幼児教育保育施設の再編整備に向けた基本的な考え方	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	17	15	２ 幼児教育保育施設再編整備の基本方針	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち。目次の字は「２ 幼児教育保育施設の再編整備の基本方針」
+youho	18	17	（１）子どもにとって最善の保育環境を整える	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	19	18	① 幼児期の人格形成の土台をつくる大切な時期に、しっかりと愛着形成を育み、子ども同士で刺激しあい、子どもたちの主体性を伸ばす力を養成していく。	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	20	18	② ①のために適正な集団規模を確保し、子どもにとっての成長の場と、保育士等にとって子どもの成長を喜び合え、働き甲斐のある職場環境をつくり保育の質の向上を目指す。	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	21	18	③ 地域の中で子どもたちが健やかに育つよう、豊かな自然環境の中で、地域の方々と子どもたちが一緒に触れ合える保育環境をつくるよう努める。	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	22	18	④ この町で安心して子育てができるよう、誰もが望めば入園（受け入れ）できる幼児教育保育施設の整備に努める。	pt:youho/honpen/25		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	23	17	（２）幼児教育保育環境の再編整備を図る	pt:youho/honpen/26		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	24	23	①公立幼稚園と保育所を集約化し、幼稚園機能と保育所機能の両方を兼ね備えた「幼保連携型認定こども園」として再編整備を行う。	pt:youho/honpen/26		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち。名前の後ろの注「（※既存の公立施設２園と、新設の認定こども園の建設を含め、町内で計３園の認定こども園の整備を図る。私立わらべ保育園、第二わらべ保育園は現状配置のままとする。）」は名前に入れていない
+youho	25	23	②多様化する保育ニーズへの対応や良質な保育サービスの持続的な提供を図るため、町と民間事業者との連携・協働に努め、特に低年齢児（０歳から２歳児）の受け入れを拡大するため、公立施設の活用を含めた民間事業者による地域型保育（小規模保育事業）施設の整備を図る。	pt:youho/honpen/26		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	26	23	③子育て支援事業の更なる充実を図るため、再編整備後の空き公立施設を活用した子育て支援施設や学童保育施設等の拠点整備を図る。	pt:youho/honpen/26		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	27	15	３ 幼児教育保育施設の再編整備計画について	pt:youho/honpen/27		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	28	27	① 西大路幼稚園	pt:youho/honpen/28		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	29	27	② 保育所こばと園	pt:youho/honpen/29		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	30	27	③ 保育所あおぞら園鎌掛分園	pt:youho/honpen/30		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	31	27	④ 南比都佐幼稚園	pt:youho/honpen/31		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	32	27	⑤ 保育所あおぞら園・日野幼稚園・必佐幼稚園・桜谷こども園第１園舎	pt:youho/honpen/32		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	33	27	⑥ 桜谷こども園第２園舎	pt:youho/honpen/33		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	34	15	４ 再編整備スケジュール	pt:youho/honpen/34		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
+youho	35		資料編	pt:youho/honpen/36		kken78	2026-11-15	依頼者の指示（2026-11-15。DESIGN.md ADR-38）で決めた体系と範囲。名前とページは Opus 5.5 が原典の文字（data/text・data/text_raw）の本文の見出しから写し、道具で照らした。依頼者の確認待ち
