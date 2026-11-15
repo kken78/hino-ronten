@@ -1373,16 +1373,18 @@ def issues_kurikaeshi(L, R):
 
 
 def scope_text(R, tk, hokoku=False):
-    """比べた範囲の文（§13.2）。hokoku が真なら、審査報告の記録の報告も範囲に入れ、あれば「・委員長の報告N件」を足す
-    （問われていない点だけ。2026-11-15 の5つめ）。"""
+    """比べた範囲の文（§13.2）。hokoku が真で審査報告の記録があれば、委員長の報告を期間を分けて足す：「記録した質問（…）と
+    委員長の報告（N件、<最初の会議>〜<最後の会議>）」（問われていない点だけ。2026-11-15 の5つめ・8つめ）。返す並びは、
+    範囲に入れた問い・質疑・報告のまとまり。"""
     qs = asked_groups(R)
-    hk = [("hokoku", q) for q in R.get("hokoku") or []] if hokoku else []
-    rng = sorted(qs + hk, key=lambda x: (x[1]["date"], x[1]["question"]))
-    if not rng:
-        return "記録した質問（なし）", []
+    hk = sorted((("hokoku", q) for q in R.get("hokoku") or []), key=lambda x: (x[1]["date"], x[1]["question"])) if hokoku else []
     qs.sort(key=lambda x: (x[1]["date"], x[1]["question"]))
-    s = (f"記録した質問（一般質問{len(R['yaritori'])}問・議案質疑{len(R['shitsugi'])}件"
-         + (f"・委員長の報告{len(hk)}件" if hk else "") + f"、{rng[0][1]['meeting']}〜{rng[-1][1]['meeting']}）")
+    if not qs and not hk:
+        return "記録した質問（なし）", []
+    s = (f"記録した質問（一般質問{len(R['yaritori'])}問・議案質疑{len(R['shitsugi'])}件、{qs[0][1]['meeting']}〜{qs[-1][1]['meeting']}）"
+         if qs else "記録した質問（なし）")
+    if hk:
+        s += f"と委員長の報告（{len(hk)}件、{hk[0][1]['meeting']}〜{hk[-1][1]['meeting']}）"
     return s, qs + hk
 
 

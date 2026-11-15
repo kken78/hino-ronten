@@ -784,8 +784,11 @@ class HokokuBuildTest(unittest.TestCase):
         heads = [x["statement"].split("」")[0] for x in t]
         self.assertNotIn("「要介護認定率", heads)                # 審査報告の記録の問いの事項は取り上げられたものとする
         self.assertNotIn("「成年後見制度の利用支援", heads)
-        self.assertIn("記録した質問（一般質問1問・議案質疑1件・委員長の報告1件、令和7年3月定例会議〜令和7年12月定例会議）では取り上げられていない",
-                      t[0]["statement"])
+        # 質問と委員長の報告で期間を分ける（案B。2026-11-15 の8つめ）
+        self.assertIn("記録した質問（一般質問1問・議案質疑1件、令和7年3月定例会議〜令和7年3月定例会議）と委員長の報告（1件、"
+                      "令和7年12月定例会議〜令和7年12月定例会議）では取り上げられていない", t[0]["statement"])
+        self.assertEqual(bt.scope_text({"yaritori": [], "shitsugi": [], "hokoku": self.data["records"]["hokoku"]}, {}, hokoku=True)[0],
+                         "記録した質問（なし）と委員長の報告（1件、令和7年12月定例会議〜令和7年12月定例会議）")
         k = next(x for x in self.data["issues"] if x["type"] == "問われていない区分")
         self.assertNotIn("委員長の報告", k["statement"])          # 区分の範囲には入れない（§13.2）
         # 審査報告の記録が無いときは、いまのとおり
