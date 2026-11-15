@@ -764,5 +764,64 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(br.fiscal_year("2026-03-23"), 2025)
 
 
+
+def chizu():
+    """論点の地図の見本（LINK_SCHEMA §13.3 の chizu）。"""
+    return {"taikei": {"key": "tk:youho", "name": "再編整備計画", "source": "pt:youho/honpen/1", "url": U + "youho.pdf#page=1"},
+            "years": [2018, 2019, 2020],
+            "elements": [{"view": "tk:youho/1", "n": 1, "oya": None, "depth": 1, "name": "第１章 はじめに", "source": "pt:youho/honpen/1",
+                          "url": U + "y", "points": [], "under": 1, "waku": None, "counts": {}},
+                         {"view": "tk:youho/2", "n": 2, "oya": 1, "depth": 2, "name": "１ 計画の期間", "source": "pt:youho/honpen/1",
+                          "url": U + "y", "points": ["新こども園の開園時期"], "under": 0,
+                          "waku": {"key": "waku:w", "name": "流れ", "elements": [{"n": 1, "name": "要素A", "points": ["新こども園の開園時期"]},
+                                                                                {"n": 2, "name": "要素B", "points": []}]},
+                          "counts": {"2018": [1, 0], "2020": [0, 2], "": [1, 0]}},
+                         {"view": "tk:youho/3", "n": 3, "oya": None, "depth": 1, "name": "資料編", "source": "pt:youho/honpen/1",
+                          "url": U + "y", "points": [], "under": 0, "waku": None, "counts": {}}],
+            "points": [{"name": "新こども園の開園時期", "kind": "事柄", "elements": [2],
+                        "waku": [{"key": "waku:w/1", "name": "流れ", "n": 1, "element": "要素A"}], "an": True,
+                        "counts": {"2018": [1, 0], "2020": [0, 2], "": [1, 0]}},
+                       {"name": "提言", "kind": "記載", "elements": [], "waku": [], "an": False, "counts": {}}],
+            "soto": ["提言"], "katei": {"2019": [{"step": 1, "name": "懇話会"}], "": [{"step": 2, "name": "策定"}]},
+            "mita": {"2020": {"問い": [2, 1], "報告": [1, 1]}}, "gikai": {"2018": "nashi", "2019": "nashi", "2020": "mi"}}
+
+
+class ChizuTest(unittest.TestCase):
+    """論点の地図の文（LINK_SCHEMA §17.2 の0・§14。DESIGN.md ADR-38）。"""
+
+    def test_lines(self):
+        L = br.chizu_lines(chizu())
+        t = "\n".join(L)
+        self.assertTrue(L[0].startswith("分類の体系：再編整備計画（出典：再編整備計画（pt:youho/honpen/1）（出典：" + U + "youho.pdf#page=1））。"))
+        self.assertIn("- 見た範囲（題材に選んだ問い・質疑・報告のうち、記録が済んだ数）：令和2年度 一般質問 2のうち1・委員長の報告 1のうち1", t)
+        self.assertIn("- 年度ごとの議会の側の状態：平成30年度 題材の問いが無い、令和元年度 題材の問いが無い、令和2年度 まだ見ていない", t)
+        self.assertIn("- 経過（過程の記録の段階）：令和元年度 懇話会、年度の無いもの 策定", t)
+        self.assertIn("\n- 第１章 はじめに\n"
+                      "  - １ 計画の期間：事項 1。計：平成30年度 資料1、令和2年度 議会2、年度の無いもの 資料1\n"
+                      "    - 枠組み「流れ」の要素1 要素A\n"
+                      "      - 事項「新こども園の開園時期」（枠組み：流れ 要素1）（対応は案）：平成30年度 資料1、令和2年度 議会2、年度の無いもの 資料1\n"
+                      "    - 事項なし（枠組み「流れ」の要素）：要素2 要素B\n"
+                      "- 事項なし：資料編\n"
+                      "- 体系の外：事項 1\n"
+                      "  - 事項「提言」：記録なし\n", t)
+        self.assertNotIn("＞", t)
+        self.assertNotIn("（まだ見ていないものが残る）", t)
+        x = br.document_xml("- a\n    - b\n")
+        self.assertIn("・a", x)
+        self.assertIn("　　・b", x)
+        self.assertEqual(br.chizu_lines({}), [])
+
+    def test_honpen(self):
+        md, kiroku = br.build(data(chizu=chizu()), P)
+        self.assertIn(f"# 認定こども園整備事業（本編）：論点の地図", md)
+        self.assertLess(md.index("：論点の地図"), md.index("：1 事業の要点"))
+        self.assertGreater(md.index("：論点の地図"), md.index("この資料の読み方"))
+        self.assertIn(br.CHIZU_GUIDE, md)
+        self.assertIn(br.CHIZU_GUIDE, kiroku)
+        md0, kiroku0 = built()
+        self.assertNotIn("論点の地図", md0 + kiroku0)
+        strip = lambda m: re.sub(r"sha256 [0-9a-f]{12}", "", m)     # データの版の sha256 だけが違う
+        self.assertEqual(strip(md0), strip(br.build(data(chizu={}), P)[0]))
+
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,7 @@ inputs.lock.json の版の入力（会議録の索引と審議の記録・議案
   suji_missing.tsv   confirmed の事柄・記載の行で、資料が資料の種類の参照表に当たり、suji が空のもの（§11。止めない。ADR-37）
   katachi.tsv        形の点検の (3) 同じ引用で点が違う行と (4) target が引用に無い行（§11。終了コードは変えない）
 枠の参照表（ref/waku.tsv。§12.3）と資料の種類の参照表（ref/shiryo.tsv。§12.4）は、ファイルが無ければ0行として扱う（ADR-37）。
+分類の体系の参照表（ref/taikei.tsv。§12.5）も、ファイルが無ければ0行として扱う（ADR-38）。
 
 target のキーは、lock の版の附表（fh）と hino-town-docs の構造化の層（hs・hj・hk・hz。tools/hosei.py）で照らし、
 links/gian-yosan.tsv・links/hosei-fuhyo.tsv の confirmed の行（無ければ0行）で議案の回と○の行の附表を引く。
@@ -53,6 +54,7 @@ CHIKU = os.path.join(gm.ROOT, "ref", "chiku.tsv")       # 地区の参照表（�
 SOSHIKI = os.path.join(gm.ROOT, "ref", "soshiki.tsv")   # 組織の参照表（§12.1）。無ければ0行
 WAKU = os.path.join(gm.ROOT, "ref", "waku.tsv")         # 枠の参照表（§12.3。ADR-37）。無ければ0行
 SHIRYO = os.path.join(gm.ROOT, "ref", "shiryo.tsv")     # 資料の種類の参照表（§12.4。ADR-37）。無ければ0行
+TAIKEI = os.path.join(gm.ROOT, "ref", "taikei.tsv")     # 分類の体系の参照表（§12.5。ADR-38）。無ければ0行
 LINKS_DIR = os.path.join(gm.ROOT, "links")
 EXAMPLES = 20
 USAGE = "使い方：python3 -B tools/check_records.py [--prev <前の版の hino-town-docs の SHA>]"
@@ -75,6 +77,11 @@ def read_frame_refs():
     """枠と資料の種類の参照表の行（§12.3・§12.4）。ファイルが無ければ0行。(waku, shiryo)。"""
     return (read_file(WAKU, records.WAKU_COLUMNS, optional=True),
             read_file(SHIRYO, records.SHIRYO_COLUMNS, optional=True))
+
+
+def read_taikei_ref():
+    """分類の体系の参照表の行（§12.5）。ファイルが無ければ0行。"""
+    return read_file(TAIKEI, records.TAIKEI_COLUMNS, optional=True)
 
 
 def bulletin_texts(questions):
@@ -289,10 +296,11 @@ def main(argv=None):
         shisetsu = read_file(SHISETSU, records.SHISETSU_COLUMNS)
         chiku, soshiki = read_area_refs()
         waku, shiryo = read_frame_refs()
+        taikei = read_taikei_ref()
     except (gm.GenError, records.RecordsError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
-    rep = records.check_all(ledgers, themes, shisetsu, inp, chiku, soshiki, waku, shiryo)
+    rep = records.check_all(ledgers, themes, shisetsu, inp, chiku, soshiki, waku, shiryo, taikei)
     rep.struct = inp.struct
     if prev is not None:
         rep.prev_sha = args[1]

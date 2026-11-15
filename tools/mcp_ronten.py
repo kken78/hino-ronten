@@ -153,8 +153,10 @@ class Server:
         d, r = self.d, self.r
         head = "事業の要点" if r.prog else "見方の要点"
         out = [f"{r.pname}（テーマ「{d.get('name')}」）の資料。{NOTE}",
-               f"取り込んだ資料のうち、いちばん新しい記載の資料の日付：{br.jd(r.latest_date())}。それより後のことは資料に無い。", "",
-               f"## {head}"]
+               f"取り込んだ資料のうち、いちばん新しい記載の資料の日付：{br.jd(r.latest_date())}。それより後のことは資料に無い。", ""]
+        if d.get("chizu"):     # 論点の地図（LINK_SCHEMA §14。DESIGN.md ADR-38）
+            out += ["## 論点の地図"] + br.chizu_lines(d["chizu"])
+        out.append(f"## {head}")
         md = r.honpen().markdown()
         s = md.index(f"：1 {head}")
         out.append(md[s:md.index("\n# ", s)].split("\n", 1)[1].strip())

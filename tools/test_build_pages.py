@@ -390,5 +390,29 @@ class AreaScriptTest(unittest.TestCase):
         self.assertIn("<span>ほかの表記</span> 未記録", r["facts"])
 
 
+@unittest.skipIf(shutil.which("node") is None, "node が無い")
+class ChizuScriptTest(unittest.TestCase):
+    """論点整理の頭の論点の地図（LINK_SCHEMA §16.5。DESIGN.md ADR-38）。"""
+
+    def test_map(self):
+        import test_build_rag as tb
+        import test_build_theme as tbt
+        data = tbt.build()
+        data["chizu"] = tb.chizu()
+        r = run_page(bp.render(template(), json.dumps(data, ensure_ascii=False).encode("utf-8"), P))
+        self.assertIn("論点の地図", r["ronten"])
+        self.assertLess(r["ronten"].index("論点の地図"), r["ronten"].index("事項ごとの質問・答弁"))
+        self.assertIn('data-p="新こども園の開園時期"', r["ronten"])
+        self.assertIn('data-p="提言"', r["ronten"])        # 体系の外の事項も出す
+        self.assertIn("令和2年度", r["ronten"])
+        self.assertIn("事項なし", r["ronten"])
+        self.assertIn("議 ・", r["ronten"])
+        self.assertIn("＋未", r["ronten"])
+        self.assertIn(">案</span>", r["ronten"])
+        data["chizu"] = {}
+        r0 = run_page(bp.render(template(), json.dumps(data, ensure_ascii=False).encode("utf-8"), P))
+        self.assertNotIn("論点の地図", r0["ronten"])
+
+
 if __name__ == "__main__":
     unittest.main()

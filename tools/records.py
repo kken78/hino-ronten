@@ -10,6 +10,8 @@
 質疑の記録と同じ型で行に切ったもので、§11 の記録の台帳の検査で確かめる。テーマのノートのデータには §13 の形で入れる（2026-11-15 の5つめ）。
 枠の参照表（ref/waku.tsv。§12.3）と資料の種類の参照表（ref/shiryo.tsv。§12.4）を確かめ、kotogara・kisai の列 suji（筋の番号）を
 資料の種類の参照表に当たる資料（監査委員の資料）について確かめる（DESIGN.md ADR-37）。check.md の「形の点検」の数も作る（§11）。
+分類の体系の参照表（ref/taikei.tsv。§12.5）と、テーマの定義の kind 体系・見方 tk を確かめる（DESIGN.md ADR-38）。tk の見方は
+論点の地図（§13 の chizu）だけで使うので、Theme の views（整理シートと届き先の信号に使う）には入れない。
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
 （theme・views）で決める（§15.3・§15.4・§15.6、ADR-31 の2）。届き先の信号（§11、ADR-31 の4）は一覧に出すだけで、止めない。
 
@@ -67,7 +69,7 @@ NOT_IN_THEME = ("teian",)
 
 THEME_COLUMNS = ["theme", "kind", "value", "source", "views", "reviewer", "date", "note"]
 THEME_KINDS = ("名前", "系列", "施策", "事業", "議案", "語", "除外の語", "問い", "資料", "質疑", "報告", "事柄", "記載",
-               "施設", "地区", "組織", "枠")   # 枠は DESIGN.md ADR-37、報告は §15.10（ADR-34 の7）
+               "施設", "地区", "組織", "枠", "体系")   # 枠は DESIGN.md ADR-37、報告は §15.10（ADR-34 の7）、体系は ADR-38
 VIEW_KINDS = ("事柄", "記載", "施設", "施策", "地区", "組織")   # views を持てる kind（§12）
 POINT_KINDS = ("事柄", "記載")                  # 届き先の信号で見る点の kind（§11 届き先）
 SHISETSU_COLUMNS = ["key", "name", "aliases", "district", "source", "reviewer", "date", "note"]
@@ -75,6 +77,8 @@ AREA_COLUMNS = ["key", "name", "aliases", "source", "reviewer", "date", "note"] 
 WAKU_COLUMNS = ["waku", "n", "name", "source", "reviewer", "date", "note"]          # ref/waku.tsv（§12.3。ADR-37）
 SHIRYO_COLUMNS = ["shurui", "match", "tsukuru", "konkyo", "atesaki", "outou", "waku", "source", "reviewer", "date",
                   "note"]                                                            # ref/shiryo.tsv（§12.4。ADR-37。waku は経過 2026-11-14）
+TAIKEI_COLUMNS = ["taikei", "n", "oya", "name", "source", "waku", "reviewer", "date", "note"]   # ref/taikei.tsv（§12.5。ADR-38）
+TAIKEI_AN = "体系の要素への対応：案"   # 依頼者の判定の前に案として書いた tk の対応の印（点の行の note。§12）
 WAKU_JOIN = " → "   # 図の箱を2つ以上まとめた要素の名前のつなぎ（§12.3）
 
 SIDES = ("問い", "答え")
@@ -114,6 +118,8 @@ RE_ORG = re.compile(r"org:[a-z0-9][a-z0-9-]*")     # 組織（§2。ref/soshiki.
 RE_WAKU_ID = re.compile(r"[a-z0-9][a-z0-9-]*")
 RE_WAKU = re.compile(r"waku:([a-z0-9][a-z0-9-]*)")                    # 枠（§2。ref/waku.tsv の n が0の行）
 RE_WAKU_ELEM = re.compile(r"waku:([a-z0-9][a-z0-9-]*)/([1-9][0-9]*)")  # 枠の要素（見方。§2。ADR-37 の4）
+RE_TK = re.compile(r"tk:([a-z0-9][a-z0-9-]*)")                      # 分類の体系（§2。ref/taikei.tsv の n が0の行）
+RE_TK_ELEM = re.compile(r"tk:([a-z0-9][a-z0-9-]*)/([1-9][0-9]*)")    # 分類の体系の要素（見方。§2。ADR-38 の4）
 RE_N0 = re.compile(r"0|[1-9][0-9]*")
 RE_MATCH = re.compile(r"[a-z0-9*][a-z0-9*-]*")   # ref/shiryo.tsv の match の要素（§12.4）
 # 枠組みの出典の法令の条項（§12.3）：<法令の名前>（<法令番号>）第<条>条…、か <法令の名前><条>条<項>項…。法令の名前は「法」か「法律」で終わる
@@ -234,6 +240,7 @@ class Report:
     katachi: dict = field(default_factory=dict)            # 形の点検の数（§11。終了コードは変えない）
     katachi_rows: list = field(default_factory=list)       # 形の点検の (3)・(4) の行（katachi.tsv）
     waku: dict = field(default_factory=dict)               # 枠の参照表：枠の id → {n: 行}（§12.3）
+    taikei: dict = field(default_factory=dict)             # 分類の体系の参照表：体系の id → {n: 行}（§12.5。ADR-38）
     shiryo: object = None                                  # 資料の種類の参照表（Shiryo。§12.4）
 
     def err(self, where, msg):
@@ -429,10 +436,12 @@ def split_views(views):
     return views.split(",") if views else []
 
 
-def check_views(r, inp, shisetsu_keys, w, rep, chiku_keys=frozenset(), soshiki_keys=frozenset(), waku=None):
+def check_views(r, inp, shisetsu_keys, w, rep, chiku_keys=frozenset(), soshiki_keys=frozenset(), waku=None, taikei=None):
     """views の形（§12）：持てる kind、空の要素・重複、テーマの id、見方のキーの形と入力・参照表にあること（§2）。
-    waku は枠の参照表（枠の id → {n: 行}。無ければ空）。waku キーは n が1以上の要素だけが見方になる（ADR-37 の4）。"""
+    waku は枠の参照表（枠の id → {n: 行}。無ければ空）。waku キーは n が1以上の要素だけが見方になる（ADR-37 の4）。
+    taikei は分類の体系の参照表（体系の id → {n: 行}。無ければ空）。tk キーも n が1以上の要素だけ（ADR-38 の4）。"""
     waku = waku or {}
+    taikei = taikei or {}
     vs = split_views(r["views"])
     if not vs:
         return
@@ -464,18 +473,23 @@ def check_views(r, inp, shisetsu_keys, w, rep, chiku_keys=frozenset(), soshiki_k
         elif RE_WAKU_ELEM.fullmatch(v):
             m = RE_WAKU_ELEM.fullmatch(v)
             ok = m.group(2) in waku.get(m.group(1), {})
+        elif RE_TK_ELEM.fullmatch(v):
+            m = RE_TK_ELEM.fullmatch(v)
+            ok = m.group(2) in taikei.get(m.group(1), {})
         else:
-            rep.err(w, f"views のキーが §2 の見方のキー（node・plan・fa・dist・org・waku の要素）の形でない（{v}）")
+            rep.err(w, f"views のキーが §2 の見方のキー（node・plan・fa・dist・org・waku の要素・tk の要素）の形でない（{v}）")
             continue
         if not ok:
             rep.err(w, f"views のキーが入力に無い（{v}。node は計画の事業、plan は系譜表、fa は施設の参照表、"
-                       "dist は地区の参照表、org は組織の参照表、waku は枠の参照表の要素）")
+                       "dist は地区の参照表、org は組織の参照表、waku は枠の参照表の要素、tk は分類の体系の参照表の要素）")
 
 
-def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_keys=frozenset(), waku=None):
+def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_keys=frozenset(), waku=None, taikei=None):
     """テーマの定義（§12・§11）。chiku_keys・soshiki_keys は地区・組織の参照表の key（無ければ空）。
-    waku は枠の参照表（check_waku_ref の返り値。無ければ空）。"""
+    waku は枠の参照表（check_waku_ref の返り値。無ければ空）。taikei は分類の体系の参照表（check_taikei_ref の返り値）。
+    Theme の views には tk キーを入れない（tk の見方は地図だけで使い、整理シートと届き先の信号に入れない。§12.5）。"""
     waku = waku or {}
+    taikei = taikei or {}
     name = "ref/themes.tsv"
     check_order(rows, ("theme", "kind", "value"), name, rep)
     by, views, notes = {}, {}, {}
@@ -522,15 +536,18 @@ def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_
         elif k == "枠":
             m = RE_WAKU.fullmatch(v)
             ok = bool(m) and m.group(1) in waku
+        elif k == "体系":
+            m = RE_TK.fullmatch(v)
+            ok = bool(m) and "0" in taikei.get(m.group(1), {})
         elif k in ("語", "除外の語"):
             ok = bool(v) and norm(v) == v
         else:
             ok = bool(v)
         if not ok:
             rep.err(w, "value が kind の形に合わないか、lock の版の入力に無い")
-        check_views(r, inp, shisetsu_keys, w, rep, chiku_keys, soshiki_keys, waku)
+        check_views(r, inp, shisetsu_keys, w, rep, chiku_keys, soshiki_keys, waku, taikei)
         if k in VIEW_KINDS:
-            views.setdefault((k, v), set()).update(x for x in split_views(r["views"]) if x)
+            views.setdefault((k, v), set()).update(x for x in split_views(r["views"]) if x and not RE_TK_ELEM.fullmatch(x))
         if k == "名前":
             notes[r["theme"]] = r["note"]
     # 施策の行の views は、同じテーマの kind 事業の node キーだけ（§12：基本施策に属する事業）。
@@ -557,12 +574,20 @@ def check_themes(rows, inp, shisetsu_keys, rep, chiku_keys=frozenset(), soshiki_
         if len(by.get((t, "名前"), ())) != 1:
             rep.err(f"{name} {t}", "名前 の行が1行でない")
     # views の waku キーの枠は、同じテーマの kind 枠の行にある（§11。ADR-37 の4）
+    # views の tk キーの体系は、同じテーマの kind 体系の行にある（§11。ADR-38 の4）
     for r in rows:
         for v in split_views(r["views"]):
             m = RE_WAKU_ELEM.fullmatch(v or "")
             if m and f"waku:{m.group(1)}" not in by.get((r["theme"], "枠"), set()):
                 rep.err(f"{name} {r['theme']}/{r['kind']}/{r['value']}",
                         f"views の {v} の枠が、同じテーマの kind 枠の行に無い")
+            m = RE_TK_ELEM.fullmatch(v or "")
+            if m and f"tk:{m.group(1)}" not in by.get((r["theme"], "体系"), set()):
+                rep.err(f"{name} {r['theme']}/{r['kind']}/{r['value']}",
+                        f"views の {v} の体系が、同じテーマの kind 体系の行に無い")
+    for t in sorted({r["theme"] for r in rows}):
+        if len(by.get((t, "体系"), ())) > 1:
+            rep.err(f"{name} {t}", "体系 の行が2行以上ある（1つのテーマに1行まで。§11）")
     return Theme(rows, by, views, notes)
 
 
@@ -658,6 +683,52 @@ def check_waku_ref(rows, inp, rep, shiryo_rows=()):
         ns = sorted(int(n) for n in els if n != "0")
         if ns != list(range(1, len(ns) + 1)):
             rep.err(f"{name} {wid}", "要素の番号が1からの続いた番号でない")
+    return out
+
+
+def check_taikei_ref(rows, inp, rep, waku=None):
+    """分類の体系の参照表（§11・§12.5。DESIGN.md ADR-38）。体系の id → {n の字: 行} を返す（誤りのある体系も入れる）。
+    waku は枠の参照表（check_waku_ref の返り値）。"""
+    name = "ref/taikei.tsv"
+    waku = waku or {}
+    check_order(rows, ("taikei", "n"), name, rep, numeric=("n",))
+    out = {}
+    for r in rows:
+        w = f"{name} {r['taikei']}/{r['n']}"
+        if not RE_WAKU_ID.fullmatch(r["taikei"]):
+            rep.err(w, "taikei が英小文字・数字・ハイフンでない")
+        if not RE_N0.fullmatch(r["n"]):
+            rep.err(w, "n が0からの整数でない")
+            continue
+        out.setdefault(r["taikei"], {})[r["n"]] = r
+        if not r["name"]:
+            rep.err(w, "name が空")
+        if not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
+            rep.err(w, "reviewer か date（YYYY-MM-DD）が無い")
+        if r["waku"] and r["waku"] not in waku:
+            rep.err(w, f"waku が枠組みの参照表の枠組みの id でない（{r['waku']}）")
+        if not (RE_DOC_PAGE.fullmatch(r["source"]) or RE_PT_PAGE.fullmatch(r["source"])):
+            rep.err(w, f"source が §2 の doc か pt のページのキーでない（{r['source']}）")
+            continue
+        texts = source_texts(inp, r["source"])
+        if texts is None:
+            rep.err(w, f"source が lock の版の入力に無い（{r['source']}）")
+            continue
+        if r["name"] and not any(norm(r["name"]) in norm(t) for t in texts):
+            rep.err(w, f"name が source のページの原典の文字に無い（要素の名前は原典の見出しの字のまま。§12.5）")
+    for tid, els in out.items():
+        if "0" not in els:
+            rep.err(f"{name} {tid}", "n が0の行（体系そのもの）が無い")
+        elif els["0"]["oya"] or els["0"]["waku"]:
+            rep.err(f"{name} {tid}/0", "n が0の行の oya か waku が空でない")
+        ns = sorted(int(n) for n in els if n != "0")
+        if ns != list(range(1, len(ns) + 1)):
+            rep.err(f"{name} {tid}", "要素の番号が1からの続いた番号でない")
+        for n, r in els.items():
+            if n == "0" or not r["oya"]:
+                continue
+            if not RE_N0.fullmatch(r["oya"]) or r["oya"] == "0" or r["oya"] not in els or int(r["oya"]) >= int(n):
+                rep.err(f"{name} {tid}/{n}", f"oya が同じ体系の、この要素より前の要素の番号でない（{r['oya']}）")
     return out
 
 
@@ -1607,21 +1678,23 @@ def check_unused_docs(ledgers, themes_rows, rep):
                         f"{c} に書かない資料がある（{m.group(0)}。記者会見の掲載ページ。§2）")
 
 
-def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=(), waku_rows=(), shiryo_rows=()):
+def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=(), waku_rows=(), shiryo_rows=(),
+              taikei_rows=()):
     """ledgers：台帳の名前 → 行の並び（nozoki は無ければ []）。chiku_rows・soshiki_rows は地区・組織の参照表の行
     （ファイルが無ければ []。§12.1）。waku_rows・shiryo_rows は枠と資料の種類の参照表の行（無ければ []。§12.3・§12.4）。
-    Report を返す。"""
+    taikei_rows は分類の体系の参照表の行（無ければ []。§12.5。ADR-38）。Report を返す。"""
     rep = Report()
     rep.ref_counts = {"shisetsu": len(shisetsu_rows), "chiku": len(chiku_rows), "soshiki": len(soshiki_rows),
-                      "waku": len(waku_rows), "shiryo": len(shiryo_rows)}
+                      "waku": len(waku_rows), "shiryo": len(shiryo_rows), "taikei": len(taikei_rows)}
     rep.waku = check_waku_ref(list(waku_rows), inp, rep, list(shiryo_rows))
+    rep.taikei = check_taikei_ref(list(taikei_rows), inp, rep, rep.waku)
     rep.shiryo = check_shiryo_ref(list(shiryo_rows), inp, rep, rep.waku)
     chiku_keys = check_area_ref(chiku_rows, "ref/chiku.tsv", RE_DIST, "dist", rep)
     soshiki_keys = check_area_ref(soshiki_rows, "ref/soshiki.tsv", RE_ORG, "org", rep)
     # 地区の参照表が無いか0行なら、施設の参照表の district は照らさない（§11 施設の参照表）
     chiku_names = {r["name"] for r in chiku_rows} if chiku_rows else None
     shisetsu_keys = check_shisetsu_ref(shisetsu_rows, rep, chiku_names)
-    theme = check_themes(themes_rows, inp, shisetsu_keys, rep, chiku_keys, soshiki_keys, rep.waku)
+    theme = check_themes(themes_rows, inp, shisetsu_keys, rep, chiku_keys, soshiki_keys, rep.waku, rep.taikei)
     for name in LEDGERS:
         rows = ledgers.get(name, [])
         rep.counts[name] = len(rows)

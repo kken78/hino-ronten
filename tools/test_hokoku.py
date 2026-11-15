@@ -94,7 +94,7 @@ class HokokuOkTest(tr.RecordsTestCase):
         self.assertNotIn("hokoku", rc.NOT_IN_THEME)    # テーマのノートのデータに入れる（2026-11-15 の5つめ）
         self.assertIn("hokoku", rc.TARGET_LEDGERS)
         self.assertIn("報告", rc.THEME_KINDS)
-        self.assertEqual(len(rc.THEME_KINDS), 17)   # §12 の17
+        self.assertEqual(len(rc.THEME_KINDS), 18)   # §12 の18（体系は ADR-38）
         self.assertEqual(rc.KEYS["hokoku"], ("question", "row"))
         self.assertEqual(rc.COLUMNS["hokoku"], ["question", "row", "bill", "side", "sid", "quote", "speaker", "kind",
                                                 "answers", "target", "target_text", "point", "origin", "status",

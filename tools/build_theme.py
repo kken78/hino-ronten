@@ -10,6 +10,8 @@ kotogara・tsunagari・kisai のテーマへの帰属は、テーマの定義の
 kotogara・kisai の列 suji）を入れ、枠の要素（waku:<枠の id>/<n>）も見方として整理シートを作る（DESIGN.md ADR-37）。
 審査報告の記録（records/hokoku.tsv。§15.10）は報告の単位にまとめ、決算の議案の委員長の報告の区切りに、その議案の行を付ける
 （§13.4）。問われていない点では、その問いの事項を取り上げられたものとする（§13.2。2026-11-15 の5つめ）。
+論点の地図（chizu。§13・§13.4、DESIGN.md ADR-38）は、テーマの定義の kind 体系と ref/taikei.tsv から、要素・事項・年度ごとの
+記録の行の数、過程の段階、見た範囲、議会の側の状態を作る。kind 体系の無いテーマでは空のオブジェクト。
 
 先に tools/records.py の検査（LINK_SCHEMA §11 のテーマの定義・施設の参照表・記録の台帳）をかけ、誤りがあれば作らない。
 入力は inputs.lock.json の版だけを git で読む。台帳と参照表は作業ツリーの版を読み、その sha256 を ledgers に書く。
@@ -37,6 +39,7 @@ OUT_DIR = os.path.join(gm.ROOT, "build", "theme")
 LEDGERS = ["links/mention.tsv", "links/relink.tsv", "links/fuhyo.tsv", "ref/themes.tsv", "ref/shisetsu.tsv",
            "ref/chiku.tsv", "ref/soshiki.tsv",   # 地区・組織の参照表（§12.1）。無ければ ledgers に入れない
            "ref/waku.tsv", "ref/shiryo.tsv",     # 枠と資料の種類の参照表（§12.3・§12.4。ADR-37）。無ければ入れない
+           "ref/taikei.tsv",                     # 分類の体系の参照表（§12.5。ADR-38）。無ければ入れない
            "ref/lineage.tsv", "ref/aliases.tsv"] + [f"records/{n}.tsv" for n in records.LEDGERS
                                                     if n not in records.NOT_IN_THEME]
 PLAN_PAGE = "https://kken78.github.io/shiga-hino-plans/plans/{}.html"
@@ -888,11 +891,13 @@ THEME_VIEW = "テーマ"
 
 
 def theme_views(themes_rows, theme):
-    """そのテーマの定義の行の views：(kind, value) → 見方のキーの集まり（§12。テーマの id は含めない）。"""
+    """そのテーマの定義の行の views：(kind, value) → 見方のキーの集まり（§12。テーマの id は含めない）。
+    分類の体系の要素（tk）は、いまは論点の地図だけで使い、整理シートを作らないので含めない（§12.5。ADR-38）。"""
     out = {}
     for r in themes_rows:
         if r["theme"] == theme and r["kind"] in records.VIEW_KINDS:
-            out.setdefault((r["kind"], r["value"]), set()).update(v for v in records.split_views(r.get("views", "")) if v)
+            out.setdefault((r["kind"], r["value"]), set()).update(v for v in records.split_views(r.get("views", ""))
+                                                                  if v and not records.RE_TK_ELEM.fullmatch(v))
     return out
 
 
@@ -1504,6 +1509,166 @@ def build_issues(d, data, tk, themes_rows, theme, shisetsu_rows):
 
 # ---- 全体 ----
 
+# ---- 論点の地図（§13 の chizu。DESIGN.md ADR-38） ----
+
+RE_FY = re.compile(r"([0-9]{4})-?([0-9]{2})")
+RE_SID_DATE = re.compile(r"_([0-9]{4})([0-9]{2})[0-9]{2}_")
+QA_KINDS = (("yaritori", "問い"), ("shitsugi", "質疑"), ("hokoku", "報告"))   # 見た範囲の kind（テーマの定義）と台帳
+
+
+def fy_of(date):
+    """日付（YYYY-MM…）→ 年度（4月〜翌3月）の字。月の無い日付は空の字（§13.4 の chizu）。"""
+    m = RE_FY.match(date or "")
+    if not m:
+        return ""
+    y, mo = int(m.group(1)), int(m.group(2))
+    return str(y if mo >= 4 else y - 1)
+
+
+def fy_of_sid(key):
+    """sid か、sid を含むキー（sp:・iq:・sq:・rp:）→ 発言の日の年度の字。"""
+    m = RE_SID_DATE.search(key or "")
+    return fy_of(f"{m.group(1)}-{m.group(2)}") if m else ""
+
+
+def chizu_counts(ledgers, names):
+    """事項の名前 → {年度の字: [町の資料の記載の行の数, 議会の記録の行の数]}（§13.4 の chizu の数え方。見本の数え方と同じ）。"""
+    c = {n: {} for n in names}
+    seen = set()
+
+    def add(n, y, i):
+        c[n].setdefault(y, [0, 0])[i] += 1
+    for led in ("yaritori", "shitsugi", "hokoku"):
+        for r in ledgers.get(led) or []:
+            if r["status"] != "rejected" and r["point"] in c:
+                add(r["point"], fy_of_sid(r["sid"]), 1)
+                seen.add((r["point"], r["sid"]))
+    for led, col in (("kotogara", "point"), ("kisai", "about")):
+        for r in ledgers.get(led) or []:
+            n = r[col]
+            if r["status"] == "rejected" or n not in c:
+                continue
+            if r["source"].startswith("sp:"):
+                if (n, r["source"]) not in seen:
+                    add(n, fy_of_sid(r["source"]), 1)
+                    seen.add((n, r["source"]))
+            else:
+                add(n, fy_of(r["source_date"]), 0)
+    return c
+
+
+def sum_counts(cs):
+    out = {}
+    for c in cs:
+        for y, (a, b) in c.items():
+            x = out.setdefault(y, [0, 0])
+            x[0] += a
+            x[1] += b
+    return out
+
+
+def sorted_counts(c):
+    """年度の古い順、年度の無いもの（空の字）は最後。"""
+    return {y: c[y] for y in sorted(c, key=lambda y: (y == "", y))}
+
+
+def build_chizu(d, themes_rows, theme, tk, ledgers, taikei=None, waku=None):
+    """論点の地図（§13 の chizu。DESIGN.md ADR-38）。テーマに kind 体系が無ければ空のオブジェクト。"""
+    keys = sorted(tk.get("体系", ()))
+    if not keys:
+        return {}
+    key = keys[0]
+    tid = key[3:]
+    els = (taikei or {}).get(tid) or {}
+    head = els.get("0") or {}
+    trows = [r for r in themes_rows if r["theme"] == theme and r["kind"] in records.POINT_KINDS]
+    names = [r["value"] for r in trows]
+    counts = chizu_counts(ledgers, names)
+    pviews = {r["value"]: records.split_views(r.get("views", "")) for r in trows}
+    order = {n: i for i, n in enumerate(names)}
+    # 事項ごとの枠組みの要素の印
+    points = {}
+    for r in trows:
+        n = r["value"]
+        wk = []
+        for v in pviews[n]:
+            m = records.RE_WAKU_ELEM.fullmatch(v)
+            if m:
+                ws = (waku or {}).get(m.group(1)) or {}
+                wk.append(dict(key=v, name=(ws.get("0") or {}).get("name", ""), n=int(m.group(2)),
+                               element=(ws.get(m.group(2)) or {}).get("name", "")))
+        tks = [int(m.group(2)) for v in pviews[n] for m in [records.RE_TK_ELEM.fullmatch(v)] if m and m.group(1) == tid]
+        points[n] = dict(name=n, kind=r["kind"], elements=sorted(tks), waku=wk, an=records.TAIKEI_AN in (r.get("note") or ""),
+                         counts=sorted_counts(counts[n]))
+    # 要素
+    ns = sorted((int(n) for n in els if n != "0"))
+    depth = {}
+    for n in ns:
+        o = els[str(n)]["oya"]
+        depth[n] = depth[int(o)] + 1 if o else 1
+    children = {}
+    for n in ns:
+        o = els[str(n)]["oya"]
+        if o:
+            children.setdefault(int(o), []).append(n)
+    elements = []
+    direct = {}
+    for n in ns:
+        e = els[str(n)]
+        mine = [p for p in names if n in points[p]["elements"]]
+        wout = None
+        if e.get("waku"):
+            ws = (waku or {}).get(e["waku"]) or {}
+            wels = []
+            first = {}
+            for wn in sorted((int(x) for x in ws if x != "0")):
+                wv = f"waku:{e['waku']}/{wn}"
+                wp = [p for p in mine if wv in pviews[p]]
+                for p in wp:
+                    first.setdefault(p, wn)
+                wels.append(dict(n=wn, name=ws[str(wn)]["name"], points=wp))
+            mine = sorted(mine, key=lambda p: (p not in first, first.get(p, 0), order[p]))
+            wout = dict(key=f"waku:{e['waku']}", name=(ws.get("0") or {}).get("name", ""), elements=wels)
+        direct[n] = mine
+        elements.append(dict(view=f"{key}/{n}", n=n, oya=int(e["oya"]) if e["oya"] else None, depth=depth[n],
+                             name=e["name"], source=e["source"], url=d.key_url(e["source"]), points=mine, under=0,
+                             waku=wout, counts=sorted_counts(sum_counts(points[p]["counts"] for p in mine))))
+
+    def below(n):
+        out = set()
+        for c in children.get(n, []):
+            out |= set(direct[c]) | below(c)
+        return out
+    for e in elements:
+        e["under"] = len(below(e["n"]))
+    # 過程の記録の段階（年度ごと）
+    katei = {}
+    for r in sorted((r for r in ledgers.get("katei") or [] if r["theme"] == theme and r["status"] != "rejected"),
+                    key=lambda r: int(r["step"])):
+        katei.setdefault(fy_of(r["from"] or r["to"]), []).append(dict(step=int(r["step"]), name=r["name"]))
+    # 見た範囲（kind 問い・質疑・報告ごとに、題材に選んだ数と記録が済んだ数）
+    done = {kind: {r["question"] for r in ledgers.get(led) or [] if r["status"] != "rejected"} for led, kind in QA_KINDS}
+    mita = {}
+    for _, kind in QA_KINDS:
+        for v in sorted(tk.get(kind, ())):
+            x = mita.setdefault(fy_of_sid(v), {}).setdefault(kind, [0, 0])
+            x[0] += 1
+            x[1] += v in done[kind]
+    mita = {y: {k: mita[y][k] for _, k in QA_KINDS if k in mita[y]} for y in sorted_counts(mita)}
+    ys = {int(y) for p in points.values() for y in p["counts"] if y} | {int(y) for y in katei if y} | {int(y) for y in mita if y}
+    years = list(range(min(ys), max(ys) + 1)) if ys else []
+    gikai = {}
+    for y in years:
+        m = mita.get(str(y)) or {}
+        tot, fin = sum(v[0] for v in m.values()), sum(v[1] for v in m.values())
+        gikai[str(y)] = "nashi" if tot == 0 else ("nai" if fin == tot else "mi")
+    return dict(taikei=dict(key=key, name=head.get("name", ""), source=head.get("source", ""),
+                            url=d.key_url(head.get("source", ""))),
+                years=years, elements=elements, points=[points[n] for n in names],
+                soto=[n for n in names if not points[n]["elements"]],
+                katei={y: katei[y] for y in sorted(katei, key=lambda y: (y == "", y))}, mita=mita, gikai=gikai)
+
+
 def theme_keys(themes_rows, theme):
     k = {}
     for r in themes_rows:
@@ -1527,7 +1692,8 @@ def ledger_hashes():
     return {p: sha256_file(os.path.join(gm.ROOT, p)) for p in LEDGERS if os.path.exists(os.path.join(gm.ROOT, p))}
 
 
-def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=(), area_rows=(), waku=None, shiryo=None):
+def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=(), area_rows=(), waku=None, shiryo=None,
+          taikei=None):
     tk = theme_keys(themes_rows, theme)
     for kind in ("名前",):
         if len(tk.get(kind, ())) != 1:
@@ -1563,6 +1729,7 @@ def build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu_rows=(), 
     data["shiryo"] = build_shiryo(data, shiryo)
     data["suji"] = build_suji(d, data)
     data["waku"] = build_waku(d, data, themes_rows, theme, tk, waku)
+    data["chizu"] = build_chizu(d, themes_rows, theme, tk, ledgers, taikei, waku)
     data["names"] = build_names(d, data, shisetsu_rows)
     data["names"]["views"] = names_views(data, themes_rows, theme, shisetsu_rows, area_rows, waku)
     data["theme_questions"] = len(tk["問い"])
@@ -1661,6 +1828,10 @@ def check_no_empty_url(data):
         for x in i["refs"]:
             if not x["url"]:
                 bad.append(f"issues/{i['type']}：{x['ref']}")
+    ch = data.get("chizu") or {}
+    for x in ([ch["taikei"]] if ch else []) + (ch.get("elements") or []):     # 論点の地図の体系と要素の出典（§13）
+        if not x["url"]:
+            bad.append(f"chizu：{x.get('view') or x.get('key')}")
     for name in ("waku", "suji"):
         for x in data.get(name) or []:
             if not x["url"] and not (name == "waku" and records.law_of(x["source"])):     # 法令の出典は url を持たない（§13）
@@ -1680,10 +1851,11 @@ def main(argv):
         shisetsu = check_records.read_file(check_records.SHISETSU, records.SHISETSU_COLUMNS)
         chiku, soshiki = check_records.read_area_refs()
         waku_rows, shiryo_rows = check_records.read_frame_refs()
+        taikei_rows = check_records.read_taikei_ref()
     except (gm.GenError, records.RecordsError, mention.RefError) as e:
         print(f"停止：{e}", file=sys.stderr)
         return 1
-    rep = records.check_all(ledgers, themes_rows, shisetsu, inp, chiku, soshiki, waku_rows, shiryo_rows)
+    rep = records.check_all(ledgers, themes_rows, shisetsu, inp, chiku, soshiki, waku_rows, shiryo_rows, taikei_rows)
     if rep.errors:
         print(f"停止：記録の台帳の検査で誤りが {len(rep.errors)} 件ある（tools/check_records.py で確かめる）", file=sys.stderr)
         return 1
@@ -1693,7 +1865,8 @@ def main(argv):
     os.makedirs(OUT_DIR, exist_ok=True)
     for theme in themes:
         try:
-            data = build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu, chiku + soshiki, rep.waku, rep.shiryo)
+            data = build(theme, themes_rows, ledgers, d, lock, refs, hashes, shisetsu, chiku + soshiki, rep.waku, rep.shiryo,
+                         rep.taikei)
         except BuildError as e:
             print(f"停止：{e}", file=sys.stderr)
             return 1

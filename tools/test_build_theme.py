@@ -1051,5 +1051,82 @@ class FrameBuildTest(unittest.TestCase):
         self.assertTrue(all(r["shurui"] == "" for r in data["records"]["kotogara"]))
 
 
+
+class ChizuBuildTest(unittest.TestCase):
+    """論点の地図（LINK_SCHEMA §13・§13.3・§13.4 の chizu。DESIGN.md ADR-38）。"""
+
+    def build(self, themes, led=None):
+        led = led or tr.ledgers()
+        inp = tr.inputs()
+        waku = rc.check_waku_ref(tr.waku_ref(), inp, rc.Report())
+        taikei = rc.check_taikei_ref(tr.taikei_ref(), inp, rc.Report(), waku)
+        d = make_data()
+        d.inp.nodes |= {"node:sogo6/e011", "node:sogo6/e047"}
+        d.inp.series |= {"kodomo"}
+        return bt.build("hoiku", themes, led, d, {"hino-council-search": {"sha": "a" * 40}}, refs(), {"ref/themes.tsv": "x"},
+                        tr.shisetsu_ref(), tr.chiku_ref() + tr.soshiki_ref(), waku, None, taikei)
+
+    def themes(self):
+        rows = tr.with_taikei(tr.with_waku(theme_rows()))
+        for r in rows:
+            if r["value"] == "新こども園の定員":
+                r["note"] = rc.TAIKEI_AN + "（見本）"
+        return rows
+
+    def test_empty_without_kind(self):
+        self.assertEqual(self.build(theme_rows())["chizu"], {})
+
+    def test_chizu(self):
+        led = tr.ledgers()
+        led["kisai"].append(tr.row("kisai", title="方針の記載", about="再編の方針", source="doc:teigen/2", source_date="2024-02",
+                                   quote="再編の方針がある"))
+        led["kisai"].append(tr.row("kisai", title="却下", about="再編の方針", source="doc:teigen/2", source_date="2024-02",
+                                   quote="再編の方針", status="rejected", note="違う"))
+        c = self.build(self.themes(), led)["chizu"]
+        self.assertEqual(c["taikei"], {"key": "tk:keikaku", "name": "計画期間", "source": "pt:youho/honpen/1",
+                                       "url": "https://example.jp/youho.pdf#page=1"})
+        self.assertEqual(c["years"], [2022, 2023, 2024])
+        e1, e2 = c["elements"]
+        self.assertEqual((e1["n"], e1["oya"], e1["depth"], e1["points"], e1["under"], e1["waku"]), (1, None, 1, [], 1, None))
+        self.assertEqual((e2["n"], e2["oya"], e2["depth"], e2["points"], e2["view"]), (2, 1, 2, ["新こども園の定員"], "tk:keikaku/2"))
+        self.assertEqual(e2["waku"]["key"], "waku:keikaku")
+        self.assertEqual([(w["n"], w["points"]) for w in e2["waku"]["elements"]], [(1, ["新こども園の定員"]), (2, [])])
+        P = {p["name"]: p for p in c["points"]}
+        # やりとりの記録4行（2025-01-01 → 令和6年度）。同じ発言の事柄の記録の行は数えない
+        self.assertEqual(P["新こども園の定員"]["counts"], {"2024": [0, 4]})
+        self.assertEqual(e2["counts"], {"2024": [0, 4]})
+        self.assertEqual(P["新こども園の用地"]["counts"], {"2024": [0, 1]})
+        self.assertEqual(P["再編の方針"]["counts"], {"2023": [1, 0]})     # 却下の行は数えない。2024-02 は令和5年度
+        self.assertEqual(P["提言"]["counts"], {})
+        self.assertTrue(P["新こども園の定員"]["an"])
+        self.assertFalse(P["再編の方針"]["an"])
+        self.assertEqual(P["新こども園の定員"]["elements"], [2])
+        self.assertEqual(P["新こども園の定員"]["waku"], [{"key": "waku:keikaku/1", "name": "計画期間", "n": 1, "element": "計画期間"}])
+        self.assertEqual(c["soto"], ["新こども園の用地", "再編の方針", "提言"])
+        self.assertEqual(c["katei"], {"2022": [{"step": 1, "name": "懇話会"}]})
+        self.assertEqual(c["mita"], {"2024": {"問い": [1, 1], "質疑": [1, 1]}})
+        self.assertEqual(c["gikai"], {"2022": "nashi", "2023": "nashi", "2024": "nai"})
+        # 事項の数＝体系の中の事項＋体系の外の事項
+        self.assertEqual(len(c["points"]), len({p for e in c["elements"] for p in e["points"]}) + len(c["soto"]))
+
+    def test_mi_and_no_year(self):
+        led = tr.ledgers()
+        led["yaritori"] = []     # 問いを記録していない → まだ見ていない
+        led["katei"][0]["from"] = ""
+        led["katei"][0]["to"] = ""
+        c = self.build(self.themes(), led)["chizu"]
+        self.assertEqual(c["mita"], {"2024": {"問い": [1, 0], "質疑": [1, 1]}})
+        self.assertEqual(c["gikai"]["2024"], "mi")
+        self.assertEqual(c["katei"], {"": [{"step": 1, "name": "懇話会"}]})
+
+    def test_fy(self):
+        self.assertEqual((bt.fy_of("2024-03-31"), bt.fy_of("2024-04"), bt.fy_of("2024"), bt.fy_of("")), ("2023", "2024", "", ""))
+        self.assertEqual(bt.fy_of_sid(f"iq:{M}_20250401_0001"), "2025")
+
+    def test_tk_not_a_sheet(self):
+        data = self.build(self.themes())
+        self.assertNotIn("tk:keikaku/2", [s["view"] for s in data["sheets"]])
+        self.assertEqual(bt.check_no_empty_url(data), [])
+
 if __name__ == "__main__":
     unittest.main()
