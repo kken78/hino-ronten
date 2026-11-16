@@ -60,6 +60,11 @@
 - fa は、施設の記録（§15.8）・テーマの定義（§12）・テーマのノートのデータ（§13）で使う。名前や所在地では施設を決められないので、参照表で決めた英字のキーとする（DESIGN.md ADR-23）
 - mb も、記録の台帳・テーマの定義・テーマのノートのデータで使う。3つの入力で、この形の名前が一致することを確認した（2026-10-25。審議の記録25人・発言25人・議会だより13人）。表記の揺れが出たら、別名辞書に足す方法を決めてから使う
 - rp は、審査報告の記録（§15.10）の question、記録しない文（§15.9）の question、テーマの定義の kind 報告（§12）で使う。報告の区切りの最初の発言の sid を指す（DESIGN.md ADR-34 の7）
+- 段落の位置（DESIGN.md ADR-39 の1）：会議録の発言の中の段落は `sp:<sid>/<段落>` と書く（例 `sp:0000008116_20240917_0015/5`）。同じ発言の続いた段落は `sp:<sid>/<始め>-<終わり>`（始め＜終わり。例 `sp:0000008116_20240917_0015/5-7`）と書く。問いと事項の対応（§15.12）の hani（範囲）だけで使う
+  - 段落の数え方：lock の版の発言の本文（hino-council-search `public/data/index/<年>.json` の text）を改行（LF）で分け、空か空白だけの部分を除いて、頭から1、2、…と数える。改行の無い本文は段落1つとする。改行は、PDF の段落の最初の行の字下げによる区切りである（hino-council-search README の index の text の注）
+  - この数え方は、hino-council-search の画面の `#sid=<sid>&p=<段落>`（本文を改行で分けた塊のうち空でないものを1から数える）と、審議の記録（proceedings.json）の一般質問・議案質疑の台帳の段落の番号（`sid:段落番号`。段落は1から）と同じである。2026-11-16 に、lock 3f794e7 の発言32,272件で、画面の数え方と段落の数がすべて同じであることと、審議の記録の段落の番号5,597か所がすべてその発言の段落の数の中にあることを確かめた
+  - 画面で開くときの url は `https://kken78.github.io/hino-council-search/#sid=<sid>&p=<段落>` とする
+  - sid は、`/`・`,`・`:`・空白を含まない（lock 3f794e7 で確かめた。`-` を含む sid はある）。そのため、段落の位置は最後の `/` で sid と段落に分ける
 - hs・hj・hk・hz は、hino-town-docs の構造化の層の行を指す（DESIGN.md ADR-34 の3）。回の id と行の key は hino-town-docs が付け、形は hino-town-docs の DOCS_SCHEMA が決める。このリポジトリが hino-town-docs に求める形は DESIGN.md ADR-34 の3 にある（このリポジトリから hino-town-docs には書かない）。hs は議案と回の台帳（`links/gian-yosan.tsv`）の to と記録の台帳の target、hj は記録の台帳の target と、○の行（key の頭が m）だけを○の行と附表の台帳（`links/hosei-fuhyo.tsv`）の from（特別会計・企業会計の主な内容の行（t）は、○の行と附表の台帳の対象にしない。2026-11-09、依頼者の決定。PR #19 の問い2）、hk・hz は記録の台帳の target で使う。提案理由の記録（§15.11）の maru は○の行の hj だけ（DESIGN.md ADR-35）
 - hs・hj・hk・hz は、hino-town-docs で検収の済んだ行だけを target で指す。検収の済んでいない行を指す記録の行は、candidate のまま置く（§15.1 の、原典の文字の無いページの扱いと同じ。DESIGN.md ADR-34 の3）
 - hs・hj・hk・hz の元のデータと照合のしかたは次のとおり（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12）
@@ -393,7 +398,7 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 方法の制限 | 台帳に crosswalk の行が無い。各行の method が台帳のファイル名（`links/<method>.tsv`）と同じ。ただし年度の台帳（`links/fuhyo-years.tsv`）と○の行と附表の台帳（`links/hosei-fuhyo.tsv`）は、method が name か manual、議案と回の台帳（`links/gian-yosan.tsv`）は、method が title（DESIGN.md ADR-34 の4・5） |
 | 予約したキー | リンク台帳・記録の台帳・テーマの定義のどの欄にも、§2 で予約したキー（bk・kk・kd・sk）が無い。1件でもあれば、件数と該当の行を表示して終了コード1（DESIGN.md ADR-34 の8） |
 | 書かない資料 | 記録の台帳の資料を書く欄（source・sources・upper_ref・lower_ref）と、テーマの定義の value・source に、§2 で書かないとした資料（定例記者会見の掲載ページ。`doc:kaiken-<日の8桁>-page` と、そのページのキー）が無い。id の形で見る。1件でもあれば、該当の行を表示して終了コード1（2026-11-09） |
-| 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する。fuhyo の台帳では、to の種類（node・none）と status ごとに表示する。年度の台帳と○の行と附表の台帳では、method（name・manual）と status ごとに表示する。議案と回の台帳では、status ごとに表示する。年度の台帳と○の行と附表の台帳の manual の行は、台帳に同じ組の行が無いときに足す（§6）。提案理由の記録（`records/teian.tsv`。§15.11）に書き写すときは、範囲と判定の一覧の行のキーを (maru, sid, quote) とし、件数は status ごとに表示する（DESIGN.md ADR-35）。過程の記録（`records/katei.tsv`。§15.5）に書き写すときは、範囲と判定の一覧の行のキーを (theme, step) とし、件数は theme と status ごとに表示する（2026-11-10）（CLAUDE.md 不変の制約11） |
+| 判定の範囲 | 人の判定の一覧を台帳に書き写すとき（`tools/apply_decisions.py`）、人が判定した範囲（`--keys` で渡す (from, to, method) の一覧。§1 の形で、列は from・to・method）と、判定の一覧の (from, to, method) の集まりが同じ。範囲の外の行、範囲にあって判定の無い行、範囲の一覧の中の重複が1件でもあれば、どちらの台帳にも書かずに終了コード1。書き写す前に、to と status ごとの件数を表示する。fuhyo の台帳では、to の種類（node・none）と status ごとに表示する。年度の台帳と○の行と附表の台帳では、method（name・manual）と status ごとに表示する。議案と回の台帳では、status ごとに表示する。年度の台帳と○の行と附表の台帳の manual の行は、台帳に同じ組の行が無いときに足す（§6）。提案理由の記録（`records/teian.tsv`。§15.11）に書き写すときは、範囲と判定の一覧の行のキーを (maru, sid, quote) とし、件数は status ごとに表示する（DESIGN.md ADR-35）。過程の記録（`records/katei.tsv`。§15.5）に書き写すときは、範囲と判定の一覧の行のキーを (theme, step) とし、件数は theme と status ごとに表示する（2026-11-10）。問いと事項の対応（`records/taio.tsv`。§15.12）に書き写すときは（`--ledger taio`）、範囲と判定の一覧の行のキーを (question, point) とし、件数は status ごとに表示する（DESIGN.md ADR-39）（CLAUDE.md 不変の制約11） |
 | テーマの定義 | `ref/themes.tsv` が §1 と §12 の形に合う（列名と列の順、行が theme → kind → value の文字コード順、(theme, kind, value) の重複が0件）。theme ごとに 名前 が1行だけある。kind が §12 の18のどれか。value が kind ごとの形に合い、lock の版の入力にある（系列は系譜表の series、施策と事業は計画の programs の key、議案は gian.json の議案、問いは proceedings.json の一般質問の問い、報告は proceedings.json の委員長の報告（kind が report）の区切りの最初の発言、資料は hino-town-docs の data/sources.tsv の id、施設は ref/shisetsu.tsv の key、地区は ref/chiku.tsv の key、組織は ref/soshiki.tsv の key、枠は `waku:<枠組みの id>` の形で ref/waku.tsv にある枠組み（DESIGN.md ADR-37）、体系は `tk:<体系の id>` の形で ref/taikei.tsv の n が0の行にある体系（DESIGN.md ADR-38））。1つのテーマに kind 体系の行は1行まで。問いの行の source に書いた議員の名前（§2 の mb のそろえ方で）が、審議の記録のその問いの member と同じ。資料の行の value が doc:<id> の形（ページ無し）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1。views が、§2 の見方のキーを「,」で区切ったもので、テーマの id は書かない（常に含む）。node キーは計画の事業にあり、plan キーは系譜表にあり、fa キーは施設の参照表に、dist キーは地区の参照表に、org キーは組織の参照表に、waku キーは枠組みの参照表に要素（n が1以上の行）としてあり、tk キーは分類の体系の参照表に要素（n が1以上の行）としてある。同じテーマに、views の waku キーの枠組みを value に持つ kind 枠の行がある（DESIGN.md ADR-37）。同じテーマに、views の tk キーの体系を value に持つ kind 体系の行がある（DESIGN.md ADR-38）。kind 事柄・記載・施設・施策の行だけが views を持てる。同じテーマで、1つの事業を views に持つ kind 施策の行は1行まで（§13.3 の programs の policy が1つに決まるため） |
 | 枠組みの参照表 | `ref/waku.tsv` が §1 と §12.3 の形に合う（列名と列の順、行が waku → n（数の順）、(waku, n) の重複が0件、waku が英小文字・数字・ハイフン、n が0からの整数）。枠組みごとに n が0の行がちょうど1つあり、n が1以上の行の番号が1からの続いた番号。name が空でない。source が、§2 の doc か pt のページのキーで lock の版の入力にあるか、法令の条項（§12.3）である。source が doc か pt のページのキーの行は、name を「 → 」で分けた各部分が、§4 の正規化のあとで source のページの原典の文字（data/text か data/text_raw）にある（要素の名前は出典の語のまま。DESIGN.md ADR-37 の4）。source が法令の条項の行は、その法令の名前が資料の種類の参照表の source にあり、同じ枠組みの n が0の行の source も法令の条項である。source が空の行は、n が1以上で、同じ枠組みの n が0の行の source が法令の条項であるものだけ（条文に定めの無い要素。§12.3）。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1。ファイルが無ければ0行として扱う |
 | 分類の体系の参照表 | `ref/taikei.tsv` が §1 と §12.5 の形に合う（列名と列の順、行が taikei → n（数の順）、(taikei, n) の重複が0件、taikei が英小文字・数字・ハイフン、n が0からの整数）。体系ごとに n が0の行がちょうど1つあり、n が1以上の行の番号が1からの続いた番号。n が0の行の oya と waku は空。oya が空か、同じ体系の n が1以上の要素の番号で、その要素の番号より小さい（親を先に書く）。name が空でない。source が §2 の doc か pt のページのキーで lock の版の入力にあり、name が §4 の正規化のあとで source のページの原典の文字（data/text か data/text_raw）にある（要素の名前は原典の見出しの字のまま。§12.5）。waku が空か、枠組みの参照表にある枠組みの id。reviewer と date がある。合わなければ、テーマのノートのデータを作らずに終了コード1。ファイルが無ければ0行として扱う |
@@ -408,12 +413,15 @@ semantic：使う時点で、この節と §3 に規則を追加する。
 | 対象の形 | やりとりの記録・質疑の記録・審査報告の記録（§15.2・§15.7・§15.10）の target が、空か、§2 の fh・hs・hj・hk・hz の形のキーを「,」で区切ったもので、同じ行に同じキーが2つ無い。target_text が、空か、「種類:字」を「;」で区切ったもので、種類が名・款・頁・額・源のどれか。検査は区切りの字（半角の「;」と、種類の後ろの半角の「:」）だけを見る（字の中の半角の「;」「:」は §15.2 により全角で書かれているので、「;」で分けた各部分に半角の「:」は1つだけある）。target が空でない行は target_text も空でない。合わなければ、件数と該当の行を表示して終了コード1（DESIGN.md ADR-34 の1・2。2026-11-09、依頼者の決定。ADR-34 の12） |
 | 対象の照合 | target のキーごとに次を確かめる。(1) fh は lock の版の附表に同じ key の事業がある。hs は `hosei-kai.tsv` に同じ id の回がある。hj・hk・hz は `hosei-maru.tsv`・`hosei-kan.tsv`・`hosei-jiko.tsv` に同じ kai と key の行がある。(2) hs・hj・hk・hz が検収の済んだ行（§2）である。(3) target_text の字（「種類:」の後ろ）が、その行の sid の発言の本文に §4 の正規化のあとである。(4) 同じ行の target に、hj と、その hj から○の行と附表の台帳の confirmed の行で引ける fh が両方ある、ということが無い。(1)・(3)・(4) に合わない行と、(2) に合わない confirmed の行があれば、件数と該当の行を表示して終了コード1。(2) に合わない candidate の行は、一覧（target_unchecked.tsv）に出すだけで、終了コードは変えない（§15.1）（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12） |
 | 対象と議案・名前 | 次の2つを一覧に出す。終了コードは変えない。人が見て、行を直すか note に書く。(a) 質疑の記録と審査報告の記録で、target の hs・hj・hk・hz の回が、その行の bills（審査報告の記録は bill）から議案と回の台帳の confirmed の行で引いた回のどれでもない行（target_bill.tsv。前の号の行やほかの会計の回を聞く発言があるため）。(b) hj・hz の行の name、hk の行の kan_no か name（どれも §4 の正規化のあと）が、target_text の名・款の字のどれにも当たらない行（target_name.tsv）（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12） |
-| 発言の取りこぼし | やりとりの記録の問い（question と n の組）ごとに、行のある発言のうち審議の記録の turns の順で最初のものから最後のものまでを見る。最後の行の発言が議員の発言でなければ、そのあとの議員の最初の発言（次の問いの頭。締めくくりの要望や意見が入る）も見る。質疑の記録は、まとまりの全部の発言を見て、テーマの語（§12 の kind 語）を含む文だけを残す。審査報告の記録も、報告の区切りの全部の発言を見て、テーマの語を含む文だけを残す（報告は1つの発言が長く、全文を見ると記録しない文の台帳に報告の大半が写り、不変の制約9 に触れるため。DESIGN.md ADR-34 の7）。見る発言の本文を §4 の正規化にかけ、「。」「？」「！」（正規化のあとの「?」「!」を含む）のあとで文に分ける。同じ発言を引いた行の引用と1字も重ならず、記録しない文の台帳（§15.9）にも無い文を、件数を表示して一覧（build/records/torikoboshi.tsv）に出す。終了コードは変えない。人が、行を足すか、記録しない文の台帳に理由を書く（DESIGN.md ADR-24） |
+| 問いと事項の対応 | 上の「記録の台帳」の10の台帳とは別に、この行の検査を掛ける。`records/taio.tsv`（§15.12。DESIGN.md ADR-39）が §1 と §15.12 の形に合う（列名と列の順、UTF-8・BOMなし・LF、セルにタブ・改行が無い、行が question → point の文字コード順、(question, point) の重複が0件）。status が3つの値のいずれかで、confirmed・rejected は reviewer と date（YYYY-MM-DD）があり、candidate は reviewer と date が空、rejected は note が空でない。question が §2 の iq・sq・rp の形で、どれかのテーマの定義の値にある（iq は kind 問い、sq は kind 質疑、rp は kind 報告）。point が、question を kind 問い・質疑・報告に持つテーマの kind 事柄か記載の値のどれか。hani が空でなく、§15.12 の形に合う（`sp:<sid>/<段落>` か `sp:<sid>/<始め>-<終わり>` を「,」で区切ったもの。始め＜終わり。発言の順に並び、同じ発言の中は段落の順。同じ発言の続いた段落は1つの範囲にまとめてある。同じ段落が2回出ない）。hani の発言が lock の版の索引にあり、question の区切り（審議の記録 proceedings.json の区切り。iq は kind が ippan の区切りのうち question の発言を含むもの、sq は kind が shitsugi の区切り、rp は kind が report の区切りで、どちらも from が question の発言のもの）の from から to までの発言である。段落の番号が、その発言の段落の数（§2 の数え方）の中にある。bills は、iq の行では空、sq・rp の行では空でなく、§2 の gi の形のキーを「,」で区切ったもので、同じキーが2つ無く、どのキーも gian.json にあり、議案番号が question の区切りの bills にある（sq は gi の会議の id も区切りの会議と同じ。rp は、議案の会議と報告の会議が違うことがあるので、会議の id を比べない。区切りの bills が空の rp の行は、止めずに件数を表示する。§15.10 の bill と同じ扱い）。bq は、空か、iq の行で §2 の bq の形で議会だよりにあり、bq の議員が question の議員と同じ。note は、まとめ直した行（§15.12）は「まとめ直し：」で始まり、ほかの行は §15.1 の「下書き：」の形で始まり、confirmed の行は「判定：」がある。合わなければ、件数と該当の行を表示し、テーマのノートのデータを作らずに終了コード1。台帳が無ければ0行として扱う。対応の無い問いの一覧：テーマごとに、テーマの定義の kind 問い・質疑・報告の値のうち、それを question に持つ行（rejected を除く）が1つも無いものを、件数を表示して一覧（build/records/taio_missing.tsv）に出す。終了コードは変えない（DESIGN.md ADR-39 の2・3） |
+| 発言の取りこぼし | やりとりの記録の問い（question と n の組）ごとに、行のある発言のうち審議の記録の turns の順で最初のものから最後のものまでを見る。最後の行の発言が議員の発言でなければ、そのあとの議員の最初の発言（次の問いの頭。締めくくりの要望や意見が入る）も見る。質疑の記録は、まとまりの全部の発言を見て、テーマの語（§12 の kind 語）を含む文だけを残す。審査報告の記録も、報告の区切りの全部の発言を見て、テーマの語を含む文だけを残す（報告は1つの発言が長く、全文を見ると記録しない文の台帳に報告の大半が写り、不変の制約9 に触れるため。DESIGN.md ADR-34 の7）。見る発言の本文を §4 の正規化にかけ、「。」「？」「！」（正規化のあとの「?」「!」を含む）のあとで文に分ける。同じ発言を引いた行の引用と1字も重ならず、記録しない文の台帳（§15.9）にも無い文を、件数を表示して一覧（build/records/torikoboshi.tsv）に出す。終了コードは変えない。人が、行を足すか、記録しない文の台帳に理由を書く（DESIGN.md ADR-24）。問いと事項の対応（§15.12）には、この検査を掛けない。代わりに、上の「問いと事項の対応」の対応の無い問いの一覧を出す（DESIGN.md ADR-39 の2） |
 | 引用の前後 | 記録の台帳の引用のうち、§4 の正規化のあとの頭が指示語（その・この・これ・それ・あの・こうした・そうした・こういった・そういった・上記・前述・同様・先ほど・さきほど・今申し上げ・以上）で始まるもの（つなぎの言葉と時の語「それと」「それから」「それぞれ」「それでは」「これまで」「これから」「このあと」で始まるものは数えない）と、引用の終わりが本文の文の終わり（「。」「？」「！」の直前か、本文の終わり。§4 の正規化のあとの「?」「!」を含む）でないものを、件数を表示して一覧（build/records/quote_context.tsv）に出す。終了コードは変えない。審査報告の記録の引用は文の途中で切ってよい（§15.10）ので、一覧には出すが止めない。指す先や文の続きを引用に入れるか、行を分けるか、note に書くかは、人がそのつど決める（§15.1）。提案理由の記録の引用（§15.11）は「…」で分けた部分で見る。終わりが「…」でなく、最後の部分が本文の文の終わりで終わらない行を「文の途中で終わる」、頭が「…」でなく、最初の部分が本文の文の頭（本文の始まりか、「。」「？」「！」の直後）から始まらない行を「文の途中から始まる」として出す（「文の途中から始まる」は提案理由の記録にだけ当てる。DESIGN.md ADR-35） |
 | 届き先 | 確定した事柄・記載の行（kotogara・kisai・tsunagari）のうち、views の無い点の行の数と一覧（signal_todoku.tsv）。やりとりの記録と質疑の記録で、問いごとに点が空の行の割合（signal_point.tsv）。テーマごとに、確定した記録の行のうち、テーマの定義の kind 名前の行の note に書いた中心の見方に出る行の割合（signal_chushin.tsv）。どれも一覧と件数を出すだけで、終了コードは変えない。止める値は、幼保と介護で測ってから決める（DESIGN.md ADR-31 の4） |
 | 形の点検 | check.md の節「形の点検」に、毎回同じ道具で次の数を出す（点検の報告 tenken-2026-11-14.md の E.2。終了コードは変えない）。(1) 台帳ごとに、列ごとの空の行の数と率（共通の列 status・reviewer・date・note を除き、空の行が1以上の列だけ）。(2) 値の決まった列（side・stage・問いと答えの kind・bulletin・事柄と施設の kind・記載の kind・link・aspect）で、tools/records.py の定数にあって0行の値。(3) 同じ資料・同じ引用で点が違う行の組（事柄の記録の point、構造にしていない記載の about。rejected を除く）。(4) target が引用に無い行（事柄の記録・構造にしていない記載・施設の記録で、target が空でなく、§4 の正規化のあとで引用に無い。rejected を除く）。(3)・(4) の行は一覧（build/records/katachi.tsv）に出す |
 
-テーマの定義・枠組みの参照表・分類の体系の参照表・資料の種類の参照表・施設の参照表・記録の台帳・書かない資料・提案理由の記録・対象の形・対象の照合・「対象と議案・名前」・発言の取りこぼし・引用の前後は、`tools/check_records.py` で確かめる。報告と一覧は `build/records/` に出す（check.md・round_diff.tsv・quote_mismatch.tsv・target_unchecked.tsv・target_bill.tsv・target_name.tsv・torikoboshi.tsv・quote_context.tsv・teian_segment.tsv・suji_missing.tsv・katachi.tsv）。記録しない文の台帳（§15.9）が無ければ、0行として扱う。ほかの検査は、リンク台帳の道具（`tools/update_links.py`・`tools/check_links.py`）で行う。
+テーマの定義・枠組みの参照表・分類の体系の参照表・資料の種類の参照表・施設の参照表・記録の台帳・書かない資料・提案理由の記録・対象の形・対象の照合・「対象と議案・名前」・発言の取りこぼし・引用の前後は、`tools/check_records.py` で確かめる。報告と一覧は `build/records/` に出す（check.md・round_diff.tsv・quote_mismatch.tsv・target_unchecked.tsv・target_bill.tsv・target_name.tsv・torikoboshi.tsv・quote_context.tsv・teian_segment.tsv・suji_missing.tsv・katachi.tsv）。記録しない文の台帳（§15.9）が無ければ、0行として扱う。ほかの検査は、リンク台帳の道具（`tools/update_links.py`・`tools/check_links.py`）で行う。問いと事項の対応（§15.12）も `tools/check_records.py` で確かめ、一覧 taio_missing.tsv を `build/records/` に出す（行は theme → question の文字コード順）。
+
+まとめ直しの確かめ（DESIGN.md §5 の N2）：いまの台帳（やりとり・質疑・審査報告の記録）から §15.12 のとおりまとめ直した行の数を、テーマごとに、テーマの定義の kind 問い・質疑・報告の値を question に持つ行の数で数え、介護（kaigo）81・幼保（hoiku）29・公共施設（kokyo）17・地域のあり方（chiiki）6 になること（main ca856e9 の台帳と ref/themes.tsv で数えた数。DESIGN.md ADR-39 の文脈）。1つの行が2つのテーマで数えられることがあるので、テーマごとの数の和は台帳の行の数（124）と同じではない。同じ時点で、対応の無い問いの一覧の件数は、介護6・幼保12・公共施設33・地域のあり方29 になる（DESIGN.md §5 の N3・N7 の件数）。上の「問いと事項の対応」の検査の誤りは0件であること
 
 target のキーの消失は、対象の照合の (1) で止まる。値の変化は、hino-town-docs が検収を戻す（DOCS_SCHEMA §13.10。値が変わると台帳の key が変わり、未検収になる）ので、対象の照合の (2) で止まるか、一覧に出る。lock を上げるときの版どうしの比べ方は §10 にある。check.md には、target のキーの種類（fh・hs・hj・hk・hz）ごとの数と、target_text の種類ごとの数を出す（docs/kasetsu.md の H-7 の確かめのため）。役職と課の参照表（§12.2）の role の検査は、参照表を書くときに足す（2026-11-09、依頼者の決定。DESIGN.md ADR-34 の12）。
 
@@ -439,6 +447,7 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 | teian_segment.tsv | 提案理由の記録で、sid が bill の議案番号を持つ提案の区切りに入っていない行（`build/records/`。§11 提案理由の記録） | maru・sid・bill・quote・desc |
 | suji_missing.tsv | confirmed の事柄の記録と構造にしていない記載のうち、資料が資料の種類の参照表（§12.4）に当たり、suji が空の行（`build/records/`。§11 記録の台帳。行は ledger → key の文字コード順。DESIGN.md ADR-37 の2） | ledger・key・source・shurui |
 | katachi.tsv | 形の点検の (3)・(4) に当たる行（`build/records/`。§11 形の点検）。kind は「同じ引用で点が違う」か「target が引用に無い」。(3) は組ごとに行の数だけ並べ、detail に点の名前を書く。(4) は detail に target を書く | kind・ledger・key・detail |
+| taio_missing.tsv | 題材に選んだ問い・質疑・報告（テーマの定義の kind 問い・質疑・報告の値）のうち、それを question に持つ問いと事項の対応（§15.12）の行が1つも無いもの（`build/records/`。§11 問いと事項の対応。DESIGN.md ADR-39 の2）。kind は「問い」「質疑」「報告」（テーマの定義の kind）、date は question の発言の日 | theme・kind・question・date |
 | target_changed.tsv | lock の hino-town-docs を上げるときに、`tools/check_records.py` に前の版の SHA を渡して出す（`build/records/`。§10）。記録の台帳の target にある hs・hj・hk・hz のキーのうち、前の版と新しい版で、検収の台帳の key が変わった行・行が無くなったもの・検収が済まなくなったもの。change はその3つのどれか（2026-11-09、PR #18 の問い3） | ledger・question・row・key・change |
 | update.md・check.md | 更新・検査の件数の報告 | — |
 
@@ -481,6 +490,7 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 | 体系 | §2 の tk キーの体系（`tk:<体系の id>`。要素の番号は付けない） | テーマの分類の体系（町が計画の中で決めた分け方。DESIGN.md ADR-38 の2）とし、論点の地図（§13 の chizu）の縦の骨にする。1つのテーマに1行。source に体系の出典（目次のページなど）を書く。views は持たない。事項（論点）と要素の対応は、点（kind 事柄・記載）の行の views に要素の tk キーを書いて持つ。どの要素の tk キーも持たない事項は、地図の「体系の外」に出る。体系の選び方と、事項と要素の対応は依頼者が決める（DESIGN.md ADR-38 の7）。依頼者の判定の前に案として書いた対応は、その点の行の note に「体系の要素への対応：案」と書き、地図に案の印を出す（§13.4） |
 
 - 行は人が決める。エージェントが自分の判断で行を足したり変えたりしない（CLAUDE.md 不変の制約11 と同じ扱い。依頼者が会話で行を特定して認めた行は書いてよい）
+- kind 議案 には、補正予算の議案を書いてよい。どの議案を足すかは依頼者が決める（DESIGN.md ADR-39 の8）
 - source には、決めた根拠の入力と場所を書く（計画の programs の分野・事業の key、議案の会議と番号など）。語は、どの資料のどの表記によるかを書く
 - 問いの行の source には、会議・日付・議席・議員の名前（会議録の表記のまま）・問いの番号・題を書く
 - 質疑の行の source には、会議・日付・議席・議員の名前（会議録の表記のまま）・対象の議案の番号と、テーマにかかわる部分（例「新こども園の用地」）を書く
@@ -595,13 +605,14 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
   "theme": "hoiku",
   "name": "幼児教育・保育施設の再編",
   "lock": {"<入力のリポジトリ>": "<コミットSHA>"},
-  "ledgers": {"links/mention.tsv": "<sha256>", "links/relink.tsv": "<sha256>", "links/fuhyo.tsv": "<sha256>", "ref/themes.tsv": "<sha256>", "records/yaritori.tsv": "<sha256>", "records/katei.tsv": "<sha256>", "records/kotogara.tsv": "<sha256>", "records/tsunagari.tsv": "<sha256>", "records/kisai.tsv": "<sha256>", "records/shitsugi.tsv": "<sha256>", "records/shisetsu.tsv": "<sha256>", "records/nozoki.tsv": "<sha256>", "records/hokoku.tsv": "<sha256>", "links/gian-yosan.tsv": "<sha256>", "links/hosei-fuhyo.tsv": "<sha256>", "ref/yakushoku.tsv": "<sha256>", "ref/shisetsu.tsv": "<sha256>", "ref/waku.tsv": "<sha256>", "ref/shiryo.tsv": "<sha256>", "ref/taikei.tsv": "<sha256>", "ref/lineage.tsv": "<sha256>", "ref/aliases.tsv": "<sha256>"},
+  "ledgers": {"links/mention.tsv": "<sha256>", "links/relink.tsv": "<sha256>", "links/fuhyo.tsv": "<sha256>", "ref/themes.tsv": "<sha256>", "records/yaritori.tsv": "<sha256>", "records/katei.tsv": "<sha256>", "records/kotogara.tsv": "<sha256>", "records/tsunagari.tsv": "<sha256>", "records/kisai.tsv": "<sha256>", "records/shitsugi.tsv": "<sha256>", "records/shisetsu.tsv": "<sha256>", "records/nozoki.tsv": "<sha256>", "records/hokoku.tsv": "<sha256>", "records/taio.tsv": "<sha256>", "links/gian-yosan.tsv": "<sha256>", "links/hosei-fuhyo.tsv": "<sha256>", "ref/yakushoku.tsv": "<sha256>", "ref/shisetsu.tsv": "<sha256>", "ref/waku.tsv": "<sha256>", "ref/shiryo.tsv": "<sha256>", "ref/taikei.tsv": "<sha256>", "ref/lineage.tsv": "<sha256>", "ref/aliases.tsv": "<sha256>"},
   "plans": [], "policies": [], "programs": [], "budget": [], "council": [], "exchanges": [], "bills": [],
-  "docs": [], "records": {"yaritori": [], "katei": [], "kotogara": [], "tsunagari": [], "kisai": [], "shitsugi": [], "shisetsu": [], "hokoku": []},
+  "docs": [], "records": {"yaritori": [], "katei": [], "kotogara": [], "tsunagari": [], "kisai": [], "shitsugi": [], "shisetsu": [], "hokoku": [], "taio": []},
   "hits": {"council": [], "docs": []},
   "sheets": [], "issues": [],
   "waku": [], "shiryo": [], "suji": [],
   "chizu": {},
+  "youten": {}, "nendo": [],
   "names": {"sources": {"<資料のキー>": "<資料の名前>"}, "facilities": {"<fa キー>": {"name": "", "district": ""}}, "bills": {"<gi キー>": "<議案の題>"}},
   "theme_questions": 16,
   "chushin": "node:jisshi/e008"
@@ -616,6 +627,8 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 - 抜粋（`excerpt`）は、照合の語や一致した語を中心に前後あわせて200字までとする（不変の制約9）。会議録の発言は、台帳の context か、入力の発言の本文から切り出す
 - 日付は YYYY-MM-DD。並びは、council・exchanges・bills・hits は日付の順（同じ日付は from のキーの文字コード順）、ほかはキーの順（§1。records の row と step は数の順）
 - 序列化しない（不変の制約6）：議員ごとの件数や順位を作らない
+- records.taio・youten・nendo は、記録の単位を問い×事項にしたあとの、事項のページと年度のページと題材の入口（§16.6）と MCP（§14.1）のための項目である（DESIGN.md ADR-39 の7・9）。いまある項目（records.yaritori・records.shitsugi・records.hokoku、sheets の asked、issues など）は、N4（DESIGN.md §5）で画面と MCP を置き換えるまで、そのまま残す
+- 議会の記録の数は、records.taio からは問いの単位の件数（一般質問N問・議案質疑N件・委員長の報告N件）で数える。1つの問い・質疑・報告は、組がいくつあっても1と数える（DESIGN.md ADR-39 の9）
 
 | 項目 | 中身 | layer | 出典の url |
 | --- | --- | --- | --- |
@@ -628,6 +641,7 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 | bills | テーマの議案（gi キー・会議・日付・番号・件名・結果・採決の方法・討論の並び（日付・議員・賛否・発言の sid）） | 確定 | 会議の掲載ページ（meetings.json の url） |
 | docs | テーマの資料（§12 の kind 資料。hino-town-docs の id・区分・名前・年度・日付・ページ数・check） | 確定 | 原典の PDF の URL |
 | records | テーマの記録（§15.2〜§15.8 と §15.10 の8つの台帳のうち、テーマの行と、テーマの問いのやりとりの記録と、テーマの質疑の記録と、テーマの報告の審査報告の記録と、テーマの施設についての施設の記録。rejected は入れない） | 確定か記録（未確認） | 行ごとの資料の出典 |
+| records.taio | 問いと事項の対応（§15.12）のうち、point がテーマの kind 事柄・記載の値の行（rejected は入れない）と、その問い・質疑・報告の日付・会議・質問者（報告は委員会）・議会だよりの見出し（無ければ通告の題・議案の題）（DESIGN.md ADR-39 の7） | 確定か記録（未確認） | 会議録の発言（範囲の段落ごとに `#sid=<sid>&p=<段落>`。§2） |
 | hits.council | テーマの語が題名か本文に一致した、一般質問の問い・議案の質疑のまとまり・議会だよりの問いのうち、確定の層（exchanges・council・テーマの質疑）に無いもの（発言日・from・一致した語・抜粋）（§13.4） | 語の一致（未確認） | council と同じ |
 | hits.docs | テーマの語が一致した町の公開資料のページ（資料の id・名前・年度・ページ・一致した語・抜粋・どの層で一致したか・想定外の字のあるページか） | 語の一致（未確認） | 原典の PDF の URL に `#page=<n>` |
 | sheets | テーマの事業ごとの整理シート（DESIGN.md ADR-19。資料の種類から機械で置ける記載と、その事業にかかわる記録への参照） | 項目ごとに、もとの項目の layer | 項目ごとの出典 |
@@ -636,6 +650,8 @@ target のキーの消失は、対象の照合の (1) で止まる。値の変�
 | shiryo | 資料の種類の参照表（§12.4）の行のうち、テーマの資料か記録の行の資料に当たるもの | （付けない） | （付けない） |
 | suji | 資料の中の項目（同じ資料の同じ suji の記録の行。§15.3・§15.6）と、項目の中の行の並び（資料の本文の中の位置の順） | 行の layer がすべて確定なら確定、ほかは記録（未確認） | 項目の資料（doc のキー）の url |
 | chizu | 論点の地図（DESIGN.md ADR-38）。テーマの分類の体系（§12 の kind 体系）の要素ごと・事項（論点）ごと・年度ごとの記録の行の数、過程の記録の段階、見た範囲、議会の側の状態、体系の外の事項。kind 体系の無いテーマでは空のオブジェクト | （付けない。数には記録（未確認）の行を含む） | 体系と要素の出典のページ |
+| youten | 題材の要点（DESIGN.md ADR-39 の7）。正式な名前、検討の段階、最近変わった記載（§13.3） | 欄ごとに、もとの項目の layer | 欄ごとに、もとの項目の出典 |
+| nendo | 年度のページ（DESIGN.md ADR-39 の7）。予算・決算の対象の年度ごとの節目と、節目ごとの議案・資料・問い・質疑・報告と、当たる事項（§13.3・§13.4）。waku の nendo（資料の年度ごとの枠組みの要素）とは別の項目 | 欄ごとに、もとの項目の layer | 議案は bills、資料は docs、問い・質疑・報告は records.taio と同じ |
 
 - 役職の区分は、会議録の発言の role から「議員」「当局」「議長」「その他」に分ける（docs/review-2026-10-21.md §5.3 e）。role が議席（「4番」など）なら議員、議長・副議長・臨時議長・新議長・新副議長なら議長、空か、委員長（選挙管理委員長を除く）・事務局長・議会事務局長ならその他、ほかは当局。その他の分け方は暫定で、あとで決める（DESIGN.md 判断事項24）
 - 語の一致は、本文に §4 の正規化をかけて探す。除外の語の中で一致した語は数えない。抜粋は、§4 の正規化をかけた本文から、最初に一致した語を中心に200字を切り出す（言及の台帳の context と同じく、空白を除いた文になる）
@@ -695,6 +711,12 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
   - 計画と予算「<附表の事業>は実施計画に当たる事業が無い（記載なし）」「<実施計画の事業>は実施年度に令和N年度があるが、令和N年度の附表に当たる事業が無い」
 - 問われていない区分と問われていない点の statement には、比べた範囲を書く。テーマの問い（§12 の kind 問い）のうち、やりとりの記録の無い問いがあれば、そのあとに「テーマ「<テーマの名前>」の一般質問として選定したN問のうち、N問は未記録」と書く。議論すべきだったか、問わなかったことの良し悪しは書かない（DESIGN.md ADR-12）
 - scope：比べた行の点の views が1つの見方に決まる候補と、計画と予算の候補は、その見方のキー。ほかはテーマ自体
+- 問いと事項の対応（§15.12）を置いたあとの比べ方（DESIGN.md ADR-39。N4 で道具に入れる。それまではこの節のいまの決まりのまま）：
+  - 問われていない区分は出さない（DESIGN.md ADR-39 の6）
+  - 問われていない点は、題材に選んだ問い・質疑・報告（テーマの kind 問い・質疑・報告の値）の全部に、それを question に持つ問いと事項の対応の行（rejected を除く）がある題材でだけ出す（§11 の taio_missing.tsv にそのテーマの行が無い題材。DESIGN.md ADR-39 の3）。比べるのは、テーマの kind 事柄・記載の値と、その題材の問い・質疑・報告を question に持つ行の point で、値のうち point に一度も無いものを候補にする。全部に行の無い題材では、この比べ方の候補を作らない
+  - 繰り返し問われている点は、問いと事項の対応の行から出す。テーマの問い・質疑（iq と sq。いまの決まりと同じく、委員長の報告 rp は入れない）を question に持つ行で、同じ point の行が2つ以上の会議にあるもの。議員ごとには数えない（不変の制約6）
+  - 留保のその後と予定の変更は、いまある行（やりとりの記録・質疑の記録の答えの kind 留保の行、事柄の記録・施設の記録の行）から出し続ける（DESIGN.md ADR-39 の5、判断事項55・56）
+  - statement の文の形の改め（比べた範囲の書き方など）は、N4 で見本を依頼者に見せて決める
 
 ### 13.3 項目の欄
 
@@ -711,6 +733,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | bills | key・meeting_id・meeting・date・no・kind・title・committee・result・method（gian.json の議案の値）・debates（date・member（mb のキー・名前・議席）・stance・sid・url の並び。審議の記録の討論（kind が debate）のうち、bills にこの議案を含むもの）・url・kessan（kind が「決算」の議案だけ。ほかは空の辞書。fiscal_year（題の字から取った決算の年度。YYYY）・decided_meeting_id・decided_meeting（議決の会議の id と名前）・vote_date（採決の日。採決の区切りが無ければ空）・proposals（提案の説明の区切りごとに date・role・sid・url）・steps（質疑・委員長の報告・討論の区切りごとに kind（「質疑」「委員長の報告」「討論」）・date・member（mb のキー・名前・議席）・committee（委員長の報告の委員会の名前）・nbills（その区切りの bills の数）・stance（討論の賛否。入力に値があるときだけ）・sid・url。日付と会議録の順。kind が質疑と委員長の報告の行は rows も持つ（§13.4）））（DESIGN.md ADR-37 の経過、2026-11-14 の2つめ） |
 | docs | id・category・title・fiscal_year・date・pages・check・text_layers（原典の文字・OCR の下書きのどれがあるか）・url・original_url と archived（町のサイトに載らなくなった資料の、町の元の url と保存版の保存日。ほかは空。§13.4） |
 | records | yaritori・shitsugi・katei・kotogara・tsunagari・kisai・shisetsu・hokoku の8つ。それぞれ §15 の行の列と、資料の url・layer。kisai は kind（事実・見通し・評価・要望）と target（対象の時期）を含む（§15.6。DESIGN.md ADR-36・ADR-37）。kotogara と kisai は suji（項目の番号）と suji_key（項目のキー `suji:<資料の id>/<suji>`。suji が空なら空）を含む。katei・kotogara・tsunagari・kisai・shisetsu の行は shurui（資料の種類。§12.4 に当たる資料なら shurui、当たらなければ空）を含む（DESIGN.md ADR-37 の2・5）。yaritori は問いの単位、shitsugi は質疑の単位、hokoku は報告の単位にまとめ、問いと質疑に member（mb のキー・名前・議席）を持たせる |
+| records.taio | 行ごとに question・kind（「一般質問」「議案質疑」「委員長の報告」。question の接頭辞 iq・sq・rp による）・point・hani（§15.12 の字のまま）・ranges（hani を範囲ごとに分けたもの。sid（sp のキー）・paras（段落の番号の並び）・url（`#sid=<sid>&p=<最初の段落>`））・bills・bq・status・layer・date（question の発言の日）・meeting_id・meeting（§13.4 の会議の名前）・member（iq と sq は mb のキー・名前・議席。rp は空）・committee（rp だけ。審議の記録の報告の区切りの committee。ほかは空）・title（議会だよりの見出し。無ければ通告の題か議案の題。§13.4）・title_src（「議会だより」「通告の題」「議案の題」のどれか。title が空なら空）・url（question の発言。`#sid=<sid>`）。範囲の段落の本文をこのデータに持つか、画面と MCP が lock の版の会議録から読むかは、N4 で決める（どちらでも、本文はリポジトリに入れない。不変の制約9） |
 | hits.council | kind（「問い」「質疑」「議会だより」）・meeting_id・meeting・date・n・question（iq・sq・bq のキー）・member（mb のキー・名前・議席）・bills（質疑の対象の議案の gi キー）・titles（審議の記録の topics のうちその問番号のもの。議会だよりと会議録の両方を、src で分ける。議会だよりの問いはその題名）・words（一致した語と回数）・from（語が最初に一致した発言の sp のキー。題名だけで一致したときは問いの最初の発言。議会だよりの問いは bq のキー）・excerpt（その発言から）・first_sid・url |
 | hits.docs | doc・title・category・fiscal_year・date（資料の日付。並べるため）・page・words・text_layer（「原典の文字」か「OCR の下書き」）・excerpt・unexpected・url |
 | sheets | view（見方のキー。テーマ自体はテーマの id）・view_kind（「事業」「期の計画」「施設」「地区」「組織」「枠の要素」「テーマ」）・name（見方の名前）・kadai（課題の記載）・cost（事業費と予算）・desc（事業の説明）・vision（めざす姿）・tsunagari・kotogara・shisetsu・katei・asked（やりとりの記録と質疑の記録への参照と、問いの行の区分ごとの数）。どれも、項目への参照（ref）・text か value・source・url・layer の並び。asked は、問いと質疑のまとまりごとに1項目とし、value を区分ごとの問いの行の数（7つの区分。0も書く）とする |
@@ -720,6 +743,8 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 | shiryo | shurui・match・tsukuru・konkyo・atesaki・outou・waku・source・note（ref/shiryo.tsv の字のまま） |
 | suji | key（`suji:<資料の id>/<suji>`）・doc（`doc:<資料の id>`）・n（suji の数）・shurui・url（資料の url）・rows（項目の行の並び。ledger（kotogara か kisai）・ref（`records/<台帳>/<行のキー>`）・point（kotogara は point、kisai は about。空もある）・kind・target・quote・source・source_date・page・pos（引用が本文のどこにあるか。ページの中の、§4 の正規化のあとの字の位置。見つからなければ -1）・layer）・bun（項目の文の並び。同じ文を2つ以上の行に記録したとき（引用が同じか、1つの行の引用がほかの行の引用に含まれるとき）は1つにまとめる。文ごとに quote（含むほうの行の引用）・kind（含むほうの行の記載の種類。事柄の記録は「事実」）・points（まとめた行ごとの point と kind の並び。行の並びの順）・refs（まとめた行の ref）・layer（まとめた行がすべて確定なら確定、ほかは記録（未確認）））・layer |
 | chizu | taikei（key（`tk:<体系の id>`）・name（ref/taikei.tsv の n が0の行の name）・source・url）・years（年度の並び。西暦の年度（4月〜翌3月）の数）・elements（要素ごとに view（`tk:<体系の id>/<n>`）・n・oya（親の要素の n。いちばん上は null）・depth（階層の深さ。いちばん上が1）・name・source・url・points（その要素を views に持つ事項の名前の並び）・under（その要素の下の要素（子・孫…）の points の名前を重ねずに数えた数）・waku（列 waku に枠組みがある要素だけ。key（`waku:<枠組みの id>`）・name（枠組みの名前）・elements（枠組みの要素ごとに n・name・points（その要素の points のうち、views にその枠組みの要素の waku キーがあるもの）））・counts（points の事項の counts を年度ごとに足したもの））・points（テーマの kind 事柄・記載の値ごとに name・kind・elements（その事項を views に持つ要素の n の並び）・waku（その事項の views の枠組みの要素ごとに key（`waku:<枠組みの id>/<n>`）・name（枠組みの名前）・n・element（要素の名前））・an（体系の要素への対応が案のとき true）・counts）・soto（体系のどの要素も views に持たない事項の名前の並び）・katei（年度の字 → 過程の記録の段階（step と name）の並び）・mita（年度の字 → kind 問い・質疑・報告ごとの [題材に選んだ数, 記録が済んだ数]。題材に選んだものが無い kind は入れない）・gikai（年度の字 → 議会の側の状態。nai（記録した範囲に無い）・mi（まだ見ていない）・nashi（題材の問いが無い））。counts は、年度の字（YYYY。年度の無いものは空の字）→ [町の資料の記載の行の数, 議会の記録の行の数] で、どちらも0の年度は入れない。kind 体系の無いテーマでは、chizu は空のオブジェクト（DESIGN.md ADR-38） |
+| youten | seishiki（正式な名前の並び。§14.2 の overview の「正式な名前」と同じ選び方で、テーマ全体について。名前ごとに name・source・url・layer）・dankai（検討の段階。過程の記録の step の順の後ろから3つ。§14.2 の overview の「いまの段階」と同じ。段階ごとに §15.5 の行の欄と url・layer）・kawatta（最近変わった記載。選び方は N4 で見本を依頼者に見せて決める。決まるまでは空の配列）。layer と url は欄の中の項目ごとに付け、youten 自体には付けない |
+| nendo | 年度ごとに fiscal_year（予算・決算の対象の年度。西暦の年度の YYYY）・fushime（節目の並び。§13.4 の順。節目ごとに name（節目の名前）・items（type（「議案」「資料」「一般質問」「議案質疑」「委員長の報告」「討論」「議決」のどれか）・key（gi・doc・iq・sq・rp・sp のキー）・name（議案の題・資料の名前・議会だよりの見出しなど）・date（出来事のあった日。資料は資料の日付）・meeting（会議の名前。資料は空）・points（当たる事項の名前の並び。§13.4）・url・layer の並び））の並び。年度の並びは古い順。layer と url は items ごとに付け、年度と節目には付けない |
 | theme_questions | テーマの定義（§12）の kind 問いの行の数（数だけ。layer と url は付けない） |
 | chushin | 題材の中心の見方のキー（テーマの定義の kind 名前の行の note の「中心の見方：<キー>」。無ければ空。layer と url は付けない）。テーマ自体の見方の要点（§14・§16.1）に出す |
 
@@ -767,10 +792,59 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
   - years は、points の counts と katei と mita に出る年度（空の字を除く）のうち、最も古い年度から最も新しい年度までの続いた並び
   - taikei と elements の url は source のページの原典の url
 - names：sources は、records の source・sid・upper_ref・lower_ref・sources と、審査報告の記録の bill（§17.1 の議案の名前に使う。2026-11-15 の5つめ）と、council の from と、issues の refs と、waku の source（doc か pt のキーのとき）に出る資料のキーごとに、上の資料の名前を入れる。facilities は、records.shisetsu の facility ごとに ref/shisetsu.tsv の name と district を入れる。bills は、審査報告の記録の bill に出る議案ごとに、gian.json のその議案の title を字のまま入れる（題材の kind 議案に無い議案（一般会計の決算など）も入れる。bills の項目には入れない。2026-11-15 の MCP の確かめ）
+- records.taio（DESIGN.md ADR-39 の7）：問いと事項の対応（§15.12）の行のうち、status が rejected でなく、point がテーマの kind 事柄・記載の値のもの。行の順は question → point。date・meeting_id・meeting・member・committee は、question の発言と、審議の記録のその区切りから取る（member は exchanges と同じ形）。title は、bq があればその議会だよりの問いの title（title_src は「議会だより」）。iq で bq が無ければ、審議の記録の一般質問の区切りの questions のうち、start の発言が question の発言であるものの title（「通告の題」）。sq と rp は、bills の議案の gian.json の title を「、」で並べたもの（「議案の題」）。取れなければ空にし、`tools/build_theme.py` が件数を表示する
+  - あわせて、テーマに選んだ問い・質疑・報告（テーマの定義の kind 問い・質疑・報告）を question に持つ行のうち、point がほかのテーマの事項のものも入れ、そのテーマの名前を添える（other_theme）。2つのテーマに選んだ問いで、片方のテーマの事項にだけ当たる組が、もう片方のテーマのデータから消えないようにするため（2026-11-16 の台帳では、公共施設で3組、地域のあり方で6組）。件数（§13 の数え方）には、この行も数える
+- chizu の数の改め（DESIGN.md ADR-39 の9。N4 で道具に入れる。それまでは上の数え方のまま）：counts の議会の側を、行の数から問いの単位の件数に改める。事項の counts の議会の側は、その事項を point に持つ問いと事項の対応の行（rejected を除く。テーマの問いに限らない）の question の数を、question の発言の日の年度に数える。要素の counts の議会の側は、その要素の points の事項の行の question を、重ねずに数える。町の資料の記載の側は、いまのとおり行の数とする。mita の「記録が済んだもの」は、その値を question に持つ問いと事項の対応の行（rejected を除く）があるものとする。会議録の発言を出典にした事柄の記録と記載の行（いまの数え方では、議会の記録の行として数えている）を、改めたあとの議会の側に入れるかは、まだ決めていない
+- youten（DESIGN.md ADR-39 の7）：seishiki と dankai は、§14.2 の overview の「正式な名前」と「いまの段階」の選び方を、テーマ全体の見方に当てて作る。kawatta は、N4 で選び方を決めるまで空の配列とする
+- nendo（DESIGN.md ADR-39 の7）：対象の年度と、出来事のあった日を分けて持つ
+  - 対象の年度：議案は、題（§4 の正規化のあと）の「令和N年度」「平成N年度」（元年は1）を西暦の年度にしたもの（bills の kessan の fiscal_year と同じ取り方）。取れない議案は置かず、`tools/build_theme.py` が件数を表示する。資料は、hino-town-docs の data/sources.tsv の fiscal_year（waku の nendo と同じ）。一般質問は、question の発言の日の年度（4月〜翌3月）
+  - 年度：テーマの kind 議案のうち、gian.json の kind が予算か決算の議案の、対象の年度を古い順に並べたもの
+  - 節目は、DESIGN.md ADR-39 の7 の並びのとおり、次の順に置く。どの節目にも、対象の年度がその年度のものを置く（(9) だけは次の年度）。(1) 当初予算：gian.json の kind が予算で、題に「補正予算」の字が無い議案。(2) 補正予算：kind が予算で、題に「補正予算」の字がある議案。(3) 年度の間の一般質問と定期監査：テーマの kind 問いのうち、発言の日がその年度の中のもの。テーマの資料と記録の行の資料のうち、資料の種類（§12.4）が定期監査の報告のもの。(4) 決算の提出と説明：kind が決算の議案と、その bills の kessan の proposals。(5) 決算審査の意見書：資料の種類が決算審査の意見書の資料。(6) 質疑：(4) の議案の kessan の steps のうち質疑。(7) 委員長の報告と討論：同じく委員長の報告と討論。(8) 認定：(4) の議案の議決（kessan の vote_date と、bills の result・method）。(9) 次の当初予算：対象の年度が次の年度の、(1) と同じ議案
+  - (1)・(2)・(9) の議案には、その議案を bills に持つ問いと事項の対応の行の question（議案質疑・委員長の報告）と、bills の debates（討論）と、議決（bills の result・method・date）を続けて置く
+  - 当たる事項（points）：議案・議案質疑・委員長の報告は、その議案を bills に持つ問いと事項の対応の行の point。一般質問は、その問いを question に持つ行の point。資料と提案の説明は、テーマの records の kotogara と kisai のうち、source がその資料のページかその発言の行の point（kisai は about）。討論と議決には付けない（討論は記録しない。§15.7）。どれも、テーマの kind 事柄・記載の値の行だけ
+  - 提案の説明は、発言の全体を1つの項目として置く。議案ごとの範囲を持つかは、DESIGN.md 判断事項58 で決める
+  - 節目に当たらない議案（条例・契約など）と、題材の外の議案を年度のページに置くかは、N4 で見本を依頼者に見せて決める
 
-## 14. MCP の道具 `tools/mcp_ronten.py`
+## 14. MCP の道具
 
-生成AIに、テーマのノートのデータ（§13）を読ませる道具（DESIGN.md ADR-13・ADR-27）。読むだけで、何も書かない（呼び出しの記録を除く）。2026-10-30 に、試作で確かめた形（docs/eval-shisaku1.md §7）に改めた。
+生成AIに、題材のデータと原文を読ませる道具。14.1 は DESIGN.md ADR-39 の9 の形で、N4（DESIGN.md §5）で作る。14.2 は、N4 で 14.1 に置き換えるまでの、いまの道具である。ほかの節で「§14 の overview」などと書いているものは、14.2 の道具を指す。
+
+### 14.1 ADR-39 の形の道具（N4 で作る）
+
+DESIGN.md ADR-39 の9 による。比べで作った C の形（docs/kurabe-mcp-2026-11-15.md §1）を土台にする。道具のファイルの名前と起動のしかたは、N4 で決める。
+
+- 形：MCP（Model Context Protocol）の stdio のサーバー。標準ライブラリだけで作る。JSON-RPC 2.0（1行に1つ）で、`initialize`・`tools/list`・`tools/call`・`ping` に答える（§14.2 と同じ）
+- 題材：1つのサーバーで全部の題材を扱い、題材を道具の引数 theme（テーマの id）で受ける。§14.2 のように、題材と見方をサーバーの起動のときに決めない
+- 読むだけ：何も書かない（呼び出しの記録を除く）。ネットワークを使わない。どの道具にも、読むだけの印（tools/list の annotations で readOnlyHint を true、openWorldHint を false）を付ける
+- 読むもの：build/theme/<theme>.json（§13）、ref/themes.tsv、lock の版の入力の会議録の発言と審議の記録（hino-council-search）、計画の原典の文字（shiga-hino-plans）、町の資料の原典の文字（hino-town-docs）
+- 取る順：題材の一覧（themes）→ 目次（outline）→ 事項（point）とする。原文は read_question・read_doc で読み、語から探すのは search_minutes・search_docs、題材の定義は theme、年度のページは fiscal_year で取る。この順を、サーバーの説明（initialize の instructions）に書く
+- 返す量：どの道具も、1回に返す文は12,000字までとする。超えるときは切り、返す文の終わりに、続きの取り方（引数 offset に渡す値と、残りの件数か字数）を書く。offset は、一覧を返す道具では何件目から（0から）、本文を返す道具では何字目から（0から）とする
+- 引数：どの引数にも説明（inputSchema の properties の description）を付ける。必須の引数は inputSchema の required に書き、ほかは省けることと、省いたときの値を説明に書く。決まりに合わない引数（無い題材・事項・id・年度）には、その旨を返し、推定で近いものを返さない（§14.2 と同じ）
+- 数：議会の記録の数は、問いの単位の件数（一般質問N問・議案質疑N件・委員長の報告N件）で返す（§13）。記録の行の数は返さない。DESIGN.md ADR-38 の決定1 のうち「地図を MCP の全体像の頭に出す」は outline の目次に、決定5 の数え方（行の数）はこの数え方に改める（DESIGN.md ADR-39 の9）
+- 【未確認】の印：問いと事項の対応（records.taio）と、町の資料の記載（事柄の記録と記載）の、candidate の行に付ける（CLAUDE.md 不変の制約2、DESIGN.md ADR-39 の10）。印が指すのは、問い・質疑・報告と事項の対応や、記載の分類で、引いた原文ではない。原文は、道具が原典と照らしたものである。このことを、サーバーの説明と、印を付けることのある道具の説明（tools/list の description）と、印を付けた文を返すときの返す文の頭に書く
+- 対応の無いことの言い分け（DESIGN.md ADR-39 の3）：題材に選んだ問い・質疑・報告のうち、問いと事項の対応の行が1つも無いもの（§11 の taio_missing.tsv と同じ）は「事項との対応を付けていない」と返す。対応を付けた問い・質疑・報告のどれにも、その事項の行が無いことは「対応を付けた範囲に無い」と返す。2つを分けて書き、どちらも「取り上げていない」とは書かない
+- 文：返す文は、決まった文とデータの項目と原文だけで作る。評価や結論を書かない。評価で数える語の一覧（docs/eval-shisaku1.md §7）を道具に入れない（§14.2 と同じ）。原文は字を変えずに返し、発言・ページごとに出典の url を付ける
+- 序列化しない（CLAUDE.md 不変の制約6）：議員を件数で並べたり比べたりする文を返さない。議員の名前は、問いの単位で「質問者」として返す
+- 呼び出しの記録：§14.2 と同じ（日時・道具の名前・引数・返した文の字数。返した中身は書かない）
+
+| 道具 | 引数（＊は必須） | 返すもの |
+| --- | --- | --- |
+| themes | なし | 題材ごとに、id・名前、題材に選んだ一般質問・議案質疑・委員長の報告・議案・資料・事項の数、事項との対応を付けていない問い・質疑・報告の数。最初に呼ぶ道具であることを説明に書く |
+| outline | theme＊（題材の id）・section（「soto」で体系の外の事項を全部返す。省ける）・offset（省くと0） | 頭に題材の要点（§13 の youten：正式な名前、検討の段階、最近変わった記載）。続けて、分類の体系（§12.5）の要素の順に、事項の名前と、事項ごとの数（問い・質疑・報告の件数と、町の資料の記載の行の数。年度ごと）。体系の無い題材では、事項の名前の一覧に数を付ける。事項との対応を付けていない問い・質疑・報告の数。数の無いことは取り上げられていないことを意味しないこと |
+| point | theme＊・name＊（事項の名前。outline か theme が返す字のまま）・detail（「brief」か「full」。省くと brief。full は町の資料の記載の全部の行）・offset（省くと0） | 目次での置き場所。いまの町の説明（町の資料のいちばん新しい記載の原文と出典）。これまでの記載と答弁の値（町の資料の記載と、会議録の発言を出典にした事柄の記録の値を、日付順）。当たる問い・質疑・報告の一覧（問いと事項の対応の行ごとに、日付・会議・質問者（報告は委員会）・議会だよりの見出し（無ければ通告の題・議案の題）・id・範囲（hani）・【未確認】の印）。つながりの記録と施設の記録のうち、その事項にかかわる行の言い回し（原文と出典）。題材に選んだ問い・質疑・報告に「事項との対応を付けていない」ものがあれば、その数 |
+| theme | theme＊・section（「questions」「bills」「docs」「points」のどれか1つ。省くと全部） | 題材の定義：題材に選んだ一般質問・議案質疑・委員長の報告の一覧（日付・会議・質問者・議会だよりの見出し・id・url と、対応を付けた事項の名前か「事項との対応を付けていない」）、議案の一覧（題・id）、資料の一覧（名前・日付・id・url）、事項の名前の一覧 |
+| search_minutes | query＊（空白で区切った語。すべてを含む発言を返す）・theme（付けると、その題材に選んだ問い・質疑・報告の発言を先に並べる）・from・to（YYYY-MM-DD）・limit・offset | 会議録の発言の、日付・会議・場面・発言者・前後の抜粋・sid・url。語は NFKC にそろえ、空白と改行を除いて比べる |
+| read_question | id＊（iq・sq・rp のキーか、sp のキー）・point（id が iq・sq・rp のときだけ。その事項の範囲（hani）の段落だけを返す）・part・from_sid・to_sid・context・offset・max_chars（12,000字まで） | 一般質問の問い・議案質疑・委員長の報告のやりとりを、発言の順に原文で。発言ごとに発言者・sid・url を付ける。point を付けたときは、範囲の段落ごとに段落の番号と url（`#sid=<sid>&p=<段落>`）を付ける |
+| search_docs | query＊・theme＊・doc（資料を1つに絞る。省ける）・limit・offset | 題材の資料（町の資料と計画）のページの、資料の名前・日付・ページ・抜粋・id・url |
+| read_doc | id＊（`doc:<id>/<ページ>` か `pt:<id>/<名前>/<ページ>`）・offset・max_chars（12,000字まで） | 資料の1ページの原典の文字と url |
+| fiscal_year | theme＊・year（予算・決算の対象の年度。西暦の年度の4桁。省くと年度の一覧）・offset | year を省いたとき：年度のページのある年度（§13 の nendo）の一覧と、年度ごとの節目の数。year を付けたとき：その年度の節目（§13.4 の順）ごとに、議案・資料・一般質問・議案質疑・委員長の報告・討論・議決の、出来事のあった日・会議・題か名前・id・url と、当たる事項の名前。対象の年度と出来事のあった日を分けて書く |
+
+- 引数ごとの既定の値と上限（limit・max_chars など）は、比べで作った C（作業の場所の mcp_c.py。docs/kurabe-mcp-2026-11-15.md §1）の値を土台に、N4 で決める
+- 道具の名前 fiscal_year は、§13 のデータの fiscal_year（予算・決算の対象の年度。4月〜翌3月）と同じ語とし、出来事のあった日の年と分ける
+
+### 14.2 N4 で置き換えるまでの、いまの道具 `tools/mcp_ronten.py`
+
+生成AIに、テーマのノートのデータ（§13）を読ませる道具（DESIGN.md ADR-13・ADR-27）。読むだけで、何も書かない（呼び出しの記録を除く）。2026-10-30 に、試作で確かめた形（docs/eval-shisaku1.md §7）に改めた。N4 で 14.1 の道具に置き換える（DESIGN.md ADR-39 の9）。
 
 - 形：MCP（Model Context Protocol）の stdio のサーバー。標準ライブラリだけで作る。JSON-RPC 2.0（1行に1つ）で、`initialize`・`tools/list`・`tools/call`・`ping` に答える
 - 起動：`python3 -B tools/mcp_ronten.py <theme> <見方のキー> [--log <jsonl>]`。1つのサーバーが1つの見方を扱う。見方のキーにテーマの id を渡すと、テーマ全体を扱う
@@ -802,13 +876,13 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 ## 15. 記録の台帳 `records/`
 
-資料の文を引いて、議会でのやりとり（一般質問と議案の質疑）、委員会の審査報告（§15.10、DESIGN.md ADR-34 の7）、補正予算の提案理由で言われた財源（§15.11、DESIGN.md ADR-35）、政策の過程、事柄の時点、記載どうしのつながり、構造にしていない記載、施設の役割と状態を記録する台帳（DESIGN.md ADR-16・ADR-19・ADR-21・ADR-23）。やりとりの記録と質疑の記録で記録しない文と、その理由も台帳に置く（§15.9、ADR-24）。
+資料の文を引いて、議会でのやりとり（一般質問と議案の質疑）、委員会の審査報告（§15.10、DESIGN.md ADR-34 の7）、補正予算の提案理由で言われた財源（§15.11、DESIGN.md ADR-35）、政策の過程、事柄の時点、記載どうしのつながり、構造にしていない記載、施設の役割と状態を記録する台帳（DESIGN.md ADR-16・ADR-19・ADR-21・ADR-23）。やりとりの記録と質疑の記録で記録しない文と、その理由も台帳に置く（§15.9、ADR-24）。2026-11-16 から、議会の記録（一般質問のやりとり、議案質疑、委員長の報告）は、問いと事項の対応（§15.12）で持つ（DESIGN.md ADR-39）。
 
 ### 15.1 共通の決まり
 
 - 形は §1 による。どの台帳にも、status（candidate・confirmed・rejected）・reviewer・date・note の列を、この順で最後に置く
 - 生成AIと機械は candidate だけを作る。人は行ごとに判定し、引用・種類・参照などを直してから confirmed にしてよい。直したときは note に書く。却下は rejected にして note に理由を書く。抜き取りでまとめて確定しない（§6 のまとめて確定を使わない）
-- note の頭には、下書きの作り方を「下書き：<日付>・<モデルの名前>（<プロンプトの版>）」の形で書く（例「下書き：2026-11-04・Opus 5.5（プロンプトの版なし）」。2026-11-04 より前の行の「生成AI」はそのまま）。見直しを通した行は、続けて「見直し：<モデルの名前>」を書く。confirmed の行は、判定の出どころを「判定：行ごと（判定シート X）」か「判定：二者一致・抜き取り（判定シート X）」の形で書く（CLAUDE.md 不変の制約11、DESIGN.md ADR-31 の3・9）。2026-11-04 以前の confirmed の行は、判定シートの番号が note にあるものをそのまま「行ごと」とみなし、無くても検査で止めない
+- note の頭には、下書きの作り方を「下書き：<日付>・<モデルの名前>（<プロンプトの版>）」の形で書く（例「下書き：2026-11-04・Opus 5.5（プロンプトの版なし）」。2026-11-04 より前の行の「生成AI」はそのまま）。見直しを通した行は、続けて「見直し：<モデルの名前>」を書く。confirmed の行は、判定の出どころを「判定：行ごと（判定シート X）」か「判定：二者一致・抜き取り（判定シート X）」の形で書く（CLAUDE.md 不変の制約11、DESIGN.md ADR-31 の3・9）。2026-11-04 以前の confirmed の行は、判定シートの番号が note にあるものをそのまま「行ごと」とみなし、無くても検査で止めない。問いと事項の対応（§15.12）のうち、いまの台帳からまとめ直した行は、note の頭を「下書き：」ではなく「まとめ直し：」とする（§15.12）
 - DESIGN.md ADR-34 より前に確定した行（やりとりの記録・質疑の記録）に target・target_text を足したときは、note に「対象：判定シート X」の形で、対象を判定したシートを書く。この注の無い既存の確定した行は、対象をまだ見ていない行として扱う。ADR-34 のあとに下書きする行は、判定の出どころ（「判定：…（判定シート X）」）が target・target_text も含む。target・target_text は、根拠の行として CLAUDE.md 不変の制約11 の (4) で通す（確定済みの行に足すときも同じ。DESIGN.md ADR-34 の1・11）
 - 資料（source）は、§2 の sp・bq・doc・pt・gi のキーで書く。計画の記載の参照（`plan:<id>/<tab>/<type>/<n>/<item>`、§13.1）は、計画の JSON の項目を指すため（つながりの記録の upper_ref・lower_ref、テーマの定義の source）にだけ使い、引用のある行の source にしない。計画の JSON の文は、画面のために平易に書き直したものがあり、原典の文とは限らないため（shiga-hino-plans PLAN_SCHEMA §8・§10、DESIGN.md ADR-22）。doc のうち、§2 で書かないとした資料（定例記者会見の掲載ページ）は、source・sources に使わない
 - 引用（quote）は、資料の本文から原文のまま、200字まで（不変の制約9）。照合のしかた：sp は lock の版の発言の本文、bq は議会だよりの問いと答えの本文、doc はそのページの原典の文字（hino-town-docs の data/text/ か data/text_raw/ の、そのページの部分）、pt はそのページの原典の文字（shiga-hino-plans の data/text/ か data/text_raw/ の、そのページの部分）。data/text/ は既定の取り出し、data/text_raw/ は PDF の中で書かれた順の取り出しで、どちらも原典の文字である（hino-town-docs DOCS_SCHEMA.md §5.1、shiga-hino-plans PLAN_SCHEMA §10.1）。どちらか一方にあればよい。data/text_raw/ だけにある引用は、段や文字の枠の順が入れ替わることがあるため、判定のときに原典のページの画像で文の続きを確かめる。どれも §4 の正規化を通して、引用が本文にあること。原典の文字が data/text/ にも data/text_raw/ にも無い資料（hino-town-docs の台帳の check が image のもの）は、校正済みの読みができるまで、記録の台帳の source・sources に書かない（§11 の記録の台帳の検査で止まる。OCR の下書きは照らし合わせに使わない。hino-town-docs DOCS_SCHEMA.md §9）。原典の文字はあるが、そのページの文字が無いか少ないページ（check が partial の資料の一部のページなど）からは、校正済みの読みができるまで引用しない（その行は candidate のまま置けるが、confirmed にしない）
@@ -822,6 +896,8 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 ### 15.2 やりとりの記録 `records/yaritori.tsv`
 
 一般質問の問いと答えを、議会でのやりとりの型で記録する（DESIGN.md ADR-16）。
+
+2026-11-16 から、この台帳には新しい行を作らない（DESIGN.md ADR-39 の2）。いまある行は残し、問い×事項にまとめ直した対応は §15.12 に置く。答えの種類「留保」の行（§15.7 の質疑の記録の答えを含む）も、いまある行は残し、新しく作るかは DESIGN.md 判断事項55 で決める。
 
 | 列 | 内容 | 例 |
 | --- | --- | --- |
@@ -876,6 +952,7 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - 行のキーは (point, source, quote)。テーマへの帰属と、出す見方は、テーマの定義の kind 事柄の行（theme・views）で決める（DESIGN.md ADR-31 の2）。かかわる事業は program の列ではなく views で持つ
 - 施設の状態（開設・休園・閉園・移行など）は、この台帳ではなく施設の記録（§15.8）に記録する（DESIGN.md ADR-23）
 - 会議録の答えは、やりとりの記録にあっても、事柄にかかわるものはこの台帳にも1行置く（yaritori の列でつなぐ）。議会と広報と計画の記載を、同じ表で資料の日付の順に見るため
+- 会議録の発言を出典にした行（source が sp の行）は、いまある行を残し、新しく作るかは DESIGN.md 判断事項56 で決める（DESIGN.md ADR-39 の5。2026-11-16）
 - value は、テーマのノートの画面で事柄の最新の記載を短く示すために使う。施設の記録の value（§15.8）と同じく資料の表記のまま書き、言い換えや単位の付け足しをしない。会議録の発言は話し言葉で、短く切ると意味が変わりやすいため、空でよい（2026-10-29 の依頼者の判断）
 - kind の決め方は、資料の書き方による（「〜しました」は済んだこと、「〜しています」はいまのこと、「〜します」「（予定）」「〜をめどに」は予定、「当初〜」「見直しました」「延期」など前の予定を変えたと書いてあるものは変更）。書き方から決められないときは、note に書いて人が決める
 - 監査委員の資料の事実は、対応づける事項（論点）が無いことを理由に落とさない。対応づける事項が無い事実の文は、構造にしていない記載（§15.6）に about を空にし、kind を事実として残す（DESIGN.md ADR-36・ADR-37）
@@ -954,6 +1031,8 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 議案の質疑の問いと答えを、やりとりの記録（§15.2）と同じ型で記録する（DESIGN.md ADR-21）。
 
+2026-11-16 から、この台帳には新しい行を作らない（DESIGN.md ADR-39 の2）。いまある行は残し、問い×事項にまとめ直した対応は §15.12 に置く。
+
 | 列 | 内容 | 例 |
 | --- | --- | --- |
 | question | 質疑のまとまり（§2 の sq） | `sq:0000008942_20260305_0013` |
@@ -1023,6 +1102,8 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 
 発言の取りこぼしの検査（§11）で、やりとりの記録か質疑の記録か審査報告の記録の行と重ならない文のうち、記録しないと決めた文と、その理由を記録する（DESIGN.md ADR-24）。
 
+2026-11-16 から、この台帳には新しい行を作らない（DESIGN.md ADR-39 の2）。いまある行は残す。問いと事項の対応（§15.12）には、発言の取りこぼしの検査を掛けない（§11）。
+
 | 列 | 内容 | 例 |
 | --- | --- | --- |
 | question | 問い（§2 の iq）か、質疑のまとまり（§2 の sq）か、審査報告（§2 の rp） | `iq:0000008489_20250613_0023` |
@@ -1041,6 +1122,8 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 ### 15.10 審査報告の記録 `records/hokoku.tsv`
 
 本会議での委員会の審査報告（審議の記録の kind が report の区切り。委員長の報告）を、質疑の記録（§15.7）と同じ型で行に切って記録する（DESIGN.md ADR-34 の7）。この台帳の全行は、委員長が委員会での議論をまとめた要約からの記録である。審査報告は、委員会での議論のうち公開の会議録に残る唯一の要約であり、委員会の議論そのものの代わりではない。委員長の要約であることは、この定義に書き、行ごとの note には書かない（同じことを2か所に写さない）。
+
+2026-11-16 から、この台帳には新しい行を作らない（DESIGN.md ADR-39 の2）。いまある行は残し、問い×事項にまとめ直した対応は §15.12 に置く。
 
 | 列 | 内容 | 例 |
 | --- | --- | --- |
@@ -1127,6 +1210,57 @@ DESIGN.md ADR-16・ADR-19 による。どの比べ方も、比べた事実と出
 - 判定の出どころは CLAUDE.md 不変の制約11 の (1)（依頼者が確認ページか判定シートで1行ずつ判定）。下書きと見直しの手順（(4)）は使わない（DESIGN.md ADR-35 の経過。○の行ごとの引用を生成AIが下書きし、抜き取りで確かめる形では、精度が出なかったため）。note の頭の「下書き：」は §15.1 による。候補の行を生成AIが書いたときは、そのモデルを書く
 - 判定は `tools/apply_decisions.py --ledger teian` で台帳に書き写す。判定の一覧の列は maru・sid・quote・status・reviewer・date・note、範囲の一覧（--keys）の列は maru・sid・quote。書き写すのは candidate の行の status・reviewer・date と note（confirmed は台帳の note の後ろに「。」と判定の一覧の note を足し、その中に「判定：」が要る。rejected は「。却下：」と理由を足す）。quote を直すときは、その行を rejected にして、直した quote の行を作り直す（行のキーが変わるため）
 
+### 15.12 問いと事項の対応 `records/taio.tsv`
+
+題材に選んだ一般質問の問い・議案質疑・委員長の報告（問い・質疑・報告）が、どの事項（論点）に当たるかと、その事項に当たるのが発言のどの段落か（範囲）を記録する（DESIGN.md ADR-39 の1）。1行は、問い・質疑・報告 × 事項。引用を持たず、原文は、範囲を会議録の本文に当てて出す。2026-11-16 に置いた。
+
+| 列 | 内容 | 例 |
+| --- | --- | --- |
+| question | 問い・質疑・報告（§2 の iq・sq・rp） | `iq:0000008116_20240917_0003` |
+| point | 事項（論点）の名前。question をテーマの定義の kind 問い・質疑・報告に持つテーマの、kind 事柄か記載の値のどれか | `総合的な支援体制の構築` |
+| hani | 範囲。その事項に当たる段落の並び。§2 の段落の位置を「,」で区切ったもの（下の書き方） | `sp:0000008691_20251201_0008/66,sp:0000008691_20251201_0008/69` |
+| bills | 議案質疑と委員長の報告で、その範囲が審議している議案（§2 の gi。2つ以上は「,」で区切る）。一般質問は空 | `gi:0000008942/議第115号` |
+| bq | 一般質問だけ：その問いが載っている議会だよりの問い（§2 の bq。DESIGN.md ADR-28）。無ければ空。議案質疑と委員長の報告は空 | `bq:36/中西佳子/2` |
+| status・reviewer・date・note | §15.1 | |
+
+- 行のキーは (question, point)。行は question → point の文字コード順（§1）
+- 持たない列：quote・side・speaker・round・stage・kind・answers・target・target_text（DESIGN.md ADR-39 の1）。問いか答えか、回、区分、種類、質疑の対象は記録しない。議員の名前の列も置かない（§15.1）
+- 会議録の全文を持たない（CLAUDE.md 不変の制約9）：この台帳は範囲（発言の sid と段落の番号）だけを持ち、本文の字を持たないので、会議録の全文や発言索引の複製に当たらない
+- 位置への依存：hani の sid と段落の番号は、発言の位置と、hino-council-search の段落の区切り（§2）に依存する。この台帳は引用を持たないので、§15.1 の引用の照合は掛からない。lock の hino-council-search を上げるときは、`python3 -B tools/check_records.py --prev <前の SHA>` で、範囲に書いた発言の本文（段落の区切りを含む）が前の版と同じかを比べ、変わった発言を範囲に持つ行を `build/records/taio_changed.tsv` に出す。出た行は、範囲を確かめ直すまで candidate に戻す（CLAUDE.md 不変の制約5。質疑の対象の `target_changed.tsv` と同じ進め方）
+- テーマへの帰属は、ほかの記録の台帳と同じく、point の事項（テーマの定義の kind 事柄・記載の行）で決める（DESIGN.md ADR-31 の2）。題材に選んだ問い・質疑・報告に対応が付いているかは、question で見る（§11 の対応の無い問いの一覧）
+
+hani の書き方：
+
+- 1つの範囲は、`sp:<sid>/<段落>` か、同じ発言の続いた段落の `sp:<sid>/<始め>-<終わり>`（§2）。範囲は「,」（半角。前後に空白を置かない）で区切る
+- 範囲は、発言の順（sid の順）に並べ、同じ発言の中は段落の順とする。同じ発言の続いた段落は1つの範囲にまとめ、離れた段落は範囲を分けて同じ sid を繰り返す。同じ段落を2回書かない。この書き方で、同じ段落の集まりの書き方は1通りになる
+- 問いの発言と答えの発言の両方の段落を入れる
+- 範囲の発言は、question の区切り（審議の記録の区切り。§11）の中の発言とする。2026-11-16 の台帳で、やりとり・質疑・審査報告の記録の行（1,188行）の sid は、すべて question の区切りの中にあった
+- 例（いまの台帳からまとめ直した形）：
+  - `iq:0000008116_20240917_0003` × 総合的な支援体制の構築：`sp:0000008116_20240917_0015/5-7,sp:0000008116_20240917_0017/2-4,sp:0000008116_20240917_0019/2-4,sp:0000008116_20240917_0021/2,sp:0000008116_20240917_0021/5-6,sp:0000008116_20240917_0023/2,sp:0000008116_20240917_0025/2`
+  - `rp:0000008691_20251201_0008` × 介護給付費準備基金：`sp:0000008691_20251201_0008/66,sp:0000008691_20251201_0008/69`
+
+いまの台帳からのまとめ直し（DESIGN.md ADR-39 の2。§5 の N2）：
+
+- もとにするのは、やりとりの記録（§15.2）・質疑の記録（§15.7）・審査報告の記録（§15.10）の行。記録しない文（§15.9）は使わない。いまの台帳は消さない
+- point が空の行と、status が rejected の行は使わない
+- (question, point) が同じ行を、1つの組（この台帳の1行）にまとめる。question の接頭辞で台帳が決まるので、1つの組のもとの行は1つの台帳にある
+- hani：もとの行ごとに、引用（quote）が、その行の sid の発言の本文のどの段落にあるかを道具で決める（§4 の正規化のあとで比べる。段落は §2 の数え方）。引用が1つの段落の中にあれば、その段落とする。段落をまたぐ引用は、またいだ段落を全部入れる（正規化した段落をつないだ字の中で、引用の位置に重なる段落）。引用が同じ発言の2つ以上の段落にあるときは、そのどの段落も同じ組のほかの行で決まった段落に入っていれば止めず（組の hani が変わらないため）、そうでなければ段落が1つに決まらないので、まとめ直しを止めて行を示す。引用が本文に無い行があれば止める。組の hani は、組の行の段落を合わせ、上の書き方にしたもの
+- bills：質疑の記録の行は bills を、審査報告の記録の行は bill を、組の行の分を合わせ、row の順に初めて出た順で、重ねずに並べる。一般質問の組は空
+- bq：一般質問の組は、同じ question のやりとりの記録の行（point が空の行を含む。rejected を除く）の bq のうち空でないもの。違う値が2つ以上あれば止める。議案質疑と委員長の報告の組は空
+- status：組のもとの行がすべて confirmed なら confirmed、candidate が1つでもあれば candidate（DESIGN.md ADR-39 の2）
+- reviewer：confirmed の組は、もとの行の reviewer（違う値が2つ以上あれば止める）。candidate の組は空
+- date：confirmed の組は、もとの行の date のうち、いちばん新しい日。candidate の組は空
+- note：「まとめ直し：<まとめ直した日>（もと：records/<台帳>.tsv の row <番号>,<番号>,…）」で始める。confirmed の組は、続けて「。判定：もとの行の判定（<もとの行の note の「判定：」から次の「。」の前までの字を、重ねずに「・」で並べたもの。どの行にも無ければ「もとの行の note に判定の出どころの記載なし」>）」と書く（§15.1 の 2026-11-04 以前の行の扱いと同じく、判定の出どころの無い行も止めない）
+- 2026-11-16 の台帳（main ca856e9）で数えた数：組は124（confirmed 96・candidate 28。confirmed と candidate のまじった組は0）。confirmed の組のもとの行の reviewer は、どの組も1つ。date は、84組で1つ、12組で2つ。point が空でない行の引用は、1つの段落に入るものが1,066行、段落をまたぐものが6行、本文に無いものが0行。同じ発言の2つ以上の段落に当たる行は1行（`rp:0000006923_20221201_0009` の row 2「充足状況」。段落59と61で、どちらも同じ組のほかの行で決まった段落なので、止めない）。bq は、bq のある13問のどれも1つ。テーマごとの組の数は §11 のまとめ直しの確かめ
+
+これから作る行（DESIGN.md ADR-39 の11）：
+
+- 下書き（生成AI）→ 道具の検査（§11）→ 下書きを見ていない別の文脈の生成AIの見直し → 二者の判断が分かれた組・下書きが迷いを付けた組・残りからの抜き取りを依頼者が判定、の順に作る。抜き取りに誤りが無かった判定シートの残りの組を confirmed にする。抜き取りで誤りが出た判定シートは、組ごとの判定に戻す（CLAUDE.md 不変の制約11 の (4)）
+- note は §15.1 の形とする（「下書き：<日付>・<モデルの名前>（<プロンプトの版>）。見直し：<モデルの名前>。判定：二者一致・抜き取り（判定シート X）」か「判定：行ごと（判定シート X）」）
+- 判定で hani や bills を直したときは、note に書く（§15.1）。行のキーは (question, point) なので、hani を直しても行を作り直さない
+- 題材に選んだ問い・質疑・報告に、当たる事項が無いとき（下書きと見直しのどちらも、テーマの事項のどれにも当たらないとしたとき）は、行を作らず、依頼者に伝える。事項を足すか、その問い・質疑・報告をテーマの定義から外すかは、依頼者が決める（CLAUDE.md 不変の制約11）。point が空の行は作らない
+- 判定の書き写しは `python3 -B tools/apply_decisions.py --ledger taio --keys <範囲> <判定>`（§11 の判定の範囲）。確かめは `python3 -B tools/check_records.py`
+
 ## 16. テーマのノートの画面 `build/pages/<theme>-<見方の名前>.html`
 
 DESIGN.md ADR-25・ADR-31 による。見方（§2 の見方のキー）ごとの画面。見方の名前は、見方のキーの最後の部分（事業は e008 など、期の計画は計画の id、施設は fa の key、地区は dist の key、組織は org の key）。枠組みの要素は、枠組みの id と要素の番号を「-」でつないだもの（`waku:kaigo-hokenryo/6` は kaigo-hokenryo-6）。テーマ自体は `<theme>-theme.html`。公開しない（DESIGN.md ADR-13）。人に見せるときは非公開のアーティファクトにする。
@@ -1156,6 +1290,7 @@ DESIGN.md ADR-25・ADR-31 による。見方（§2 の見方のキー）ごと�
 | | | 年度ごとの節目（検討の段階・議会・予定の記載。要素に資料の種類が当たる枠組みがあるときは、資料の年度ごとの<枠組みの名前>） | records.katei・bills・exchanges・records.shitsugi・records.kotogara・budget・waku・suji |
 | | | <資料の種類>（枠組みの要素に当たらない資料の種類で、項目のあるものだけ。資料ごとに項目の段落） | suji・shiryo・names |
 
+- 論点整理の「事項ごとの質問・答弁」の決まり（この表の行と、下の審査報告の記録の行・一般質問の数の言い分けの決まり）は、N4（DESIGN.md §5）で §16.6 の事項のページに置き換える。それまでは、いまの決まりのまま（DESIGN.md ADR-39 の7）
 - 主な事項・施設の再編・事項ごとの質問・答弁は「選ぶ→全幅で開く」で示す
 - 資料の名前と施設の名前は names から示す
 - 参照資料のうち archived のあるものは、資料名の下に「町のサイトに載らなくなったため、Webアーカイブの保存版（<保存日>保存）を開きます。町の元の url：<url>」と書く（DESIGN.md ADR-29）
@@ -1240,10 +1375,21 @@ DESIGN.md ADR-38 による。論点整理のメニューの頭（説明の文の
 - 事項の行：事項の名前を押すと、「事項ごとの質問・答弁」のその事項の欄が開く（いまの事項の欄と同じ形。質問・答弁の記録が無い事項も、町の資料の記載の行を出す）。事項の名前の後ろに、枠組みの要素の印（「枠組み：<枠組みの名前> 要素N」）と、体系の要素への対応が案のときは印「案」を付ける
 - 表の前に読み方を書く：「縦は分類の体系（<体系の名前>の見出しの字のまま）、横は年度（4月〜翌3月）です。町の資料の記載は資料の日付、議会の記録は発言の日の年度で数えています。数は記録の行の数で、却下の行を除き、未確認の行を含みます。」と、マスの印の意味、「町の資料は、資料の中を全部読んだかを持っていないので、状態を分けていません。」、印「案」の意味（「体系の要素への対応が、依頼者の判定の前の案であることを示します。」）
 - 表の後に、体系の出典（taikei の name と、出典の url）を書く
+- N4 で、マスの「議N」を、記録の行の数から問い・質疑・報告の件数に改める（§13.4 の chizu の数の改め。DESIGN.md ADR-39 の9）。表の前の読み方の「数は記録の行の数で」の文も、そのときに改める
+
+### 16.6 題材の入口・事項のページ・年度のページ（N4 で作る）
+
+DESIGN.md ADR-39 の7 による。画面の入口を、事項のページと年度のページの2つとし、題材の入口に論点の一覧と題材の要点を出す。ここでは並びだけを決まりとする。表の列、畳み方、文言などの細部は、N4 で見本を依頼者に見せて決める（DESIGN.md §5 の N4 の注）。§16 の頭の決まり（文・層・序列化しない）と §16.3 の表示の言葉は、この3つにも当てる。
+
+- 題材の入口：論点の一覧（分類の体系（§12.5）に沿った事項と、事項ごとの問いの単位の件数。§13）と、題材の要点（§13 の youten：正式な名前、検討の段階、最近変わった記載）を出す。体系の無い題材は、事項の一覧に件数を付ける
+- 事項のページ：次の順に置く。(1) いまの町の説明（町の資料のいちばん新しい記載の原文と出典）。(2) これまでの記載と答弁の値（日付順）。(3) 問い・質疑・報告ごとに、議会だよりの見出し（無ければ通告の題・議案の題）と、範囲の段落（§15.12 の hani の段落を、会議録の本文のまま）
+- 年度のページ：予算・決算の対象の年度ごとに、節目（当初予算、補正予算、年度の間の一般質問と定期監査、決算の提出と説明、決算審査の意見書、質疑、委員長の報告と討論、認定、次の当初予算。§13.4 の nendo）の順に、議案・資料と、当たる事項を並べる。対象の年度と、出来事のあった日を、分けて示す
+- 印：問いと事項の対応と、町の資料の記載の、candidate の行に「未確認」の印を付ける。印が指すのは対応や分類で、引いた原文ではないことを、印の説明に書く（CLAUDE.md 不変の制約2）
+- 対応の無いこと：題材に選んだ問い・質疑・報告のうち、問いと事項の対応の行が無いものは「事項との対応を付けていない」と示し、「取り上げていない」と区別する（DESIGN.md ADR-39 の3。§14.1 と同じ言い分け）
 
 ## 17. 持ち込み用の資料 `build/rag/<theme>-<見方の名前>-honpen.md`・`-kiroku.md`（と同じ名前の .docx）
 
-DESIGN.md ADR-26 による。議員や職員が、各自の生成AI（LoGoAIアシスタントの RAG、ファイルを添えられる生成AI）に持ち込むための文書。公開しない（DESIGN.md ADR-13）。
+DESIGN.md ADR-26 による。議員や職員が、各自の生成AI（LoGoAIアシスタントの RAG、ファイルを添えられる生成AI）に持ち込むための文書。公開しない（DESIGN.md ADR-13）。ADR-39 の形への直しは、DESIGN.md 判断事項59 で決める。それまでは、いまの決まりのまま。
 
 - 作り方：`python3 -B tools/build_rag.py <theme> <見方のキー>`（例 `hoiku node:jisshi/e008`）。build/theme/<theme>.json（§13）だけを読み、lock の版の入力は読まない。手で直さない（CLAUDE.md 不変の制約8）。標準ライブラリだけで作る（DOCX は zipfile と XML で書く）。同じデータからは同じファイルができる（DOCX の中の日時は固定する）
 - 添えるもの：prompts/shisaku1-common-v2.md の「---」より後（共通の指示と、場面ごとの依頼文の例）を、build/rag/<theme>-<見方の名前>-prompt.md に写す
