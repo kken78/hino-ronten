@@ -22,6 +22,12 @@ inputs.lock.json の版の入力（会議録の索引と審議の記録・議案
                      ○の行の概要の説明（desc）を並べる。LINK_SCHEMA §15.11）
   suji_missing.tsv   confirmed の事柄・記載の行で、資料が資料の種類の参照表に当たり、suji が空のもの（§11。止めない。ADR-37）
   katachi.tsv        形の点検の (3) 同じ引用で点が違う行と (4) target が引用に無い行（§11。終了コードは変えない）
+  taio_missing.tsv   問いと事項の対応（records/taio.tsv。§15.12）の無い、題材に選んだ問い・質疑・報告（§11。終了コードは変えない）
+  taio_changed.tsv   lock の hino-council-search を上げるときの比べ方（--prev に前の版の hino-council-search の SHA を
+                     渡したときだけ。範囲の発言の本文が前の版と違う行。§15.12）
+問いと事項の対応（records/taio.tsv）は、ファイルが無ければ0行として扱い、§11 の「問いと事項の対応」と、まとめ直しの
+確かめ（台帳のまとめ直した行が、いまのやりとり・質疑・審査報告の記録から tools/gen_taio.py と同じ決まりでまとめ直した
+結果と同じ）で確かめる。発言の取りこぼしの検査は掛けない（ADR-39 の2）。
 枠の参照表（ref/waku.tsv。§12.3）と資料の種類の参照表（ref/shiryo.tsv。§12.4）は、ファイルが無ければ0行として扱う（ADR-37）。
 分類の体系の参照表（ref/taikei.tsv。§12.5）も、ファイルが無ければ0行として扱う（ADR-38）。
 
@@ -29,11 +35,16 @@ target のキーは、lock の版の附表（fh）と hino-town-docs の構造�
 links/gian-yosan.tsv・links/hosei-fuhyo.tsv の confirmed の行（無ければ0行）で議案の回と○の行の附表を引く。
 
 実行: python3 -B tools/check_records.py
-      python3 -B tools/check_records.py --prev <前の版の hino-town-docs の40桁の SHA>
-        （lock の hino-town-docs を上げるとき。前の版といまの lock の版の検収の台帳の key を比べ、target_changed.tsv を書く）
+      python3 -B tools/check_records.py --prev <前の版の40桁の SHA>
+        （lock の hino-town-docs を上げるときは、前の版といまの lock の版の検収の台帳の key を比べ、target_changed.tsv を書く。
+         lock の hino-council-search を上げるときは、範囲に書いた発言の本文を比べ、taio_changed.tsv を書く。
+         SHA がどちらのリポジトリの版かは、入力のリポジトリに、その SHA のコミットがあるかで決める。両方か、どちらにも
+         無ければ止める）
 終了コード：0 は合格。1 は止めた（誤りを表示する）。
 """
 import os
+import re
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -57,7 +68,8 @@ SHIRYO = os.path.join(gm.ROOT, "ref", "shiryo.tsv")     # 資料の種類の参�
 TAIKEI = os.path.join(gm.ROOT, "ref", "taikei.tsv")     # 分類の体系の参照表（§12.5。ADR-38）。無ければ0行
 LINKS_DIR = os.path.join(gm.ROOT, "links")
 EXAMPLES = 20
-USAGE = "使い方：python3 -B tools/check_records.py [--prev <前の版の hino-town-docs の SHA>]"
+TAIO_PATH = os.path.join(RECORDS_DIR, f"{records.TAIO}.tsv")   # 問いと事項の対応（§15.12）。無ければ0行
+USAGE = "使い方：python3 -B tools/check_records.py [--prev <前の版の hino-town-docs か hino-council-search の SHA>]"
 
 
 def read_file(path, columns, optional=False):
@@ -99,12 +111,17 @@ def bulletin_texts(questions):
     return out
 
 
-def read_inputs(gi):
+def read_index(gi):
+    """会議録の索引（hino-council-search の index-manifest.json の shards の順）の発言の並び。"""
     im = gi.read_json(gm.HS, "public/data/index-manifest.json")
     shards = [f"public/data/{s['file']}" for s in im["shards"]]
     if sorted(shards) != gi.expand(gm.HS, "public/data/index/*.json"):
         raise gm.GenError("index-manifest.json の shards と index/*.json が違う")
-    index = [e for p in shards for e in gi.read_json(gm.HS, p)]
+    return [e for p in shards for e in gi.read_json(gm.HS, p)]
+
+
+def read_inputs(gi):
+    index = read_index(gi)
     statements = {e["sid"]: {"text": e.get("text") or "", "role": e.get("role"), "meetingId": e.get("meetingId")}
                   for e in index}
     proceedings = gi.read_json(gm.HS, "public/data/proceedings.json")
@@ -165,6 +182,28 @@ def read_inputs(gi):
         **confirmed_links())
 
 
+def repo_of_sha(sha, root=None):
+    """--prev の SHA が、hino-town-docs と hino-council-search のどちらのリポジトリのコミットか。
+    40桁の16進数でないか、両方にあるか、どちらにも無ければ止める（gm.GenError）。"""
+    if not re.fullmatch(r"[0-9a-f]{40}", sha or ""):
+        raise gm.GenError(f"前の版の sha が40桁の16進数でない（{sha!r}）")
+    root = root or gm.INPUTS_ROOT
+    found = [r for r in (gm.TD, gm.HS)
+             if subprocess.run(["git", "-C", os.path.join(root, r), "cat-file", "-e", f"{sha}^{{commit}}"],
+                               capture_output=True).returncode == 0]
+    if len(found) != 1:
+        raise gm.GenError(f"前の版の sha {sha[:7]} が、{gm.TD} と {gm.HS} のどちらか1つだけのコミットでない"
+                          f"（あったリポジトリ：{'・'.join(found) or 'なし'}）")
+    return found[0]
+
+
+def lock_with_hs_sha(lock, sha):
+    """hino-council-search の sha だけを替えた lock（前の版の索引を読む。§15.12 の位置への依存）。files はいまの lock のまま。"""
+    out = {r: dict(v) for r, v in lock.items()}
+    out[gm.HS]["sha"] = sha
+    return out
+
+
 def confirmed_links(links_dir=LINKS_DIR):
     """議案と回の台帳・○の行と附表の台帳の confirmed の行（台帳が無ければ0行）。gian_hs と hj_fh を返す。"""
     out = {"gian_hs": {}, "hj_fh": {}}
@@ -207,16 +246,43 @@ def report_lines(rep):
     L.append(f"- confirmed で suji が空の監査委員の資料の行：{len(rep.suji_missing)}（suji_missing.tsv）")
     L += struct_lines(rep.struct)
     changed = rep.target_changed
-    if changed is not None:
+    if changed is not None and rep.prev_repo != gm.HS:
         by = {}
         for r in changed:
             by[r["change"]] = by.get(r["change"], 0) + 1
         L.append(f"- lock を上げるときの比べ方（前の版 {rep.prev_sha[:7]}）：" + "・".join(
             f"{c} {by.get(c, 0)}" for c in ("key が変わった", "行が無くなった", "検収が済まなくなった"))
             + "（target_changed.tsv）")
+    L += taio_lines(rep)
     L += katachi_lines(rep.katachi)
     if rep.errors:
         L += ["", "## 誤り", ""] + [f"- {e}" for e in rep.errors]
+    return L
+
+
+def taio_lines(rep):
+    """check.md の問いと事項の対応の行（§11。taio を確かめたときだけ）。"""
+    t = rep.taio
+    if t is None:
+        return []
+    L = [f"- 問いと事項の対応：{t['rows']}行（" + "・".join(f"{s} {t['status'][s]}" for s in records.STATUSES)
+         + f"。まとめ直したままの行 {t['matome']}・判定を書き写した行 {t['written']}）",
+         "- 問いと事項の対応の、題材ごとの組（題材に選んだ問い・質疑・報告を question に持つ行）："
+         + "・".join(f"{k} {v}" for k, v in sorted(t["themes"].items())),
+         f"- 対応の無い問い・質疑・報告：{len(rep.taio_missing)}（"
+         + "・".join(f"{k} {t['missing'].get(k, 0)}" for k in sorted(t["themes"])) + "。taio_missing.tsv）"]
+    if t["written_diff"]:
+        L.append(f"- 判定を書き写した行で、まとめ直すと別の中身になるか無くなる組：{len(t['written_diff'])}（止めない）")
+        L += [f"  - {q} × {p}：{d}" for q, p, d in t["written_diff"]]
+    if t["rp_no_bills"]:
+        L.append(f"- 問いと事項の対応で、報告の区切りの bills が空の rp の行：{t['rp_no_bills']}（止めない）")
+    if rep.taio_changed is not None:
+        by = {}
+        for r in rep.taio_changed:
+            by[r["change"]] = by.get(r["change"], 0) + 1
+        L.append(f"- lock を上げるときの比べ方（前の版の hino-council-search {rep.prev_sha[:7]}）：範囲の発言が変わった "
+                 + "・".join(f"{c} {by.get(c, 0)}" for c in (records.CHANGED_TEXT, records.CHANGED_GONE))
+                 + f"（行 {len({(r['question'], r['point']) for r in rep.taio_changed})}。taio_changed.tsv）")
     return L
 
 
@@ -268,6 +334,10 @@ def write_outputs(outdir, rep):
     }
     if rep.target_changed is not None:
         files["target_changed.tsv"] = (records.TARGET_CHANGED_COLUMNS, rep.target_changed)
+    if rep.taio is not None:
+        files["taio_missing.tsv"] = (records.TAIO_MISSING_COLUMNS, rep.taio_missing)
+    if rep.taio_changed is not None:
+        files["taio_changed.tsv"] = (records.TAIO_CHANGED_COLUMNS, rep.taio_changed)
     for name, (cols, rows) in files.items():
         with open(os.path.join(outdir, name), "w", encoding="utf-8", newline="\n") as f:
             f.write(records.format_tsv(cols, rows))
@@ -285,13 +355,20 @@ def main(argv=None):
         gi = gm.GitInputs(gm.INPUTS_ROOT, lock)
         gi.verify()
         inp = read_inputs(gi)
-        prev = None
+        prev = prev_texts = prev_repo = None
         if args:
-            pgi = gm.GitInputs(gm.INPUTS_ROOT, hosei.lock_with_sha(lock, args[1]))
-            pgi.verify()
-            prev = hosei.read_struct(pgi, optional=True)
+            prev_repo = repo_of_sha(args[1])
+            if prev_repo == gm.TD:
+                pgi = gm.GitInputs(gm.INPUTS_ROOT, hosei.lock_with_sha(lock, args[1]))
+                pgi.verify()
+                prev = hosei.read_struct(pgi, optional=True)
+            else:
+                pgi = gm.GitInputs(gm.INPUTS_ROOT, lock_with_hs_sha(lock, args[1]))
+                pgi.verify()
+                prev_texts = {e["sid"]: e.get("text") or "" for e in read_index(pgi)}
         ledgers = {n: read_file(os.path.join(RECORDS_DIR, f"{n}.tsv"), records.COLUMNS[n], n in records.OPTIONAL)
                    for n in records.LEDGERS}
+        ledgers[records.TAIO] = read_file(TAIO_PATH, records.TAIO_COLUMNS, optional=True)
         themes = read_file(THEMES, records.THEME_COLUMNS)
         shisetsu = read_file(SHISETSU, records.SHISETSU_COLUMNS)
         chiku, soshiki = read_area_refs()
@@ -303,8 +380,11 @@ def main(argv=None):
     rep = records.check_all(ledgers, themes, shisetsu, inp, chiku, soshiki, waku, shiryo, taikei)
     rep.struct = inp.struct
     if prev is not None:
-        rep.prev_sha = args[1]
+        rep.prev_sha, rep.prev_repo = args[1], prev_repo
         rep.target_changed = records.target_changed(ledgers, prev, inp.struct)
+    if prev_texts is not None:
+        rep.prev_sha, rep.prev_repo = args[1], prev_repo
+        rep.taio_changed = records.taio_changed(ledgers[records.TAIO], prev_texts, inp)
     write_outputs(OUT_DIR, rep)
     lines = report_lines(rep)
     end = min([lines.index(h) - 1 for h in ("## 形の点検", "## 誤り") if h in lines] or [len(lines)])
