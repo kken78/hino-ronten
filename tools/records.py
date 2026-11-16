@@ -14,6 +14,9 @@
 論点の地図（§13 の chizu）だけで使うので、Theme の views（整理シートと届き先の信号に使う）には入れない。
 kotogara・tsunagari・kisai は theme の列を持たず、テーマへの帰属と出す見方は ref/themes.tsv の kind 事柄・記載の行
 （theme・views）で決める（§15.3・§15.4・§15.6、ADR-31 の2）。届き先の信号（§11、ADR-31 の4）は一覧に出すだけで、止めない。
+問いと事項の対応（records/taio.tsv。§2 の段落の位置・§11・§15.12、ADR-39）は、10の台帳（LEDGERS）とは別に TAIO_COLUMNS・
+TAIO_KEYS で持ち、hani の書き方（format_hani・parse_hani）、いまの台帳からのまとめ直し（matome。tools/gen_taio.py が使う）、
+§11 の「問いと事項の対応」の検査とまとめ直しの確かめ（check_taio）、前の版との比べ方（taio_changed）をこの節に置く。
 
 入力（lock の版の会議録・議会だより・計画・町の公開資料）は Inputs にまとめて渡す。読むのは tools/check_records.py。
 台帳には書かない。誤りは Report.errors に、人が見る一覧は Report の各一覧に入れる。
@@ -242,6 +245,11 @@ class Report:
     waku: dict = field(default_factory=dict)               # 枠の参照表：枠の id → {n: 行}（§12.3）
     taikei: dict = field(default_factory=dict)             # 分類の体系の参照表：体系の id → {n: 行}（§12.5。ADR-38）
     shiryo: object = None                                  # 資料の種類の参照表（Shiryo。§12.4）
+    # 問いと事項の対応（records/taio.tsv。§11・§15.12。ADR-39）。ledgers に taio が無ければ検査しない（None のまま）
+    taio: dict = None                                      # 行の数・status ごと・題材ごとの数など（check.md）
+    taio_missing: list = field(default_factory=list)       # 対応の無い問い（taio_missing.tsv。終了コードは変えない）
+    taio_changed: list = None                              # 範囲の発言が前の版と変わった行（--prev が hino-council-search のとき）
+    prev_repo: str = ""                                    # --prev の SHA のリポジトリ
 
     def err(self, where, msg):
         self.errors.append(f"{where}：{msg}")
@@ -1657,6 +1665,454 @@ def teian_context(inp, rows, rep):
                                       "quote": r["quote"]})
 
 
+# ---- 問いと事項の対応（records/taio.tsv。§2 の段落の位置・§11・§15.12。DESIGN.md ADR-39） ----
+#
+# 記録の台帳の10の台帳（LEDGERS）とは別に持つ（§11 問いと事項の対応）。LEDGERS に入れないので、テーマのノートのデータ・
+# 画面・持ち込み用の資料・MCP（tools/build_*.py・mcp_ronten.py）は、この台帳を読まない（N4 で入れる）。
+
+TAIO = "taio"
+TAIO_COLUMNS = ["question", "point", "hani", "bills", "bq"] + COMMON
+TAIO_KEYS = ("question", "point")
+TAIO_SOURCES = ("yaritori", "shitsugi", "hokoku")      # まとめ直しのもとにする台帳（§15.12）
+TAIO_Q_KINDS = {"iq": "問い", "sq": "質疑", "rp": "報告"}   # question の接頭辞 → テーマの定義の kind
+MATOME = "まとめ直し："                                  # まとめ直した行の note の頭（§15.1・§15.12）
+SHITAGAKI = "下書き："
+NO_HANTEI = "もとの行の note に判定の出どころの記載なし"
+RE_MATOME_DATE = re.compile(r"まとめ直し：([0-9]{4}-[0-9]{2}-[0-9]{2})（")
+# まとめ直した行の note の頭（§15.12）。この後ろが空か「。判定：もとの行の判定（」で始まる行が、まとめ直したままの行
+RE_MATOME_HEAD = re.compile(r"まとめ直し：[0-9]{4}-[0-9]{2}-[0-9]{2}（もと：records/[a-z]+\.tsv の row [0-9,]+）")
+MATOME_HANTEI = "。判定：もとの行の判定（"
+RE_HANI_ITEM = re.compile(r"sp:(" + SID + r")/([1-9][0-9]*)(?:-([1-9][0-9]*))?")
+TAIO_MISSING_COLUMNS = ["theme", "kind", "question", "date"]          # §11 の一覧の表
+TAIO_CHANGED_COLUMNS = ["question", "point", "status", "sid", "change"]   # §15.12 の位置への依存（列は道具で決めた）
+CHANGED_TEXT = "本文が変わった"
+CHANGED_GONE = "前の版に発言が無い"
+
+
+def paragraphs(text):
+    """§2 の段落の数え方：本文を改行（LF）で分け、空か空白だけの部分を除いた並び（段落の番号は1から）。"""
+    return [p for p in (text or "").split("\n") if p.strip()]
+
+
+def format_hani(paras):
+    """(sid, 段落の番号) の集まり → §15.12 の書き方の hani。sid の順（文字コード順）、同じ発言の中は段落の順とし、
+    同じ発言の続いた段落は1つの範囲（<始め>-<終わり>）にまとめる。同じ段落は1回だけ書く。同じ集まりの書き方は1通り。"""
+    by = {}
+    for s, n in paras:
+        by.setdefault(s, set()).add(int(n))
+    items = []
+    for s in sorted(by):
+        ns = sorted(by[s])
+        start = prev = ns[0]
+        for n in ns[1:] + [None]:
+            if n is not None and n == prev + 1:
+                prev = n
+                continue
+            items.append(f"sp:{s}/{start}" if start == prev else f"sp:{s}/{start}-{prev}")
+            if n is not None:
+                start = prev = n
+    return ",".join(items)
+
+
+def parse_hani(hani):
+    """hani を読む。返り値は ((sid, 段落の番号) の並び（書いた順）, 誤りの文の並び)。
+    §15.12 の書き方（形、始め＜終わり、発言の順・段落の順、続いた段落のまとめ、同じ段落を2回書かない）に合わなければ誤り。"""
+    if not hani:
+        return [], ["hani が空"]
+    out, errs = [], []
+    for it in hani.split(","):
+        m = RE_HANI_ITEM.fullmatch(it)
+        if not m:
+            errs.append(f"hani の範囲が §2 の段落の位置の形でない（{it!r}）")
+            continue
+        a = int(m.group(2))
+        b = int(m.group(3)) if m.group(3) else a
+        if m.group(3) and a >= b:
+            errs.append(f"hani の範囲の始めが終わりより小さくない（{it}）")
+            continue
+        out += [(m.group(1), n) for n in range(a, b + 1)]
+    if errs:
+        return out, errs
+    if len(set(out)) != len(out):
+        errs.append("hani に同じ段落が2回出る")
+    elif out != sorted(out):
+        errs.append("hani の範囲が発言の順（sid の順）・段落の順でない")
+    elif format_hani(out) != hani:
+        errs.append(f"hani の同じ発言の続いた段落が1つの範囲にまとめていない（{format_hani(out)} の形で書く）")
+    return out, errs
+
+
+def quote_places(text, quote):
+    """引用が発言の本文のどの段落にあるか（§15.12。§4 の正規化のあとで比べる。段落は §2 の数え方）。
+    正規化した段落をつないだ字の中で、引用の現れる位置ごとに、その位置に重なる段落の番号（1から）の集まりを求め、
+    重ねずに出た順に並べて返す。1つの段落の中にある引用はその段落、段落をまたぐ引用はまたいだ段落を全部。
+    本文に無ければ []。2つ以上なら、段落が1つに決まらない。"""
+    q = norm(quote)
+    if not q:
+        return []
+    ps = [norm(p) for p in paragraphs(text)]
+    bounds, acc = [], 0
+    for p in ps:
+        bounds.append((acc, acc + len(p)))
+        acc += len(p)
+    whole = "".join(ps)
+    out = []
+    i = whole.find(q)
+    while i >= 0:
+        s = frozenset(k + 1 for k, (a, b) in enumerate(bounds) if a < i + len(q) and b > i)
+        if s not in out:
+            out.append(s)
+        i = whole.find(q, i + 1)
+    return out
+
+
+def _row_no(r):
+    return int(r["row"]) if RE_INT.fullmatch(r["row"]) else 0
+
+
+def hantei_of(note):
+    """もとの行の note の最初の「判定：」の次の字から、括弧（全角の「（」「）」）の外にある最初の「。」の前までの字（§15.12）。
+    括弧の中の「。」では切らない。括弧の外に「。」が無ければ note の終わりまで。「判定：」は含めない。無ければ空。"""
+    i = note.find("判定：")
+    if i < 0:
+        return ""
+    s = note[i + len("判定："):]
+    depth = 0
+    for k, ch in enumerate(s):
+        if ch == "（":
+            depth += 1
+        elif ch == "）" and depth:
+            depth -= 1
+        elif ch == "。" and depth == 0:
+            return s[:k]
+    return s
+
+
+def matome(ledgers, inp, date):
+    """§15.12「いまの台帳からのまとめ直し」：やりとり・質疑・審査報告の記録の行を (question, point) の組にまとめた
+    問いと事項の対応の行を作る。date はまとめ直した日（note に書く）。返り値は (行の並び（行のキーの順）, 止める誤りの並び)。
+    誤りが1つでもあれば、行は使わない（不変の制約7）。"""
+    groups, errs, out = {}, [], []
+    for name in TAIO_SOURCES:
+        for r in ledgers.get(name, []):
+            if r["point"] and r["status"] != "rejected":
+                groups.setdefault((r["question"], r["point"]), []).append((name, r))
+    bq_of = {}
+    for r in ledgers.get("yaritori", []):
+        if r["status"] != "rejected" and r["bq"]:
+            bq_of.setdefault(r["question"], []).append(r)
+    for (q, p), items in sorted(groups.items()):
+        names = sorted({n for n, _ in items})
+        if len(names) > 1:
+            errs.append(f"{q}/{p}：組のもとの行が2つ以上の台帳にある（{'・'.join(names)}）")
+            continue
+        name = names[0]
+        rows = sorted((r for _, r in items), key=_row_no)
+        at = lambda r: f"records/{name}.tsv {q}/row {r['row']}（{p}）"  # noqa: E731
+        fixed, amb, bad = set(), [], False
+        for r in rows:
+            sid = r["sid"][3:] if RE_SP.fullmatch(r["sid"]) else None
+            st = inp.statements.get(sid) if sid else None
+            if st is None:
+                errs.append(f"{at(r)}：sid が索引の発言でない（{r['sid']}）")
+                bad = True
+                continue
+            pl = quote_places(st["text"], r["quote"])
+            if not pl:
+                errs.append(f"{at(r)}：引用が発言の本文に無い（{r['sid']}）")
+                bad = True
+            elif len(pl) == 1:
+                fixed |= {(sid, n) for n in pl[0]}
+            else:
+                amb.append((r, sid, pl))
+        for r, sid, pl in amb:
+            cand = {(sid, n) for s in pl for n in s}
+            if not cand <= fixed:
+                errs.append(f"{at(r)}：引用が同じ発言の2つ以上の段落にあり、段落が1つに決まらない（"
+                            + "・".join("段落" + "-".join(str(n) for n in sorted(s)) for s in pl) + "）")
+                bad = True
+        statuses = {r["status"] for r in rows}
+        if statuses - {"candidate", "confirmed"}:
+            errs.append(f"{q}/{p}：もとの行の status が candidate・confirmed でない（{'・'.join(sorted(statuses))}）")
+            bad = True
+        status = "candidate" if "candidate" in statuses else "confirmed"
+        reviewer = rdate = ""
+        if status == "confirmed":
+            revs = sorted({r["reviewer"] for r in rows})
+            if len(revs) != 1:
+                errs.append(f"{q}/{p}：confirmed の組のもとの行の reviewer が1つでない（{'・'.join(revs)}）")
+                bad = True
+            reviewer = revs[0] if revs else ""
+            rdate = max(r["date"] for r in rows)
+        bq = ""
+        if q.startswith("iq:"):
+            bqs = sorted({r["bq"] for r in bq_of.get(q, [])})
+            if len(bqs) > 1:
+                errs.append(f"{q}：やりとりの記録の bq が2つ以上ある（{'・'.join(bqs)}）")
+                bad = True
+            bq = bqs[0] if bqs else ""
+        if bad:
+            continue
+        bills = []
+        if name in ("shitsugi", "hokoku"):
+            for r in rows:
+                for b in (r["bills"].split(",") if name == "shitsugi" else [r["bill"]]):
+                    if b and b not in bills:
+                        bills.append(b)
+        note = f"{MATOME}{date}（もと：records/{name}.tsv の row {','.join(r['row'] for r in rows)}）"
+        if status == "confirmed":
+            hs = []
+            for r in rows:
+                h = hantei_of(r["note"])
+                if h and h not in hs:
+                    hs.append(h)
+            note += f"。判定：もとの行の判定（{'・'.join(hs) if hs else NO_HANTEI}）"
+        out.append({"question": q, "point": p, "hani": format_hani(fixed), "bills": ",".join(bills), "bq": bq,
+                    "status": status, "reviewer": reviewer, "date": rdate, "note": note})
+    return out, errs
+
+
+def is_matome(r):
+    return r["note"].startswith(MATOME)
+
+
+def is_written(r):
+    """判定を書き写した行（§15.12）：note が「まとめ直し：…（もと：…）」で始まり、その後ろが空でも
+    「。判定：もとの行の判定（」で始まるのでもない行（apply_decisions --ledger taio が「。」と判定の出どころを足した行）。"""
+    m = RE_MATOME_HEAD.match(r["note"])
+    if not m:
+        return False
+    rest = r["note"][m.end():]
+    return bool(rest) and not rest.startswith(MATOME_HANTEI)
+
+
+def as_matome(r):
+    """まとめ直したままの行（判定を書き写した行でない、まとめ直した行）。"""
+    return is_matome(r) and not is_written(r)
+
+
+TAIO_CONTENT = ("hani", "bills", "bq")   # 判定を書き写した行と、まとめ直した組の中身を比べる列（§15.12）
+
+
+def written_diff(rows, made):
+    """判定を書き写した行のうち、同じ (question, point) の組がまとめ直しで別の中身（hani・bills・bq）になるか、
+    無くなるもの。[(question, point, 違い)]（止めない。§11・§15.12）。"""
+    new = {(r["question"], r["point"]): r for r in made}
+    out = []
+    for r in rows:
+        if not is_written(r):
+            continue
+        n = new.get((r["question"], r["point"]))
+        if n is None:
+            out.append((r["question"], r["point"], "組が無くなる"))
+        else:
+            cols = [c for c in TAIO_CONTENT if r[c] != n[c]]
+            if cols:
+                out.append((r["question"], r["point"], "中身が違う（列 " + "・".join(cols) + "）"))
+    return sorted(out)
+
+
+def matome_dates(rows):
+    """台帳のまとめ直したままの行（判定を書き写した行を除く）の note の、まとめ直した日の集まり。"""
+    return {m.group(1) for r in rows if as_matome(r) and (m := RE_MATOME_DATE.match(r["note"]))}
+
+
+def _with_date(r, date):
+    """note のまとめ直した日を date に替えた行（日だけが違う行を同じとみなすため）。"""
+    m = RE_MATOME_DATE.match(r["note"])
+    if not m:
+        return r
+    return dict(r, note=f"{MATOME}{date}（" + r["note"][m.end():])
+
+
+def merge_taio(current, made, date):
+    """台帳のいまの行に、まとめ直した行を入れる（tools/gen_taio.py。§15.12）。まとめ直しでない行（note の頭が
+    「まとめ直し：」でない行）と、判定を書き写した行（is_written）はそのまま残し、まとめ直したままの行だけを作り直す
+    （判定を書き写した行と同じ (question, point) の組は作らない）。返り値は (行の並び, 数, 止める誤りの並び, written_diff)。
+    止める：まとめ直しでない行と同じ (question, point) の組ができる。"""
+    key = lambda r: (r["question"], r["point"])  # noqa: E731
+    others = [r for r in current if not is_matome(r)]
+    written = [r for r in current if is_written(r)]
+    old = {key(r): r for r in current if as_matome(r)}
+    diff = written_diff(current, made)
+    wkeys = {key(r) for r in written}
+    made = [r for r in made if key(r) not in wkeys]
+    new = {key(r): r for r in made}
+    errs = [f"{r['question']}/{r['point']}：まとめ直しでない行と同じ (question, point) の組をまとめ直した"
+            for r in others if key(r) in new]
+    changed = sum(1 for k, r in old.items() if k in new and _with_date(r, date) != new[k])
+    removed = sum(1 for k in old if k not in new)
+    added = sum(1 for k in new if k not in old)
+    rows = sorted(others + written + made, key=key)
+    counts = {"added": added, "changed": changed, "removed": removed, "kept": len(others), "written": len(written)}
+    return rows, counts, errs, diff
+
+
+def question_date(q):
+    """question の発言の日（sid の真ん中が8桁の数字なら YYYY-MM-DD。そうでなければ空）。"""
+    body = q.partition(":")[2].partition("_")[2].rpartition("_")[0]
+    return f"{body[:4]}-{body[4:6]}-{body[6:]}" if re.fullmatch(r"[0-9]{8}", body) else ""
+
+
+def _mb(s):
+    return re.sub(r"\s", "", unicodedata.normalize("NFKC", s or ""))
+
+
+def check_taio_common(w, r, rep):
+    s = r["status"]
+    if s not in STATUSES:
+        rep.err(w, f"status が {STATUSES} のどれでもない（{s}）")
+        return
+    if s == "candidate":
+        if r["reviewer"] or r["date"]:
+            rep.err(w, "candidate に reviewer か date がある")
+    elif not r["reviewer"] or not RE_DAY.fullmatch(r["date"]):
+        rep.err(w, f"{s} に reviewer か date（YYYY-MM-DD）が無い")
+    if s == "rejected" and not r["note"]:
+        rep.err(w, "rejected の note が空")
+    if not (r["note"].startswith(MATOME) or r["note"].startswith(SHITAGAKI)):
+        rep.err(w, "note の頭が「まとめ直し：」か「下書き：」でない（§15.1・§15.12）")
+    if s == "confirmed" and "判定：" not in r["note"]:
+        rep.err(w, "confirmed の note に「判定：」が無い（§15.1）")
+
+
+def taio_segment(inp, q):
+    """question の区切り（iq は一般質問の区切り、sq は質疑の区切り、rp は報告の区切り）。無ければ None。"""
+    if not (RE_IQ.fullmatch(q) or RE_SQ.fullmatch(q) or RE_RP.fullmatch(q)):
+        return None
+    return inp.segment_of(q)
+
+
+def check_taio(rows, ledgers, inp, theme, rep):
+    """§11 の「問いと事項の対応」：形・状態・question・point・hani・bills・bq・note。まとめ直しの確かめ（台帳のまとめ直した
+    行が、いまの台帳から §15.12 のとおりまとめ直した結果と同じ）。対応の無い問いの一覧（taio_missing.tsv）。"""
+    name = "records/taio.tsv"
+    check_order(rows, TAIO_KEYS, name, rep, numeric=())
+    rp_no_bills = 0
+    for r in rows:
+        q, p = r["question"], r["point"]
+        w = f"taio {q}/{p}"
+        check_taio_common(w, r, rep)
+        prefix = q.partition(":")[0]
+        kind = TAIO_Q_KINDS.get(prefix)
+        seg = taio_segment(inp, q) if kind else None
+        if not kind or not ({"iq": RE_IQ, "sq": RE_SQ, "rp": RE_RP}[prefix]).fullmatch(q):
+            rep.err(w, "question が §2 の iq・sq・rp の形でない")
+            continue
+        themes = theme.themes_of(kind, q)
+        if not themes:
+            rep.err(w, f"question がテーマの定義の kind {kind} に無い")
+        points = set()
+        for t in themes:
+            points |= theme.values(t, "事柄", "記載")
+        if p not in points:
+            rep.err(w, f"point が、question を kind {kind} に持つテーマの kind 事柄か記載の値でない（{p!r}）")
+        if seg is None:
+            rep.err(w, "question の区切りが審議の記録に無い")
+        paras, errs = parse_hani(r["hani"])
+        for e in errs:
+            rep.err(w, e)
+        if not errs and seg is not None:
+            sids = set(segment_sids(inp, seg))
+            for s, n in paras:
+                st = inp.statements.get(s)
+                if st is None:
+                    rep.err(w, f"hani の発言が索引に無い（sp:{s}）")
+                elif s not in sids:
+                    rep.err(w, f"hani の発言が question の区切りの発言でない（sp:{s}）")
+                elif n > len(paragraphs(st["text"])):
+                    rep.err(w, f"hani の段落の番号が発言の段落の数（{len(paragraphs(st['text']))}）を超える（sp:{s}/{n}）")
+        bills = r["bills"].split(",") if r["bills"] else []
+        if prefix == "iq":
+            if bills:
+                rep.err(w, "一般質問の行に bills がある")
+        elif not bills:
+            rep.err(w, "議案質疑・委員長の報告の行の bills が空")
+        else:
+            if len(set(bills)) != len(bills):
+                rep.err(w, "bills に同じキーが2つある")
+            seg_bills = set(seg.get("bills") or []) if seg else set()
+            if prefix == "rp" and seg is not None and not seg_bills:
+                rp_no_bills += 1
+            for b in bills:
+                m = RE_GI.fullmatch(b)
+                if not m or m.group(2) not in inp.gian.get(m.group(1), set()):
+                    rep.err(w, f"bills のキーが §2 の gi の形でないか、gian.json に無い（{b}）")
+                    continue
+                if seg is None:
+                    continue
+                if prefix == "sq" and (m.group(1) != seg["meetingId"] or m.group(2) not in seg_bills):
+                    rep.err(w, f"bills の {b} が、質疑の区切りの会議・議案に無い")
+                if prefix == "rp" and seg_bills and m.group(2) not in seg_bills:
+                    rep.err(w, f"bills の {b} の議案番号が、報告の区切りの bills に無い")
+        if r["bq"]:
+            if prefix != "iq":
+                rep.err(w, "議案質疑・委員長の報告の行に bq がある")
+            elif not RE_BQ.fullmatch(r["bq"]) or r["bq"] not in inp.bulletin:
+                rep.err(w, f"bq が §2 の bq の形でないか、議会だよりに無い（{r['bq']}）")
+            elif seg is not None and _mb(r["bq"].split("/")[1]) != _mb(seg.get("member")):
+                rep.err(w, f"bq の議員が question の議員（{seg.get('member')}）と違う（{r['bq']}）")
+    # まとめ直しの確かめ（§11。DESIGN.md §5 の N2）
+    dates = sorted(matome_dates(rows))
+    if len(dates) > 1:
+        rep.err(name, f"まとめ直した行の、まとめ直した日が2つ以上ある（{'・'.join(dates)}）")
+    made, errs = matome(ledgers, inp, dates[0] if dates else "")
+    for e in errs:
+        rep.err("まとめ直し", e)
+    diff = written_diff(rows, made) if not errs else []
+    if not errs:
+        # まとめ直したままの行だけを確かめる。判定を書き写した行と同じ組は、まとめ直した組から外す（§11・§15.12）
+        wkeys = {(r["question"], r["point"]) for r in rows if is_written(r)}
+        have = {(r["question"], r["point"]): r for r in rows if as_matome(r)}
+        want = {(r["question"], r["point"]): r for r in made if (r["question"], r["point"]) not in wkeys}
+        for k in sorted(set(have) | set(want)):
+            w = f"taio {k[0]}/{k[1]}"
+            if k not in have:
+                rep.err(w, "いまの台帳からまとめ直した組が、台帳のまとめ直した行に無い")
+            elif k not in want:
+                rep.err(w, "台帳のまとめ直した行が、いまの台帳からまとめ直した組に無い")
+            elif have[k] != want[k]:
+                cols = [c for c in TAIO_COLUMNS if have[k][c] != want[k][c]]
+                rep.err(w, f"台帳のまとめ直した行が、いまの台帳からまとめ直した結果と違う（列 {'・'.join(cols)}）")
+    # 対応の無い問いの一覧と、題材ごとの数
+    live = {r["question"] for r in rows if r["status"] != "rejected"}
+    by_theme = {}
+    for t in sorted({x["theme"] for x in theme.rows}):
+        qs = set()
+        for kind in ("問い", "質疑", "報告"):
+            for v in sorted(theme.values(t, kind)):
+                qs.add(v)
+                if v not in live:
+                    rep.taio_missing.append({"theme": t, "kind": kind, "question": v, "date": question_date(v)})
+        by_theme[t] = sum(1 for r in rows if r["question"] in qs)
+    rep.taio_missing.sort(key=lambda x: (x["theme"], x["question"]))
+    missing = {}
+    for x in rep.taio_missing:
+        missing[x["theme"]] = missing.get(x["theme"], 0) + 1
+    rep.taio = {"rows": len(rows), "status": {s: sum(1 for r in rows if r["status"] == s) for s in STATUSES},
+                "matome": sum(1 for r in rows if as_matome(r)), "written": sum(1 for r in rows if is_written(r)),
+                "written_diff": diff, "themes": by_theme, "missing": missing, "rp_no_bills": rp_no_bills}
+
+
+def taio_changed(rows, prev_texts, inp):
+    """§15.12 の位置への依存：hani に書いた発言の本文（段落の区切りを含む）が、前の版といまの版で違う行。
+    prev_texts は前の版の sid → 本文。1行×発言ごとに1行。行は question → point → sid の文字コード順。"""
+    out = []
+    for r in rows:
+        paras, errs = parse_hani(r["hani"])
+        for s in sorted({s for s, _ in paras}):
+            now = (inp.statements.get(s) or {}).get("text")
+            if s not in prev_texts:
+                change = CHANGED_GONE
+            elif prev_texts[s] != now:
+                change = CHANGED_TEXT
+            else:
+                continue
+            out.append({"question": r["question"], "point": r["point"], "status": r["status"], "sid": f"sp:{s}",
+                        "change": change})
+    return sorted(out, key=lambda x: (x["question"], x["point"], x["sid"]))
+
+
 # ---- 全体 ----
 
 # 資料を書く欄（§11 書かない資料）。記録の台帳と、テーマの定義
@@ -1680,7 +2136,8 @@ def check_unused_docs(ledgers, themes_rows, rep):
 
 def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_rows=(), waku_rows=(), shiryo_rows=(),
               taikei_rows=()):
-    """ledgers：台帳の名前 → 行の並び（nozoki は無ければ []）。chiku_rows・soshiki_rows は地区・組織の参照表の行
+    """ledgers：台帳の名前 → 行の並び（nozoki は無ければ []）。問いと事項の対応（taio。§15.12）は、ledgers に
+    taio のキーがあるときだけ確かめる（tools/check_records.py は常に渡す。ファイルが無ければ []）。chiku_rows・soshiki_rows は地区・組織の参照表の行
     （ファイルが無ければ []。§12.1）。waku_rows・shiryo_rows は枠と資料の種類の参照表の行（無ければ []。§12.3・§12.4）。
     taikei_rows は分類の体系の参照表の行（無ければ []。§12.5。ADR-38）。Report を返す。"""
     rep = Report()
@@ -1727,6 +2184,9 @@ def check_all(ledgers, themes_rows, shisetsu_rows, inp, chiku_rows=(), soshiki_r
     signals(ledgers, theme, rep)
     rep.suji_missing.sort(key=lambda x: (x["ledger"], x["key"]))
     katachi(ledgers, rep)
+    # 問いと事項の対応（§11。10の台帳とは別。ledgers に taio があるときだけ。発言の取りこぼしの検査は掛けない）
+    if TAIO in ledgers:
+        check_taio(ledgers[TAIO], ledgers, inp, theme, rep)
     return rep
 
 

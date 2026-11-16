@@ -32,6 +32,10 @@ manual の行の組み立ては tools/gen_hosei_fuhyo.py の manual_row）。書
 --ledger katei のときは、過程の記録 records/katei.tsv の candidate の行に、teian と同じ形で書き写す（§11 判定の範囲・§15.5）。
 判定の一覧の列は theme・step・status・reviewer・date・note、範囲の一覧の列は theme・step で、行のキーは (theme, step)。
 書き写す前の件数は、theme と status ごとに表示する。
+--ledger taio のときは、問いと事項の対応 records/taio.tsv の candidate の行に、teian と同じ形で書き写す（§11 判定の範囲・
+§15.12、DESIGN.md ADR-39）。判定の一覧の列は question・point・status・reviewer・date・note、範囲の一覧の列は question・point で、
+行のキーは (question, point)。書き写す前の件数は、status ごとに表示する。判定の note は「判定：もとの行の判定（」で
+始めない（まとめ直したままの行と見分けるため。§15.12）。
 
 実行: python3 -B tools/apply_decisions.py --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger fuhyo --keys <判定した範囲の TSV> <判定の一覧の TSV>
@@ -40,6 +44,7 @@ manual の行の組み立ては tools/gen_hosei_fuhyo.py の manual_row）。書
       python3 -B tools/apply_decisions.py --ledger gian-yosan --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger teian --keys <判定した範囲の TSV> <判定の一覧の TSV>
       python3 -B tools/apply_decisions.py --ledger katei --keys <判定した範囲の TSV> <判定の一覧の TSV>
+      python3 -B tools/apply_decisions.py --ledger taio --keys <判定した範囲の TSV> <判定の一覧の TSV>
 終了コード：0 は書き写し、確かめも合格。1 は止めた（使い方の誤り、入力の読み込み、範囲の一覧・判定の一覧の誤り、
 範囲と判定の一覧の食い違い、附表の分類の誤りで止めたときは台帳に書かない。書いたあとの確かめで合格しなかったときは、
 台帳は書いたまま、件数と該当を表示する）。
@@ -76,7 +81,7 @@ HEADERS = (DECISION_COLUMNS, DECISION_COLUMNS + [RELINK_TO])  # いまの8列か
 KEY_COLUMNS = ["from", "to", "method"]  # 判定した範囲の一覧（--keys）の列
 DECIDED = (ledger.CONFIRMED, ledger.REJECTED)
 USAGE = ("使い方：python3 -B tools/apply_decisions.py [--ledger fuhyo | --ledger fuhyo-years | --ledger hosei-fuhyo | "
-         "--ledger gian-yosan | --ledger teian | --ledger katei] "
+         "--ledger gian-yosan | --ledger teian | --ledger katei | --ledger taio] "
          "--keys <判定した範囲の TSV> <判定の一覧の TSV>")
 COUNT_PREFIX = "書き写す前の件数："
 REJECT_PREFIX, REJECT_BASIS = "却下：", "。判別の根拠："  # decided_note の rejected の形
@@ -501,23 +506,32 @@ def run_gian(decisions_path, keys_path, ledger_path, gbuilt, outdir, out=None):
     return code, applied, rows, rep, errors
 
 
-# ---- 記録の台帳（records/teian.tsv・records/katei.tsv。§11 判定の範囲・§15.5・§15.11、DESIGN.md ADR-35） ----
+# ---- 記録の台帳（records/teian.tsv・records/katei.tsv・records/taio.tsv。§11 判定の範囲・§15.5・§15.11・§15.12、
+# DESIGN.md ADR-35・ADR-39） ----
 
 TEIAN = "teian"
 KATEI = "katei"
-RECORD_LEDGERS = (TEIAN, KATEI)
+TAIO = records.TAIO
+RECORD_LEDGERS = (TEIAN, KATEI, TAIO)
 TEIAN_PATH = os.path.join(gm.ROOT, "records", f"{TEIAN}.tsv")
 KATEI_PATH = os.path.join(gm.ROOT, "records", f"{KATEI}.tsv")
-RECORD_PATHS = {TEIAN: TEIAN_PATH, KATEI: KATEI_PATH}
+TAIO_PATH = os.path.join(gm.ROOT, "records", f"{TAIO}.tsv")
+RECORD_PATHS = {TEIAN: TEIAN_PATH, KATEI: KATEI_PATH, TAIO: TAIO_PATH}
 TEIAN_KEY_COLUMNS = list(records.KEYS[TEIAN])                       # maru・sid・quote
 TEIAN_DECISION_COLUMNS = TEIAN_KEY_COLUMNS + ["status", "reviewer", "date", "note"]
 KATEI_KEY_COLUMNS = list(records.KEYS[KATEI])                       # theme・step
 JUDGED = "判定："
+TAIO_RESERVED = records.MATOME_HANTEI[1:]   # 「判定：もとの行の判定（」。書き写す判定の note はこれで始めない（§15.12）
 REJECT_TEIAN = "却下："
 
 
 def _key_columns(ledger_name):
-    return list(records.KEYS[ledger_name])
+    return list(records.TAIO_KEYS if ledger_name == TAIO else records.KEYS[ledger_name])
+
+
+def _ledger_columns(ledger_name):
+    """台帳の列（問いと事項の対応は記録の10の台帳とは別に持つ。§11）。"""
+    return records.TAIO_COLUMNS if ledger_name == TAIO else records.COLUMNS[ledger_name]
 
 
 def _decision_columns(ledger_name):
@@ -601,6 +615,8 @@ def apply_teian(ledger_rows, decisions, ledger_name=TEIAN):
             Date.fromisoformat(d["date"])
         except ValueError:
             bad.append(f"date が YYYY-MM-DD の日付でない（{d['date']!r}）")
+        if ledger_name == TAIO and d["note"].startswith(TAIO_RESERVED):
+            bad.append(f"note が「{TAIO_RESERVED}」で始まる（まとめ直したままの行と見分けられなくなる。LINK_SCHEMA §15.12）")
         if d["status"] == ledger.CONFIRMED and JUDGED not in d["note"]:
             bad.append(f"confirmed の note に「{JUDGED}」の出どころが無い（LINK_SCHEMA §15.1）")
         if d["status"] == ledger.REJECTED and not d["note"]:
@@ -624,13 +640,13 @@ def write_teian(decisions_path, keys_path, ledger_path, out=None, ledger_name=TE
     _fail("判定の一覧と判定した範囲が合わない（台帳には書いていない）", teian_scope_errors(keys, decisions, ledger_name))
     with open(ledger_path, "rb") as f:
         try:
-            current = records.parse_tsv(f.read(), records.COLUMNS[ledger_name], ledger_name)
+            current = records.parse_tsv(f.read(), _ledger_columns(ledger_name), ledger_name)
         except records.RecordsError as e:
             raise DecisionError(str(e)) from None
     rows = apply_teian(current, decisions, ledger_name)
     print("\n".join(record_count_lines(decisions, ledger_name)), file=out or sys.stdout)
     with open(ledger_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(records.format_tsv(records.COLUMNS[ledger_name], rows))
+        f.write(records.format_tsv(_ledger_columns(ledger_name), rows))
     old = {tuple(r[c] for c in kc): r for r in current}
     return Counter(r["status"] for r in rows if old[tuple(r[c] for c in kc)] != r)
 
@@ -638,6 +654,11 @@ def write_teian(decisions_path, keys_path, ledger_path, out=None, ledger_name=TE
 def write_katei(decisions_path, keys_path, ledger_path, out=None):
     """判定の一覧を過程の記録に書き写して書く（§11 判定の範囲・§15.5）。返り値は write_teian と同じ。"""
     return write_teian(decisions_path, keys_path, ledger_path, out, KATEI)
+
+
+def write_taio(decisions_path, keys_path, ledger_path, out=None):
+    """判定の一覧を問いと事項の対応に書き写して書く（§11 判定の範囲・§15.12）。返り値は write_teian と同じ。"""
+    return write_teian(decisions_path, keys_path, ledger_path, out, TAIO)
 
 
 def main_records(ledger_name, keys_path, decisions_path):
@@ -720,6 +741,8 @@ def main(argv):
         return main_teian(argv[4], argv[5])
     if len(argv) == 6 and argv[1:3] == ["--ledger", KATEI] and argv[3] == "--keys":
         return main_records(KATEI, argv[4], argv[5])
+    if len(argv) == 6 and argv[1:3] == ["--ledger", TAIO] and argv[3] == "--keys":
+        return main_records(TAIO, argv[4], argv[5])
     if len(argv) != 4 or argv[1] != "--keys":
         print(USAGE, file=sys.stderr)
         return 1
